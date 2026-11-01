@@ -9,7 +9,6 @@ tabMenu.className = 'tab-menu'; tabMenu.hidden = true;
 tabMenu.setAttribute('role', 'menu'); document.body.append(tabMenu);
 let draggedId = null;
 const closeMenus = () => {
-  document.querySelectorAll('details[open]').forEach(el => el.open = false);
   tabMenu.hidden = true;
 };
 function renameTab(tab) {
@@ -28,9 +27,32 @@ function deleteTab(tab) {
   if (activeId === tab.id) activeId = tabs[Math.min(index, tabs.length - 1)].id;
   showTab(); save();
 }
+function downloadTab(tab) {
+  closeMenus(); save();
+  const url = URL.createObjectURL(new Blob([tab.text], { type: 'text/plain;charset=utf-8' }));
+  const link = document.createElement('a');
+  const name = noteName(tab).replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/[. ]+$/, '') || 'Untitled';
+  link.href = url; link.download = /\.txt$/i.test(name) ? name : `${name}.txt`;
+  link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+async function shareTab(tab) {
+  closeMenus(); save();
+  const data = { title: noteName(tab), text: tab.text };
+  try {
+    if (navigator.share) {
+      await navigator.share(data);
+      $('save-status').textContent = 'Note shared';
+    } else {
+      await navigator.clipboard.writeText(tab.text);
+      $('save-status').textContent = 'Note copied — paste it to share';
+    }
+  } catch (error) {
+    if (error.name !== 'AbortError') $('save-status').textContent = 'Unable to share — use Save as to download the note';
+  }
+}
 function openTabMenu(tab, anchor) {
   closeMenus(); tabMenu.replaceChildren();
-  [['✎', 'Rename', () => renameTab(tab)], ['⌫', 'Delete', () => deleteTab(tab)]].forEach(([icon, label, action]) => {
+  [['✎', 'Rename', () => renameTab(tab)], ['↓', 'Save as…', () => downloadTab(tab)], ['↗', 'Share', () => shareTab(tab)], ['⌫', 'Delete', () => deleteTab(tab)]].forEach(([icon, label, action]) => {
     const button = document.createElement('button'); button.setAttribute('role', 'menuitem');
     const glyph = document.createElement('span'); glyph.textContent = icon; glyph.setAttribute('aria-hidden', 'true');
     button.append(glyph, document.createTextNode(label)); button.onclick = action; tabMenu.append(button);
@@ -67,7 +89,6 @@ function save() {
   position();
 }
 function setTitle() {
-  $('title').textContent = `${noteName(active())} - Notepad`;
   document.title = `${noteName(active())} - Notepad`;
 }
 function refreshNames() {
@@ -130,7 +151,7 @@ function renderTabs() {
     const edit = document.createElement('button'); edit.className = 'edit-tab';
     edit.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z"/></svg>';
     edit.setAttribute('aria-label', `Options for ${noteName(tab)}`);
-    edit.setAttribute('aria-haspopup', 'menu'); edit.title = 'Rename or delete note';
+    edit.setAttribute('aria-haspopup', 'menu'); edit.title = 'Note options';
     edit.onclick = () => openTabMenu(tab, edit);
     item.append(button, edit); $('tabs').append(item);
   });
@@ -144,31 +165,8 @@ function addTab(text = '', filename = 'Untitled') {
   save(); const tab = makeTab(text, filename); tabs.push(tab); activeId = tab.id;
   showTab(); save(); closeMenus();
 }
-$('new').onclick = () => addTab();
 $('add-tab').onclick = () => addTab();
-$('download').onclick = () => {
-  const url = URL.createObjectURL(new Blob([$('editor').value], { type: 'text/plain;charset=utf-8' }));
-  const link = document.createElement('a'); link.href = url; link.download = noteName(active()) === 'Untitled' ? 'Untitled.txt' : noteName(active());
-  link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); closeMenus();
-};
-$('open').onclick = () => { closeMenus(); $('file').click(); };
-$('file').onchange = async () => {
-  const file = $('file').files[0];
-  if (!file) return;
-  try { addTab(await file.text(), file.name); }
-  catch { $('save-status').textContent = 'Unable to open file'; }
-  $('file').value = '';
-};
-$('select-all').onclick = () => { closeMenus(); $('editor').focus(); $('editor').select(); position(); };
-$('time').onclick = () => {
-  const el = $('editor'); el.setRangeText(new Date().toLocaleString(), el.selectionStart, el.selectionEnd, 'end');
-  save(); closeMenus(); el.focus();
-};
-$('wrap').onchange = () => { $('editor').wrap = $('wrap').checked ? 'soft' : 'off'; closeMenus(); $('editor').focus(); };
-document.addEventListener('click', event => { if (!event.target.closest('details, .edit-tab, .tab-menu')) closeMenus(); });
-document.querySelectorAll('details').forEach(el => el.addEventListener('toggle', () => {
-  if (el.open) document.querySelectorAll('details').forEach(other => { if (other !== el) other.open = false; });
-}));
+document.addEventListener('click', event => { if (!event.target.closest('.edit-tab, .tab-menu')) closeMenus(); });
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') closeMenus();
   if (tabMenu.contains(event.target) && ['ArrowDown', 'ArrowUp'].includes(event.key)) {
@@ -176,9 +174,8 @@ document.addEventListener('keydown', event => {
     const items = [...tabMenu.children];
     items[(items.indexOf(document.activeElement) + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus();
   }
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); $('download').click(); }
-  if (event.ctrlKey && event.altKey && event.key.toLowerCase() === 'n') { event.preventDefault(); $('new').click(); }
-  if (event.key === 'F5') { event.preventDefault(); $('time').click(); }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); downloadTab(active()); }
+  if (event.ctrlKey && event.altKey && event.key.toLowerCase() === 'n') { event.preventDefault(); addTab(); }
 });
 try {
   const stored = JSON.parse(localStorage.getItem('notepad:tabs') || 'null');

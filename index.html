@@ -9,24 +9,10 @@
 </head>
 <body>
   <main id="notepad" class="notepad">
-    <header class="titlebar">
-      <details id="main-menu"><summary aria-label="File, Edit and Format menu"><span class="hamburger" aria-hidden="true"><i></i><i></i><i></i></span></summary>
-        <div class="menu">
-          <div class="menu-heading">File</div>
-          <button id="new">New tab <kbd>Ctrl+Alt+N</kbd></button><button id="open">Open…</button><button id="download">Save as… <kbd>Ctrl+S</kbd></button>
-          <div class="menu-heading">Edit</div>
-          <button id="select-all">Select all <kbd>Ctrl+A</kbd></button><button id="time">Time/Date <kbd>F5</kbd></button>
-          <div class="menu-heading">Format</div>
-          <label><input type="checkbox" id="wrap" checked> Word wrap</label>
-        </div>
-      </details>
-      <span id="title">Untitled - Notepad</span>
-    </header>
     <div class="tabbar"><div id="tabs" role="tablist" aria-label="Notes"></div><button id="add-tab" aria-label="New tab" title="New tab">+</button></div>
     <label class="sr-only" for="editor">Note text</label>
     <textarea id="editor" spellcheck="false" wrap="soft" placeholder="" aria-describedby="save-status"></textarea>
     <footer><span id="save-status" role="status">Saved locally</span><span id="position">Ln 1, Col 1</span><span id="count">0 characters</span><span>UTF-8</span></footer>
-    <input type="file" id="file" accept="text/*,.txt,.md,.log,.csv" hidden>
   </main>
 </body>
 </html>
