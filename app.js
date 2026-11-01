@@ -2,7 +2,8 @@ const $ = (id) => document.getElementById(id);
 let tabs = [];
 let activeId;
 const active = () => tabs.find(tab => tab.id === activeId);
-const makeTab = (text = '', filename = 'Untitled') => ({ id: crypto.randomUUID(), text, filename });
+const makeTab = (text = '', filename = 'Untitled') => ({ id: crypto.randomUUID(), text, filename, customName: filename !== 'Untitled' ? filename : null });
+const noteName = tab => tab.customName || tab.text.split(/\r?\n/, 1)[0].trim().slice(0, 80) || 'Untitled';
 const closeMenus = () => document.querySelectorAll('details[open]').forEach(el => el.open = false);
 
 function position() {
@@ -15,14 +16,24 @@ function position() {
 function save() {
   try {
     active().text = $('editor').value;
+    refreshNames();
     localStorage.setItem('notepad:tabs', JSON.stringify({ tabs, activeId }));
     $('save-status').textContent = 'Saved locally';
   } catch { $('save-status').textContent = 'Unable to save — download a copy'; }
   position();
 }
 function setTitle() {
-  $('title').textContent = `${active().filename} - Notepad`;
-  document.title = `${active().filename} - Notepad`;
+  $('title').textContent = `${noteName(active())} - Notepad`;
+  document.title = `${noteName(active())} - Notepad`;
+}
+function refreshNames() {
+  setTitle();
+  tabs.forEach(tab => {
+    const button = document.getElementById(`tab-${tab.id}`);
+    if (!button) return;
+    button.textContent = noteName(tab);
+    button.parentElement.querySelector('.close-tab').setAttribute('aria-label', `Close ${noteName(tab)}`);
+  });
 }
 $('editor').addEventListener('input', save);
 ['click', 'keyup', 'select'].forEach(type => $('editor').addEventListener(type, position));
@@ -35,7 +46,15 @@ function renderTabs() {
     button.setAttribute('aria-selected', String(tab.id === activeId));
     button.setAttribute('aria-controls', 'editor');
     button.tabIndex = tab.id === activeId ? 0 : -1;
-    button.textContent = tab.filename;
+    button.textContent = noteName(tab);
+    button.title = 'Right-click to rename';
+    button.oncontextmenu = event => {
+      event.preventDefault();
+      const name = prompt('Rename note (leave blank to use its first line):', noteName(tab));
+      if (name === null) return;
+      tab.customName = name.trim().slice(0, 80) || null;
+      save();
+    };
     button.onclick = () => switchTab(tab.id);
     button.onkeydown = event => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
@@ -45,9 +64,9 @@ function renderTabs() {
       switchTab(tabs[next].id); document.getElementById(`tab-${activeId}`).focus();
     };
     const close = document.createElement('button'); close.className = 'close-tab';
-    close.textContent = '×'; close.setAttribute('aria-label', `Close ${tab.filename}`);
+    close.textContent = '×'; close.setAttribute('aria-label', `Close ${noteName(tab)}`);
     close.onclick = () => {
-      if (tab.text && !confirm(`Close ${tab.filename}? Download a copy first to keep it.`)) return;
+      if (tab.text && !confirm(`Close ${noteName(tab)}? Download a copy first to keep it.`)) return;
       save();
       const index = tabs.indexOf(tab); tabs.splice(index, 1);
       if (!tabs.length) tabs.push(makeTab());
@@ -70,7 +89,7 @@ $('new').onclick = () => addTab();
 $('add-tab').onclick = () => addTab();
 $('download').onclick = () => {
   const url = URL.createObjectURL(new Blob([$('editor').value], { type: 'text/plain;charset=utf-8' }));
-  const link = document.createElement('a'); link.href = url; link.download = active().filename === 'Untitled' ? 'Untitled.txt' : active().filename;
+  const link = document.createElement('a'); link.href = url; link.download = noteName(active()) === 'Untitled' ? 'Untitled.txt' : noteName(active());
   link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); closeMenus();
 };
 $('open').onclick = () => { closeMenus(); $('file').click(); };
@@ -101,6 +120,7 @@ try {
   const stored = JSON.parse(localStorage.getItem('notepad:tabs') || 'null');
   if (stored?.tabs?.length && stored.tabs.every(tab => typeof tab.id === 'string' && typeof tab.text === 'string' && typeof tab.filename === 'string')) {
     tabs = stored.tabs;
+    tabs.forEach(tab => { if (!Object.hasOwn(tab, 'customName')) tab.customName = tab.filename !== 'Untitled' ? tab.filename : null; });
     activeId = tabs.some(tab => tab.id === stored.activeId) ? stored.activeId : tabs[0].id;
   } else {
     const previous = sessionStorage.getItem('notepad:user');
