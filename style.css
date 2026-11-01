@@ -23,12 +23,18 @@ summary:hover, details[open] summary { background: #777; }
 kbd { font: inherit; color: #ddd; }
 .tabbar { display: flex; align-items: stretch; flex-shrink: 0; min-width: 0; background: #5d5d5d; border-bottom: 1px solid #888; }
 #tabs { display: flex; overflow-x: auto; min-width: 0; }
-.tab { display: flex; flex-shrink: 0; border-right: 1px solid #888; }
+.tab { display: flex; width: 250px; flex-shrink: 0; position: relative; border-right: 1px solid #888; }
 .tab button, #add-tab { border: 0; background: transparent; padding: 9px 12px; }
-.tab [role=tab] { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab [role=tab] { flex: 1; min-width: 0; text-align: left; cursor: grab; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tab:has([aria-selected=true]) { background: #777; }
 .tab button:hover, #add-tab:hover { background: #828282; }
-.tab .close-tab { padding: 7px 9px; font-size: 18px; }
+.tab .edit-tab { display: grid; place-items: center; padding: 9px 14px; }
+.tab.dragging { opacity: .45; }
+.tab.drop-before { box-shadow: inset 3px 0 white; }
+.tab.drop-after { box-shadow: inset -3px 0 white; }
+.tab-menu { position: fixed; z-index: 10; width: 155px; padding: 5px; background: #555; border: 1px solid #999; box-shadow: 2px 3px 8px #0003; }
+.tab-menu button { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; background: transparent; padding: 10px; text-align: left; }
+.tab-menu button:hover { background: #737373; }
 #add-tab { font-size: 20px; flex-shrink: 0; }
 #editor { display: block; flex: 1; min-height: 0; width: 100%; resize: none; border: 0; border-radius: 0; outline: none; padding: 16px; background: #686868; color: #fff; caret-color: white; font: 15px/1.5 Consolas, 'Courier New', monospace; tab-size: 4; }
 footer { min-height: 27px; background: #5d5d5d; border-top: 1px solid #888; display: flex; align-items: center; flex-wrap: wrap; font-size: 12px; color: #eee; }

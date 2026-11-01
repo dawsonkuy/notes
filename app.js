@@ -4,7 +4,51 @@ let activeId;
 const active = () => tabs.find(tab => tab.id === activeId);
 const makeTab = (text = '', filename = 'Untitled') => ({ id: crypto.randomUUID(), text, filename, customName: filename !== 'Untitled' ? filename : null });
 const noteName = tab => tab.customName || tab.text.split(/\r?\n/, 1)[0].trim().slice(0, 80) || 'Untitled';
-const closeMenus = () => document.querySelectorAll('details[open]').forEach(el => el.open = false);
+const tabMenu = document.createElement('div');
+tabMenu.className = 'tab-menu'; tabMenu.hidden = true;
+tabMenu.setAttribute('role', 'menu'); document.body.append(tabMenu);
+let draggedId = null;
+const closeMenus = () => {
+  document.querySelectorAll('details[open]').forEach(el => el.open = false);
+  tabMenu.hidden = true;
+};
+function renameTab(tab) {
+  closeMenus();
+  const name = prompt('Rename note (leave blank to use its first line):', noteName(tab));
+  if (name === null) return;
+  tab.customName = name.trim().slice(0, 80) || null;
+  save();
+}
+function deleteTab(tab) {
+  closeMenus();
+  if (tab.text && !confirm(`Delete ${noteName(tab)}? Download a copy first to keep it.`)) return;
+  save();
+  const index = tabs.indexOf(tab); tabs.splice(index, 1);
+  if (!tabs.length) tabs.push(makeTab());
+  if (activeId === tab.id) activeId = tabs[Math.min(index, tabs.length - 1)].id;
+  showTab(); save();
+}
+function openTabMenu(tab, anchor) {
+  closeMenus(); tabMenu.replaceChildren();
+  [['✎', 'Rename', () => renameTab(tab)], ['⌫', 'Delete', () => deleteTab(tab)]].forEach(([icon, label, action]) => {
+    const button = document.createElement('button'); button.setAttribute('role', 'menuitem');
+    const glyph = document.createElement('span'); glyph.textContent = icon; glyph.setAttribute('aria-hidden', 'true');
+    button.append(glyph, document.createTextNode(label)); button.onclick = action; tabMenu.append(button);
+  });
+  tabMenu.hidden = false;
+  const rect = anchor.getBoundingClientRect();
+  tabMenu.style.left = `${Math.max(0, Math.min(rect.left, innerWidth - tabMenu.offsetWidth))}px`;
+  tabMenu.style.top = `${Math.min(rect.bottom, innerHeight - tabMenu.offsetHeight)}px`;
+  tabMenu.firstElementChild.focus();
+}
+function reorderTab(id, targetId, after) {
+  const from = tabs.findIndex(tab => tab.id === id);
+  if (from < 0 || id === targetId) return;
+  const [tab] = tabs.splice(from, 1);
+  const to = tabs.findIndex(tab => tab.id === targetId);
+  tabs.splice(to + (after ? 1 : 0), 0, tab);
+  renderTabs(); save();
+}
 
 function position() {
   const text = $('editor').value;
@@ -32,7 +76,7 @@ function refreshNames() {
     const button = document.getElementById(`tab-${tab.id}`);
     if (!button) return;
     button.textContent = noteName(tab);
-    button.parentElement.querySelector('.close-tab').setAttribute('aria-label', `Close ${noteName(tab)}`);
+    button.parentElement.querySelector('.edit-tab').setAttribute('aria-label', `Options for ${noteName(tab)}`);
   });
 }
 $('editor').addEventListener('input', save);
@@ -47,13 +91,33 @@ function renderTabs() {
     button.setAttribute('aria-controls', 'editor');
     button.tabIndex = tab.id === activeId ? 0 : -1;
     button.textContent = noteName(tab);
-    button.title = 'Right-click to rename';
-    button.oncontextmenu = event => {
+    button.title = `${noteName(tab)} — drag to reorder; right-click to rename`;
+    button.oncontextmenu = event => { event.preventDefault(); renameTab(tab); };
+    button.draggable = true;
+    button.ondragstart = event => {
+      draggedId = tab.id; closeMenus();
+      event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', tab.id);
+      item.classList.add('dragging');
+    };
+    button.ondragend = () => {
+      draggedId = null;
+      document.querySelectorAll('.tab').forEach(el => el.classList.remove('dragging', 'drop-before', 'drop-after'));
+    };
+    item.ondragover = event => {
+      if (!draggedId || draggedId === tab.id) return;
+      event.preventDefault(); event.dataTransfer.dropEffect = 'move';
+      const after = event.clientX > item.getBoundingClientRect().left + item.offsetWidth / 2;
+      item.classList.toggle('drop-after', after); item.classList.toggle('drop-before', !after);
+      const strip = $('tabs').getBoundingClientRect();
+      if (event.clientX < strip.left + 35) $('tabs').scrollLeft -= 20;
+      if (event.clientX > strip.right - 35) $('tabs').scrollLeft += 20;
+    };
+    item.ondragleave = () => item.classList.remove('drop-before', 'drop-after');
+    item.ondrop = event => {
+      if (!draggedId) return;
       event.preventDefault();
-      const name = prompt('Rename note (leave blank to use its first line):', noteName(tab));
-      if (name === null) return;
-      tab.customName = name.trim().slice(0, 80) || null;
-      save();
+      reorderTab(draggedId, tab.id, event.clientX > item.getBoundingClientRect().left + item.offsetWidth / 2);
+      draggedId = null;
     };
     button.onclick = () => switchTab(tab.id);
     button.onkeydown = event => {
@@ -63,17 +127,12 @@ function renderTabs() {
       const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
       switchTab(tabs[next].id); document.getElementById(`tab-${activeId}`).focus();
     };
-    const close = document.createElement('button'); close.className = 'close-tab';
-    close.textContent = '×'; close.setAttribute('aria-label', `Close ${noteName(tab)}`);
-    close.onclick = () => {
-      if (tab.text && !confirm(`Close ${noteName(tab)}? Download a copy first to keep it.`)) return;
-      save();
-      const index = tabs.indexOf(tab); tabs.splice(index, 1);
-      if (!tabs.length) tabs.push(makeTab());
-      if (activeId === tab.id) activeId = tabs[Math.min(index, tabs.length - 1)].id;
-      showTab(); save();
-    };
-    item.append(button, close); $('tabs').append(item);
+    const edit = document.createElement('button'); edit.className = 'edit-tab';
+    edit.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z"/></svg>';
+    edit.setAttribute('aria-label', `Options for ${noteName(tab)}`);
+    edit.setAttribute('aria-haspopup', 'menu'); edit.title = 'Rename or delete note';
+    edit.onclick = () => openTabMenu(tab, edit);
+    item.append(button, edit); $('tabs').append(item);
   });
 }
 function showTab() {
@@ -106,12 +165,17 @@ $('time').onclick = () => {
   save(); closeMenus(); el.focus();
 };
 $('wrap').onchange = () => { $('editor').wrap = $('wrap').checked ? 'soft' : 'off'; closeMenus(); $('editor').focus(); };
-document.addEventListener('click', event => { if (!event.target.closest('details')) closeMenus(); });
+document.addEventListener('click', event => { if (!event.target.closest('details, .edit-tab, .tab-menu')) closeMenus(); });
 document.querySelectorAll('details').forEach(el => el.addEventListener('toggle', () => {
   if (el.open) document.querySelectorAll('details').forEach(other => { if (other !== el) other.open = false; });
 }));
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') closeMenus();
+  if (tabMenu.contains(event.target) && ['ArrowDown', 'ArrowUp'].includes(event.key)) {
+    event.preventDefault();
+    const items = [...tabMenu.children];
+    items[(items.indexOf(document.activeElement) + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus();
+  }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); $('download').click(); }
   if (event.ctrlKey && event.altKey && event.key.toLowerCase() === 'n') { event.preventDefault(); $('new').click(); }
   if (event.key === 'F5') { event.preventDefault(); $('time').click(); }
