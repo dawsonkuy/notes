@@ -5,10 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Notepad</title>
   <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js" defer></script>
+  <script src="/auth.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
   <main id="notepad" class="notepad">
+    <section class="authbar" aria-label="Account">
+      <div class="account-heading"><strong>Notepad</strong><span>Notes saved in this browser</span></div>
+      <form id="auth-form" aria-label="Sign in" hidden>
+        <label>Email<input id="auth-email" type="email" autocomplete="username" required></label>
+        <label>Password<input id="auth-password" type="password" autocomplete="current-password" required></label>
+        <button id="sign-in" type="submit">Sign in</button>
+        <button id="sign-up" type="submit">Create account</button>
+      </form>
+      <div id="account-session" hidden><span id="account-email"></span><button id="sign-out" type="button">Sign out</button></div>
+      <p id="auth-status" role="status" aria-live="polite">Connecting to your account…</p>
+    </section>
     <div class="tabbar"><div id="tabs" role="tablist" aria-label="Notes"></div><button id="add-tab" aria-label="New tab" title="New tab">+</button></div>
     <label class="sr-only" for="editor">Note text</label>
     <textarea id="editor" spellcheck="false" wrap="soft" placeholder="" aria-describedby="save-status"></textarea>

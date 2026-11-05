@@ -4,6 +4,14 @@ A minimal grey browser Notepad with white text, multiple tabs, automatic local s
 
 Save as downloads the selected note as a text file. Share opens your device's share sheet where supported, or copies the note text to the clipboard. Sharing sends a copy of the text, not a live note link. The app fills the window with padding inside the editor.
 
-Run `npm start` with Node.js 18 or later. The server listens on port 3000 (override with `PORT`). No dependencies or installation are required. Run `npm run check` for JavaScript syntax checks.
+Run `npm start` with Node.js 18 or later. The server listens on port 3000 (override with `PORT`). No installation is required. Authentication loads the pinned Supabase JavaScript client (2.119.0) from jsDelivr. Run `npm run check` for JavaScript syntax checks.
 
 The editor opens immediately. Notes are saved in this browser's localStorage; there is no backend or cross-device sync. Clearing browser data removes notes. Use the pencil menu’s Save as action to download a copy.
+
+## Account login
+
+The account section above the tabs supports email/password sign-in, account creation, persistent sessions, and sign-out through Supabase project `pskrlifkffcpggcarnon`. Only its public publishable key is included in the browser. No secret or service-role key is required.
+
+New accounts must confirm their email before signing in. Set the production Site URL in [Supabase Auth URL configuration](https://supabase.com/dashboard/project/pskrlifkffcpggcarnon/auth/url-configuration) so confirmation links return to the deployed app. Supabase's default email service restricts recipients; configure custom SMTP before offering public signups.
+
+Signing in does not upload notes or provide cross-device sync. Notes remain in this browser's localStorage, including after sign-out.
