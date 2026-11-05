@@ -1,6 +1,25 @@
 const $ = (id) => document.getElementById(id);
 let tabs = [];
 let activeId;
+let storageKey = 'notepad:tabs';
+let cloudUser = null;
+let cloudRevision = null;
+let cloudDirty = false;
+let cloudReady = false;
+let cloudConflict = false;
+let cloudTimer;
+let cloudWriting = false;
+let accountGeneration = 0;
+let savedPayload = '';
+const payload = () => JSON.stringify({ tabs, activeId });
+function cacheNotes() {
+  localStorage.setItem(storageKey, JSON.stringify({ tabs, activeId, revision: cloudRevision, dirty: cloudDirty }));
+}
+function queueCloudSave() {
+  clearTimeout(cloudTimer);
+  if (cloudUser && cloudReady && !cloudConflict) cloudTimer = setTimeout(flushCloud, 700);
+}
+
 const active = () => tabs.find(tab => tab.id === activeId);
 const makeTab = (text = '', filename = 'Untitled') => ({ id: crypto.randomUUID(), text, filename, customName: filename !== 'Untitled' ? filename : null });
 const noteName = tab => tab.customName || tab.text.split(/\r?\n/, 1)[0].trim().slice(0, 80) || 'Untitled';
@@ -83,8 +102,11 @@ function save() {
   try {
     active().text = $('editor').value;
     refreshNames();
-    localStorage.setItem('notepad:tabs', JSON.stringify({ tabs, activeId }));
-    $('save-status').textContent = 'Saved locally';
+    const currentPayload = payload();
+    if (currentPayload !== savedPayload) { cloudDirty = Boolean(cloudUser); savedPayload = currentPayload; }
+    cacheNotes();
+    $('save-status').textContent = cloudUser ? (cloudConflict ? 'Cloud conflict — local copy kept; download before reloading' : cloudDirty ? 'Saved locally · waiting to sync…' : 'Saved to Supabase') : 'Saved locally';
+    queueCloudSave();
   } catch { $('save-status').textContent = 'Unable to save — download a copy'; }
   position();
 }
@@ -193,3 +215,109 @@ try {
   $('save-status').textContent = 'Unable to restore local notes — you can still edit and download';
 }
 showTab();
+
+function validWorkspace(value) {
+  return value && Array.isArray(value.tabs) && value.tabs.length > 0 && value.tabs.every(tab => typeof tab.id === 'string' && typeof tab.text === 'string' && typeof tab.filename === 'string');
+}
+function useWorkspace(value) {
+  tabs = value.tabs;
+  activeId = tabs.some(tab => tab.id === value.activeId) ? value.activeId : tabs[0].id;
+  savedPayload = payload();
+  showTab();
+}
+async function flushCloud() {
+  if (!cloudUser || !cloudReady || cloudConflict || !cloudDirty || cloudWriting) return;
+  cloudWriting = true;
+  const userId = cloudUser, generation = accountGeneration, contents = payload(), revision = cloudRevision;
+  $('save-status').textContent = 'Saving to Supabase…';
+  try {
+    const snapshot = JSON.parse(contents);
+    const row = { user_id: userId, tabs: snapshot.tabs, active_id: snapshot.activeId, revision: (revision || 0) + 1, updated_at: new Date().toISOString() };
+    const query = revision === null
+      ? window.notesClient.from('note_workspaces').insert(row)
+      : window.notesClient.from('note_workspaces').update(row).eq('user_id', userId).eq('revision', revision);
+    const { data, error } = await query.select('revision');
+    if (generation !== accountGeneration) return;
+    if (error?.code === '23505' || (!error && !data?.length)) {
+      cloudConflict = true;
+      throw new Error('conflict');
+    }
+    if (error) throw error;
+    cloudRevision = data[0].revision;
+    cloudDirty = payload() !== contents;
+    cacheNotes();
+    $('save-status').textContent = cloudDirty ? 'Saved locally · waiting to sync…' : 'Saved to Supabase';
+  } catch {
+    if (generation === accountGeneration) $('save-status').textContent = cloudConflict ? 'Cloud conflict — local copy kept; download before reloading' : 'Saved locally · sync failed, will retry';
+  } finally {
+    cloudWriting = false;
+    if (cloudDirty && !cloudConflict && cloudReady) cloudTimer = setTimeout(flushCloud, 5000);
+  }
+}
+async function loadAccount(userId) {
+  if (userId === cloudUser) return;
+  save();
+  clearTimeout(cloudTimer);
+  const generation = ++accountGeneration;
+  cloudUser = userId;
+  cloudReady = false; cloudConflict = false; cloudRevision = null; cloudDirty = false;
+  storageKey = userId ? `notepad:tabs:${userId}` : 'notepad:tabs';
+  let cached;
+  try { cached = JSON.parse(localStorage.getItem(storageKey)); } catch { /* Keep recovery available through local storage. */ }
+  const empty = () => { const tab = makeTab(); return { tabs: [tab], activeId: tab.id }; };
+  useWorkspace(validWorkspace(cached) ? cached : empty());
+  if (!userId) { $('save-status').textContent = 'Saved locally'; return; }
+  $('editor').disabled = true; $('add-tab').disabled = true; $('tabs').inert = true;
+  $('save-status').textContent = 'Loading saved notes…';
+  try {
+    const { data, error } = await window.notesClient.from('note_workspaces').select('*').eq('user_id', userId).maybeSingle();
+    if (generation !== accountGeneration) return;
+    if (error) throw error;
+    cloudRevision = data?.revision ?? null;
+    if (cached?.dirty && validWorkspace(cached)) {
+      cloudDirty = true;
+      cloudConflict = (cached.revision ?? null) !== cloudRevision;
+      if (cloudConflict) cloudRevision = cached.revision ?? null;
+    } else if (data) {
+      if (!validWorkspace({ tabs: data.tabs })) throw new Error('Invalid saved notes');
+      useWorkspace({ tabs: data.tabs, activeId: data.active_id });
+    } else {
+      // Import this browser's original notes only into the first account used here.
+      const owner = localStorage.getItem('notepad:import-owner');
+      if (!owner || owner === userId) {
+        const guest = JSON.parse(localStorage.getItem('notepad:tabs') || 'null');
+        if (validWorkspace(guest)) useWorkspace(guest);
+        localStorage.setItem('notepad:import-owner', userId);
+      }
+      cloudDirty = true;
+    }
+    cloudReady = true;
+    cacheNotes();
+    $('save-status').textContent = cloudConflict ? 'Cloud conflict — local copy kept; download before reloading' : cloudDirty ? 'Saved locally · waiting to sync…' : 'Saved to Supabase';
+    queueCloudSave();
+  } catch {
+    // A failed read must never permit overwriting unknown cloud contents.
+    cloudDirty = Boolean(cached?.dirty);
+    $('save-status').textContent = 'Cloud unavailable · saved locally; reconnect to retry';
+  } finally {
+    if (generation === accountGeneration) {
+      $('editor').disabled = false; $('add-tab').disabled = false; $('tabs').inert = false;
+    }
+  }
+}
+savedPayload = payload();
+if (window.notesClient) {
+  window.notesClient.auth.onAuthStateChange((_event, session) => {
+    // Supabase auth callbacks stay synchronous; defer database requests.
+    setTimeout(() => loadAccount(session?.user.id || null), 0);
+  });
+}
+window.addEventListener('online', () => {
+  if (cloudUser && !cloudReady) {
+    const userId = cloudUser; cloudUser = null; loadAccount(userId);
+  } else flushCloud();
+});
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushCloud(); });
+window.addEventListener('beforeunload', event => {
+  if (cloudUser && cloudDirty) { event.preventDefault(); event.returnValue = ''; }
+});

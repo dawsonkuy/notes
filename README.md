@@ -6,7 +6,7 @@ Save as downloads the selected note as a text file. Share opens your device's sh
 
 Run `npm start` with Node.js 18 or later. The server listens on port 3000 (override with `PORT`). No installation is required. Authentication loads the pinned Supabase JavaScript client (2.119.0) from jsDelivr. Run `npm run check` for JavaScript syntax checks.
 
-The editor opens immediately. Notes are saved in this browser's localStorage; there is no backend or cross-device sync. Clearing browser data removes notes. Use the pencil menu’s Save as action to download a copy.
+The editor opens immediately. Signed-out notes save in this browser’s localStorage. Signed-in notes also autosave to Supabase and load when you sign in on another device. Clearing browser data removes notes. Use the pencil menu’s Save as action to download a copy.
 
 ## Account login
 
@@ -14,4 +14,6 @@ The Login button at the top right opens an email/password popup supporting email
 
 New accounts must confirm their email before signing in. Set the production Site URL in [Supabase Auth URL configuration](https://supabase.com/dashboard/project/pskrlifkffcpggcarnon/auth/url-configuration) so confirmation links return to the deployed app. Supabase's default email service restricts recipients; configure custom SMTP before offering public signups.
 
-Signing in does not upload notes or provide cross-device sync. Notes remain in this browser's localStorage, including after sign-out.
+Signed-in notes autosave to Supabase after 700 ms without changes. Each account has its own workspace protected by row level security. Tab contents, names, order, and the active tab are saved together. The first account used in a browser imports its existing local notes when no cloud workspace exists; the original local copy stays available after sign-out.
+
+A local recovery copy is written immediately. Failed writes retry while the page is open; reconnecting retries failed reads. Wait for “Saved to Supabase” before closing the page or switching devices. Notes load from Supabase at sign-in; simultaneous device edits use revision checks, and conflicting changes stay local with a warning instead of overwriting cloud notes. Download local changes before clearing browser storage or resolving a conflict. Signing out returns to the separate guest workspace.

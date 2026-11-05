@@ -27,7 +27,7 @@
     document.getElementById('account-email').textContent = session?.user.email || '';
     if (session) {
       password.value = '';
-      message('Signed in. Notes are saved in this browser.');
+      message('Signed in. Notes autosave to your account.');
     } else {
       message('Sign in or create an account. Notes are saved in this browser.');
     }
@@ -36,6 +36,7 @@
     if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) throw new Error('Account setup is not complete yet.');
     if (!window.supabase) throw new Error('Unable to load sign-in. Check your connection and reload.');
     client = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    window.notesClient = client;
     client.auth.onAuthStateChange((_event, session) => renderSession(session));
     client.auth.getSession().then(({ data, error }) => {
       if (error) { renderSession(null); message(error.message); }
