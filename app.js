@@ -136,7 +136,7 @@ function renderTabs() {
     button.textContent = noteName(tab);
     button.title = `${noteName(tab)} — drag to reorder; right-click to rename`;
     button.oncontextmenu = event => { event.preventDefault(); renameTab(tab); };
-    button.draggable = true;
+    button.draggable = !window.matchMedia('(pointer: coarse)').matches;
     button.ondragstart = event => {
       draggedId = tab.id; closeMenus();
       event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', tab.id);
@@ -180,7 +180,16 @@ function renderTabs() {
 }
 function showTab() {
   $('editor').value = active().text;
-  setTitle(); renderTabs(); position(); $('editor').focus();
+  setTitle(); renderTabs(); position();
+  if (!window.matchMedia('(pointer: coarse)').matches || document.activeElement === $('editor')) {
+    $('editor').focus({ preventScroll: true });
+  }
+  const selected = document.getElementById(`tab-${activeId}`)?.parentElement;
+  if (selected) {
+    const strip = $('tabs');
+    if (selected.offsetLeft < strip.scrollLeft) strip.scrollLeft = selected.offsetLeft;
+    else if (selected.offsetLeft + selected.offsetWidth > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = selected.offsetLeft + selected.offsetWidth - strip.clientWidth;
+  }
 }
 function switchTab(id) { save(); activeId = id; showTab(); save(); }
 function addTab(text = '', filename = 'Untitled') {
@@ -321,3 +330,23 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) flush
 window.addEventListener('beforeunload', event => {
   if (cloudUser && cloudDirty) { event.preventDefault(); event.returnValue = ''; }
 });
+
+// Follow the visible viewport rather than leaving the editor behind the keyboard.
+if (window.visualViewport) {
+  let viewportFrame;
+  const updateViewport = () => {
+    cancelAnimationFrame(viewportFrame);
+    viewportFrame = requestAnimationFrame(() => {
+      const viewport = window.visualViewport;
+      // Preserve native pinch zoom.
+      if (viewport.scale !== 1) return;
+      document.documentElement.style.setProperty('--viewport-height', `${viewport.height}px`);
+      document.documentElement.style.setProperty('--viewport-top', `${viewport.offsetTop}px`);
+      closeMenus();
+    });
+  };
+  window.visualViewport.addEventListener('resize', updateViewport);
+  window.visualViewport.addEventListener('scroll', updateViewport);
+  window.addEventListener('resize', updateViewport);
+  updateViewport();
+}
