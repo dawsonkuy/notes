@@ -6,10 +6,22 @@
   const sessionPanel = document.getElementById('account-session');
   const password = document.getElementById('auth-password');
   const controls = [...form.querySelectorAll('button'), document.getElementById('sign-out')];
+  const dialog = document.getElementById('login-dialog');
+  const loginButton = document.getElementById('open-login');
+  loginButton.addEventListener('click', () => {
+    dialog.showModal();
+    if (!form.hidden) document.getElementById('auth-email').focus();
+  });
+  document.getElementById('close-login').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('click', event => {
+    const bounds = dialog.getBoundingClientRect();
+    if (event.target === dialog && (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom)) dialog.close();
+  });
   let client;
   const message = text => { status.textContent = text; };
   const busy = value => { controls.forEach(button => { button.disabled = value; }); };
   const renderSession = session => {
+    loginButton.textContent = session ? 'Account' : 'Login';
     form.hidden = Boolean(session);
     sessionPanel.hidden = !session;
     document.getElementById('account-email').textContent = session?.user.email || '';
@@ -51,7 +63,7 @@
       if (error) throw error;
       password.value = '';
       if (signingUp && !data.session) message('Check your email to confirm your account, then return here to sign in.');
-      else renderSession(data.session);
+      else { renderSession(data.session); dialog.close(); }
     } catch (error) {
       message(error.message || 'Unable to sign in. Please try again.');
     } finally { busy(false); }
