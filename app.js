@@ -1,6 +1,8 @@
 const $ = (id) => document.getElementById(id);
 let tabs = [];
 let activeId;
+let richEditor = null;
+let renderingNote = false;
 let storageKey = 'notepad:tabs';
 let cloudUser = null;
 let cloudRevision = null;
@@ -93,13 +95,17 @@ function reorderTab(id, targetId, after) {
 
 function position() {
   const text = $('editor').value;
-  const before = text.slice(0, $('editor').selectionStart);
+  const before = text.slice(0, richEditor ? (richEditor.getSelection()?.index ?? $('editor').selectionStart) : $('editor').selectionStart);
   const lines = before.split('\n');
   $('position').textContent = `Ln ${lines.length}, Col ${lines.at(-1).length + 1}`;
   $('count').textContent = `${text.length.toLocaleString()} characters`;
 }
 function save() {
   try {
+    if (richEditor && !renderingNote) {
+      $('editor').value = richEditor.getText().slice(0, -1);
+      active().content = richEditor.getContents().ops;
+    }
     active().text = $('editor').value;
     refreshNames();
     const currentPayload = payload();
@@ -131,7 +137,7 @@ function renderTabs() {
     const button = document.createElement('button');
     button.id = `tab-${tab.id}`; button.setAttribute('role', 'tab');
     button.setAttribute('aria-selected', String(tab.id === activeId));
-    button.setAttribute('aria-controls', 'editor');
+    button.setAttribute('aria-controls', richEditor ? 'rich-editor' : 'editor');
     button.tabIndex = tab.id === activeId ? 0 : -1;
     button.textContent = noteName(tab);
     button.title = `${noteName(tab)} — drag to reorder; right-click to rename`;
@@ -180,9 +186,11 @@ function renderTabs() {
 }
 function showTab() {
   $('editor').value = active().text;
+  if (richEditor) renderRichNote();
   setTitle(); renderTabs(); position();
-  if (!window.matchMedia('(pointer: coarse)').matches || document.activeElement === $('editor')) {
-    $('editor').focus({ preventScroll: true });
+  if (!window.matchMedia('(pointer: coarse)').matches || document.activeElement === $('editor') || (richEditor && richEditor.root.contains(document.activeElement))) {
+    if (richEditor) richEditor.focus({ preventScroll: true });
+    else $('editor').focus({ preventScroll: true });
   }
   const selected = document.getElementById(`tab-${activeId}`)?.parentElement;
   if (selected) {
@@ -276,6 +284,7 @@ async function loadAccount(userId) {
   const empty = () => { const tab = makeTab(); return { tabs: [tab], activeId: tab.id }; };
   useWorkspace(validWorkspace(cached) ? cached : empty());
   if (!userId) { $('save-status').textContent = 'Saved locally'; return; }
+  setEditorEnabled(false);
   $('editor').disabled = true; $('add-tab').disabled = true; $('tabs').inert = true;
   $('save-status').textContent = 'Loading saved notes…';
   try {
@@ -310,6 +319,7 @@ async function loadAccount(userId) {
     $('save-status').textContent = 'Cloud unavailable · saved locally; reconnect to retry';
   } finally {
     if (generation === accountGeneration) {
+      setEditorEnabled(true);
       $('editor').disabled = false; $('add-tab').disabled = false; $('tabs').inert = false;
     }
   }
@@ -349,4 +359,63 @@ if (window.visualViewport) {
   window.visualViewport.addEventListener('scroll', updateViewport);
   window.addEventListener('resize', updateViewport);
   updateViewport();
+}
+
+function safeNoteContents(tab) {
+  if (!Array.isArray(tab.content)) return null;
+  // Accept text and heading levels only; never restore HTML or embedded content.
+  const ops = tab.content.map(op => {
+    if (!op || typeof op.insert !== 'string') return null;
+    const result = { insert: op.insert };
+    if ([1, 2, 3].includes(op.attributes?.header)) result.attributes = { header: op.attributes.header };
+    return result;
+  });
+  if (ops.some(op => !op) || ops.map(op => op.insert).join('') !== tab.text + '\n') return null;
+  return ops;
+}
+function renderRichNote() {
+  renderingNote = true;
+  try {
+    const contents = safeNoteContents(active());
+    if (contents) richEditor.setContents({ ops: contents }, 'silent');
+    else richEditor.setText(active().text + '\n', 'silent');
+    richEditor.history.clear();
+    richEditor.root.scrollTop = 0;
+    updateHeadingButtons();
+  } finally { renderingNote = false; }
+}
+function setEditorEnabled(enabled) {
+  if (richEditor) richEditor.enable(enabled);
+  document.querySelectorAll('[data-heading]').forEach(button => { button.disabled = !enabled; });
+}
+function updateHeadingButtons() {
+  const range = richEditor?.getSelection();
+  const level = range ? richEditor.getFormat(range).header || 0 : 0;
+  document.querySelectorAll('[data-heading]').forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.heading) === level)));
+}
+if (window.Quill) {
+  richEditor = new window.Quill('#rich-editor', { formats: ['header'], modules: { toolbar: false }, placeholder: '' });
+  richEditor.root.setAttribute('role', 'textbox');
+  richEditor.root.setAttribute('aria-label', 'Note text');
+  richEditor.root.setAttribute('aria-multiline', 'true');
+  richEditor.root.setAttribute('aria-describedby', 'save-status');
+  richEditor.root.setAttribute('spellcheck', 'false');
+  $('rich-editor').hidden = false;
+  $('heading-toolbar').hidden = false;
+  $('editor').hidden = true;
+  document.querySelectorAll('[role="tab"]').forEach(button => button.setAttribute('aria-controls', 'rich-editor'));
+  renderRichNote();
+  richEditor.on('text-change', () => { if (!renderingNote) { save(); updateHeadingButtons(); } });
+  richEditor.on('selection-change', range => {
+    if (range) $('editor').selectionStart = Math.min(range.index, $('editor').value.length);
+    position(); updateHeadingButtons();
+  });
+  document.querySelectorAll('[data-heading]').forEach(button => {
+    button.addEventListener('pointerdown', event => event.preventDefault());
+    button.addEventListener('click', () => {
+      const range = richEditor.getSelection(true) || { index: 0, length: 0 };
+      richEditor.formatLine(range.index, range.length, 'header', Number(button.dataset.heading) || false, 'user');
+      updateHeadingButtons();
+    });
+  });
 }

@@ -25,3 +25,9 @@ The Worker `notes` serves static assets built into `dist/`. `wrangler.jsonc` run
 Run `npm run build` to check the asset bundle locally. Only browser assets are copied. No custom Worker script or database binding is required; the browser connects directly to Supabase.
 
 For the custom domain, set the Supabase Auth Site URL to `https://bestpad.app/` and add it to the allowed redirect URLs.
+
+## Headings
+
+Use Body, H1, H2, or H3 above the editor to format the current paragraph or selected paragraphs. Headings use the chosen note font and scale relative to the Small, Medium, or Large base size. Formatting is stored alongside plain note text in the existing workspace JSON, so headings survive local saving, cloud saving, and tab switching. Older plain-text notes remain supported. Save as and Share export plain text.
+
+The rich editor uses Quill 2.0.3, loaded from jsDelivr. If it cannot load, the plain-text editor stays available. Only text and heading levels are accepted when restoring formatted notes.
