@@ -31,6 +31,8 @@ tabMenu.setAttribute('role', 'menu'); document.body.append(tabMenu);
 let draggedId = null;
 const closeMenus = () => {
   tabMenu.hidden = true;
+  $('add-menu').hidden = true;
+  $('open-add').setAttribute('aria-expanded', 'false');
 };
 function renameTab(tab) {
   closeMenus();
@@ -205,7 +207,7 @@ function addTab(text = '', filename = 'Untitled') {
   showTab(); save(); closeMenus();
 }
 $('add-tab').onclick = () => addTab();
-document.addEventListener('click', event => { if (!event.target.closest('.edit-tab, .tab-menu')) closeMenus(); });
+document.addEventListener('click', event => { if (!event.target.closest('.edit-tab, .tab-menu, #open-add, .add-menu')) closeMenus(); });
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') closeMenus();
   if (tabMenu.contains(event.target) && ['ArrowDown', 'ArrowUp'].includes(event.key)) {
@@ -386,7 +388,8 @@ function renderRichNote() {
 }
 function setEditorEnabled(enabled) {
   if (richEditor) richEditor.enable(enabled);
-  document.querySelectorAll('[data-heading]').forEach(button => { button.disabled = !enabled; });
+  document.querySelectorAll('[data-heading], [data-insert], #open-add').forEach(button => { button.disabled = !enabled; });
+  if (!enabled) closeMenus();
 }
 function updateHeadingButtons() {
   const range = richEditor?.getSelection();
@@ -419,3 +422,55 @@ if (window.Quill) {
     });
   });
 }
+
+$('open-add').addEventListener('pointerdown', event => event.preventDefault());
+$('open-add').addEventListener('click', event => {
+  const opening = $('add-menu').hidden;
+  closeMenus();
+  if (!opening) return;
+  $('add-menu').hidden = false;
+  $('open-add').setAttribute('aria-expanded', 'true');
+  const anchor = $('open-add').getBoundingClientRect();
+  const menu = $('add-menu');
+  menu.style.left = `${Math.max(8, Math.min(anchor.left, innerWidth - menu.offsetWidth - 8))}px`;
+  menu.style.top = `${Math.max(8, Math.min(anchor.bottom + 4, innerHeight - menu.offsetHeight - 8))}px`;
+  if (event.detail === 0) menu.firstElementChild.focus({ preventScroll: true });
+});
+function insertNoteItem(kind) {
+  closeMenus();
+  if (!richEditor || !richEditor.isEnabled()) return;
+  const range = richEditor.getSelection(true) || { index: Math.max(0, richEditor.getLength() - 1), length: 0 };
+  richEditor.history.cutoff();
+  const Delta = window.Quill.import('delta');
+  if (kind === 'time') {
+    const time = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date());
+    richEditor.updateContents(new Delta().retain(range.index).delete(range.length).insert(time), 'user');
+    richEditor.setSelection(range.index + time.length, 0, 'user');
+  } else {
+    const prefix = range.index > 0 && richEditor.getText(range.index - 1, 1) !== '\n' ? '\n' : '';
+    const previousHeader = richEditor.getFormat(range.index, 0).header;
+    const change = new Delta().retain(range.index).delete(range.length);
+    if (prefix) change.insert(prefix, previousHeader ? { header: previousHeader } : {});
+    change.insert('Heading').insert('\n', { header: 1 });
+    richEditor.updateContents(change, 'user');
+    richEditor.setSelection(range.index + prefix.length, 'Heading'.length, 'user');
+  }
+  richEditor.history.cutoff();
+  updateHeadingButtons();
+}
+document.querySelectorAll('[data-insert]').forEach(button => {
+  button.addEventListener('pointerdown', event => event.preventDefault());
+  button.addEventListener('click', () => insertNoteItem(button.dataset.insert));
+});
+$('add-menu').addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    event.preventDefault(); closeMenus(); $('open-add').focus({ preventScroll: true }); return;
+  }
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+  event.preventDefault();
+  const buttons = [...$('add-menu').children];
+  const index = buttons.indexOf(document.activeElement);
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
+  buttons[next].focus({ preventScroll: true });
+});
+window.addEventListener('resize', closeMenus);
