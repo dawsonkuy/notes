@@ -2,7 +2,7 @@
   const dialog = document.getElementById('settings-dialog');
   const choices = [...dialog.querySelectorAll('input[name="theme"]')];
   const status = document.getElementById('theme-status');
-  const currentTheme = () => document.documentElement.dataset.theme || 'grey';
+  const currentTheme = () => document.documentElement.dataset.theme || 'ruled';
   const refresh = () => choices.forEach(input => { input.checked = input.value === currentTheme(); });
   refresh();
   document.getElementById('open-settings').addEventListener('click', () => { refresh(); dialog.showModal(); });
@@ -21,7 +21,7 @@
   }));
   window.addEventListener('storage', event => {
     if (event.key !== 'notepad:theme') return;
-    document.documentElement.dataset.theme = choices.some(input => input.value === event.newValue) ? event.newValue : 'grey';
+    document.documentElement.dataset.theme = choices.some(input => input.value === event.newValue) ? event.newValue : 'ruled';
     refresh();
   });
 })();
