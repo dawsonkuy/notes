@@ -1,6 +1,6 @@
 * { box-sizing: border-box; }
 
-:root { color-scheme: light; --canvas: #fffef9; --bar: #e8edf1; --border: #b1bcc6; --selected: #dbe5ed; --hover: #d1dce7; --panel: #f0f3f5; --control: #fffef9; --text: #24354b; --muted: #526275; --rule: #b8cfe7; --margin: #df9b9f; --paper-pattern: repeating-linear-gradient(to bottom, transparent 0 27px, var(--rule) 27px 28px); --paper-margin: linear-gradient(to right, transparent 39px, var(--margin) 39px 40px, transparent 40px); --paper-inset: 56px; }
+:root { color-scheme: light; --canvas: #fffef9; --bar: #e8edf1; --border: #b1bcc6; --selected: #dbe5ed; --hover: #d1dce7; --panel: #f0f3f5; --control: #fffef9; --text: #24354b; --muted: #526275; --rule: #b8cfe7; --margin: #df9b9f; --paper-pattern: repeating-linear-gradient(to bottom, transparent 0 calc(var(--note-line-height, 28px) - 1px), var(--rule) calc(var(--note-line-height, 28px) - 1px) var(--note-line-height, 28px)); --paper-margin: linear-gradient(to right, transparent 39px, var(--margin) 39px 40px, transparent 40px); --paper-inset: 56px; }
 :root[data-theme="legal"] { --canvas: #fff1ab; --bar: #e6d48b; --border: #b3a064; --selected: #ead78e; --hover: #e2cb7b; --panel: #f3e2a3; --control: #fff6cf; --text: #423921; --muted: #645733; --rule: #cabc7b; --margin: #d89182; }
 :root[data-theme="graph"] { --canvas: #f8fcff; --bar: #dfebef; --border: #a5bdc7; --selected: #cde0e7; --hover: #c3d9e2; --panel: #eaf2f5; --control: #f8fcff; --text: #203e50; --muted: #496574; --paper-pattern: repeating-linear-gradient(to right, transparent 0 13px, #c7dde8 13px 14px), repeating-linear-gradient(to bottom, transparent 0 13px, #c7dde8 13px 14px); --paper-margin: none; --paper-inset: 24px; }
 :root[data-theme="dot"] { --canvas: #f8f5ec; --bar: #e6e1d3; --border: #b8af9b; --selected: #dad3c2; --hover: #d0c7b3; --panel: #eee9dd; --control: #faf8f0; --text: #3d3a30; --muted: #66614f; --paper-pattern: radial-gradient(circle, #b5ad98 1px, transparent 1px); --paper-margin: none; --paper-inset: 24px; }
@@ -117,3 +117,12 @@ footer span:first-child { min-width: 0; overflow-wrap: anywhere; }
 #note-font:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 #font-preview { margin: 12px 0; padding: 12px; font-size: 16px; line-height: 28px; color: var(--text); background: var(--canvas); border: 1px solid var(--border); border-radius: 4px; }
 #font-status { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+:root { --note-size: 16px; --note-line-height: 28px; }
+:root[data-text-size="medium"] { --note-size: 18px; --note-line-height: 32px; }
+:root[data-text-size="large"] { --note-size: 22px; --note-line-height: 40px; }
+#editor, #font-preview { font-size: var(--note-size); line-height: var(--note-line-height); }
+#note-size { width: 100%; min-height: 44px; padding: 10px; font: inherit; font-size: 16px; color: var(--text); background: var(--control); border: 1px solid var(--border); border-radius: 4px; }
+#note-size:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+label[for="note-size"] { margin-top: 16px; }
+#size-status { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }

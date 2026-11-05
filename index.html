@@ -14,6 +14,8 @@
       document.documentElement.dataset.theme = ['ruled', 'plain', 'legal', 'graph', 'dot', 'darkpad'].includes(theme) ? theme : 'ruled';
       const font = localStorage.getItem('notepad:font');
       if (['mono', 'sans', 'serif', 'rounded'].includes(font)) document.documentElement.dataset.font = font;
+      const size = localStorage.getItem('notepad:text-size');
+      if (['small', 'medium', 'large'].includes(size)) document.documentElement.dataset.textSize = size;
     } catch { /* Use defaults when storage is unavailable. */ }
   </script>
   <link rel="stylesheet" href="/style.css">
@@ -43,6 +45,13 @@
           <option value="serif">Book · Serif</option>
           <option value="rounded">Rounded · Friendly</option>
         </select>
+        <label for="note-size">Text size</label>
+        <select id="note-size">
+          <option value="small">Small</option>
+          <option value="medium">Medium</option>
+          <option value="large">Large</option>
+        </select>
+        <p id="size-status" role="status">Your text size is saved on this device.</p>
         <p id="font-preview" aria-hidden="true">The quick brown fox jumps over the lazy dog.</p>
         <p id="font-status" role="status">Your font is saved on this device.</p>
       </div>

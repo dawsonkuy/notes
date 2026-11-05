@@ -5,6 +5,22 @@
   const currentTheme = () => document.documentElement.dataset.theme || 'ruled';
   const refresh = () => choices.forEach(input => { input.checked = input.value === currentTheme(); });
   refresh();
+  const sizePicker = document.getElementById('note-size');
+  const sizeStatus = document.getElementById('size-status');
+  sizePicker.value = document.documentElement.dataset.textSize || 'small';
+  sizePicker.addEventListener('change', () => {
+    document.documentElement.dataset.textSize = sizePicker.value;
+    try {
+      localStorage.setItem('notepad:text-size', sizePicker.value);
+      sizeStatus.textContent = 'Your text size is saved on this device.';
+    } catch { sizeStatus.textContent = 'Size applied. Your browser could not save this preference.'; }
+  });
+  window.addEventListener('storage', event => {
+    if (event.key !== 'notepad:text-size') return;
+    const value = ['small', 'medium', 'large'].includes(event.newValue) ? event.newValue : 'small';
+    document.documentElement.dataset.textSize = value;
+    sizePicker.value = value;
+  });
   const fontPicker = document.getElementById('note-font');
   const fontStatus = document.getElementById('font-status');
   fontPicker.value = document.documentElement.dataset.font || 'mono';
