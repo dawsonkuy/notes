@@ -11,7 +11,7 @@
       const stored = localStorage.getItem('notepad:theme');
       const previous = { grey: 'ruled', light: 'plain', midnight: 'dot', forest: 'graph', sepia: 'legal' };
       const theme = previous[stored] || stored;
-      document.documentElement.dataset.theme = ['ruled', 'plain', 'legal', 'graph', 'dot'].includes(theme) ? theme : 'ruled';
+      document.documentElement.dataset.theme = ['ruled', 'plain', 'legal', 'graph', 'dot', 'darkpad'].includes(theme) ? theme : 'ruled';
     } catch { /* Use the default theme when storage is unavailable. */ }
   </script>
   <link rel="stylesheet" href="/style.css">
@@ -31,6 +31,7 @@
         <label class="theme-option"><input type="radio" name="theme" value="graph"><span class="theme-swatch swatch-graph" aria-hidden="true"></span><span><strong>Graph paper</strong><small>A crisp square grid</small></span></label>
         <label class="theme-option"><input type="radio" name="theme" value="dot"><span class="theme-swatch swatch-dot" aria-hidden="true"></span><span><strong>Dot grid</strong><small>Subtle dots on ivory paper</small></span></label>
         <label class="theme-option"><input type="radio" name="theme" value="plain"><span class="theme-swatch swatch-plain" aria-hidden="true"></span><span><strong>Blank sketchpad</strong><small>Clean, unlined white paper</small></span></label>
+        <label class="theme-option"><input type="radio" name="theme" value="darkpad"><span class="theme-swatch swatch-darkpad" aria-hidden="true"></span><span><strong>Darkpad</strong><small>Blue-black paper with subtle blue lines</small></span></label>
       </fieldset>
       <p id="theme-status" role="status">Your theme is saved on this device.</p>
     </dialog>

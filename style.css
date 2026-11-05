@@ -102,3 +102,6 @@ footer span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .swatch-graph { background: repeating-linear-gradient(to right, transparent 0 7px, #c7dde8 7px 8px), repeating-linear-gradient(to bottom, #f8fcff 0 7px, #c7dde8 7px 8px); }
 .swatch-dot { background: radial-gradient(circle, #b5ad98 1px, transparent 1px) 0 0 / 8px 8px, #f8f5ec; }
 .swatch-plain { background: #fff; }
+
+:root[data-theme="darkpad"] { color-scheme: dark; --canvas: #080f1c; --bar: #101e33; --border: #30496c; --selected: #1b3455; --hover: #254469; --panel: #0d192b; --control: #162740; --text: #e1edff; --muted: #a6bddb; --rule: #1d3554; --margin: #3d6da3; }
+.swatch-darkpad { background: linear-gradient(to right, transparent 8px, #3d6da3 8px 9px, transparent 9px), repeating-linear-gradient(to bottom, #080f1c 0 8px, #1d3554 8px 9px); }
