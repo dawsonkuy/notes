@@ -59,7 +59,7 @@
     try {
       const credentials = { email: document.getElementById('auth-email').value.trim(), password: password.value };
       const { data, error } = signingUp
-        ? await client.auth.signUp(credentials)
+        ? await client.auth.signUp({ ...credentials, options: { emailRedirectTo: 'https://aesthetic-starlight-a2aad5.netlify.app/' } })
         : await client.auth.signInWithPassword(credentials);
       if (error) throw error;
       password.value = '';
