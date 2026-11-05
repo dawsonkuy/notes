@@ -4,14 +4,32 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <title>Notepad</title>
+  <script>
+    try {
+      const theme = localStorage.getItem('notepad:theme');
+      if (['grey', 'light', 'midnight', 'forest', 'sepia'].includes(theme)) document.documentElement.dataset.theme = theme;
+    } catch { /* Use the default theme when storage is unavailable. */ }
+  </script>
   <link rel="stylesheet" href="/style.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js" defer></script>
+  <script src="/settings.js" defer></script>
   <script src="/auth.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
   <main id="notepad" class="notepad">
-    <header class="page-header"><button id="open-login" type="button">Login</button></header>
+    <header class="page-header"><button id="open-settings" type="button" aria-haspopup="dialog">Settings</button><button id="open-login" type="button">Login</button></header>
+    <dialog id="settings-dialog" aria-labelledby="settings-title">
+      <div class="dialog-heading"><h2 id="settings-title">Settings</h2><button id="close-settings" class="close-dialog" type="button" aria-label="Close settings">×</button></div>
+      <fieldset class="theme-options"><legend>Theme</legend>
+        <label class="theme-option"><input type="radio" name="theme" value="grey"><span class="theme-swatch swatch-grey" aria-hidden="true"></span><span>Classic grey</span></label>
+        <label class="theme-option"><input type="radio" name="theme" value="light"><span class="theme-swatch swatch-light" aria-hidden="true"></span><span>Light</span></label>
+        <label class="theme-option"><input type="radio" name="theme" value="midnight"><span class="theme-swatch swatch-midnight" aria-hidden="true"></span><span>Midnight</span></label>
+        <label class="theme-option"><input type="radio" name="theme" value="forest"><span class="theme-swatch swatch-forest" aria-hidden="true"></span><span>Forest</span></label>
+        <label class="theme-option"><input type="radio" name="theme" value="sepia"><span class="theme-swatch swatch-sepia" aria-hidden="true"></span><span>Sepia</span></label>
+      </fieldset>
+      <p id="theme-status" role="status">Your theme is saved on this device.</p>
+    </dialog>
     <dialog id="login-dialog" aria-labelledby="login-title">
       <div class="dialog-heading"><h2 id="login-title">Login</h2><button id="close-login" type="button" aria-label="Close login">×</button></div>
       <form id="auth-form" aria-label="Sign in" hidden>
