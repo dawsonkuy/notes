@@ -30,4 +30,6 @@ For the custom domain, set the Supabase Auth Site URL to `https://bestpad.app/` 
 
 Use Body, H1, H2, or H3 above the editor to format the current paragraph or selected paragraphs. Headings use the chosen note font and scale relative to the Small, Medium, or Large base size. Formatting is stored alongside plain note text in the existing workspace JSON, so headings survive local saving, cloud saving, and tab switching. Older plain-text notes remain supported. Save as and Share export plain text.
 
-The rich editor uses Quill 2.0.3, loaded from jsDelivr. If it cannot load, the plain-text editor stays available. Only text and heading levels are accepted when restoring formatted notes.
+The rich editor uses Quill 2.0.3, loaded from jsDelivr. If it cannot load, the plain-text editor stays available. Only text, heading levels, checked/unchecked checklist items, and the app’s divider embeds are accepted when restoring formatted notes.
+
+The Add menu inserts headings, the current local time/date, interactive checklists, and dividers. Checklist states and dividers autosave inside the workspace alongside the rest of the note.

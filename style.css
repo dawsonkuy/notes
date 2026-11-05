@@ -164,3 +164,9 @@ label[for="note-size"] { margin-top: 16px; }
   .heading-toolbar > span { display: none; }
   #open-add { margin-right: auto; }
 }
+
+.ql-editor hr { border: 0; margin: 0; height: var(--note-line-height); background-color: var(--canvas); background-image: linear-gradient(to bottom, transparent calc(50% - 1px), var(--border) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)); }
+.ql-editor li { line-height: var(--note-line-height); }
+.ql-editor li[data-list="checked"] { color: var(--muted); text-decoration: line-through; }
+.ql-editor li[data-list] > .ql-ui::before { color: var(--text); cursor: pointer; }
+.ql-editor li > .ql-ui:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }

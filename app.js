@@ -365,14 +365,18 @@ if (window.visualViewport) {
 
 function safeNoteContents(tab) {
   if (!Array.isArray(tab.content)) return null;
-  // Accept text and heading levels only; never restore HTML or embedded content.
+  // Restore only text, supported line styles, and our own divider embed.
   const ops = tab.content.map(op => {
-    if (!op || typeof op.insert !== 'string') return null;
+    if (!op) return null;
+    if (typeof op.insert !== 'string') {
+      return op.insert && op.insert.divider === true && Object.keys(op.insert).length === 1 ? { insert: { divider: true } } : null;
+    }
     const result = { insert: op.insert };
     if ([1, 2, 3].includes(op.attributes?.header)) result.attributes = { header: op.attributes.header };
+    else if (['checked', 'unchecked'].includes(op.attributes?.list)) result.attributes = { list: op.attributes.list };
     return result;
   });
-  if (ops.some(op => !op) || ops.map(op => op.insert).join('') !== tab.text + '\n') return null;
+  if (ops.some(op => !op) || ops.filter(op => typeof op.insert === 'string').map(op => op.insert).join('') !== tab.text + '\n') return null;
   return ops;
 }
 function renderRichNote() {
@@ -384,6 +388,7 @@ function renderRichNote() {
     richEditor.history.clear();
     richEditor.root.scrollTop = 0;
     updateHeadingButtons();
+    enhanceChecklist();
   } finally { renderingNote = false; }
 }
 function setEditorEnabled(enabled) {
@@ -397,7 +402,20 @@ function updateHeadingButtons() {
   document.querySelectorAll('[data-heading]').forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.heading) === level)));
 }
 if (window.Quill) {
-  richEditor = new window.Quill('#rich-editor', { formats: ['header'], modules: { toolbar: false }, placeholder: '' });
+  const BlockEmbed = window.Quill.import('blots/block/embed');
+  class Divider extends BlockEmbed {
+    static blotName = 'divider';
+    static tagName = 'HR';
+    static create() {
+      const node = super.create();
+      node.setAttribute('contenteditable', 'false');
+      node.setAttribute('role', 'separator');
+      return node;
+    }
+    static value() { return true; }
+  }
+  window.Quill.register(Divider);
+  richEditor = new window.Quill('#rich-editor', { formats: ['header', 'list', 'divider'], modules: { toolbar: false }, placeholder: '' });
   richEditor.root.setAttribute('role', 'textbox');
   richEditor.root.setAttribute('aria-label', 'Note text');
   richEditor.root.setAttribute('aria-multiline', 'true');
@@ -408,7 +426,7 @@ if (window.Quill) {
   $('editor').hidden = true;
   document.querySelectorAll('[role="tab"]').forEach(button => button.setAttribute('aria-controls', 'rich-editor'));
   renderRichNote();
-  richEditor.on('text-change', () => { if (!renderingNote) { save(); updateHeadingButtons(); } });
+  richEditor.on('text-change', () => { if (!renderingNote) { save(); updateHeadingButtons(); enhanceChecklist(); } });
   richEditor.on('selection-change', range => {
     if (range) $('editor').selectionStart = Math.min(range.index, $('editor').value.length);
     position(); updateHeadingButtons();
@@ -442,18 +460,26 @@ function insertNoteItem(kind) {
   const range = richEditor.getSelection(true) || { index: Math.max(0, richEditor.getLength() - 1), length: 0 };
   richEditor.history.cutoff();
   const Delta = window.Quill.import('delta');
-  if (kind === 'time') {
-    const time = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date());
+  if (kind === 'time' || kind === 'date') {
+    const time = new Intl.DateTimeFormat(undefined, kind === 'date' ? { year: 'numeric', month: 'long', day: 'numeric' } : { hour: 'numeric', minute: '2-digit' }).format(new Date());
     richEditor.updateContents(new Delta().retain(range.index).delete(range.length).insert(time), 'user');
     richEditor.setSelection(range.index + time.length, 0, 'user');
   } else {
     const prefix = range.index > 0 && richEditor.getText(range.index - 1, 1) !== '\n' ? '\n' : '';
-    const previousHeader = richEditor.getFormat(range.index, 0).header;
+    const format = richEditor.getFormat(range.index, 0);
+    const previousFormat = format.header ? { header: format.header } : format.list ? { list: format.list } : {};
     const change = new Delta().retain(range.index).delete(range.length);
-    if (prefix) change.insert(prefix, previousHeader ? { header: previousHeader } : {});
-    change.insert('Heading').insert('\n', { header: 1 });
-    richEditor.updateContents(change, 'user');
-    richEditor.setSelection(range.index + prefix.length, 'Heading'.length, 'user');
+    if (prefix) change.insert(prefix, previousFormat);
+    if (kind === 'divider') {
+      change.insert({ divider: true });
+      richEditor.updateContents(change, 'user');
+      richEditor.setSelection(range.index + prefix.length + 1, 0, 'user');
+    } else {
+      const placeholder = kind === 'checklist' ? 'To-do' : 'Heading';
+      change.insert(placeholder).insert('\n', kind === 'checklist' ? { list: 'unchecked' } : { header: 1 });
+      richEditor.updateContents(change, 'user');
+      richEditor.setSelection(range.index + prefix.length, placeholder.length, 'user');
+    }
   }
   richEditor.history.cutoff();
   updateHeadingButtons();
@@ -474,3 +500,20 @@ $('add-menu').addEventListener('keydown', event => {
   buttons[next].focus({ preventScroll: true });
 });
 window.addEventListener('resize', closeMenus);
+
+function enhanceChecklist() {
+  if (!richEditor) return;
+  richEditor.root.querySelectorAll('li[data-list="checked"], li[data-list="unchecked"]').forEach(item => {
+    const checkbox = item.querySelector('.ql-ui');
+    if (!checkbox) return;
+    checkbox.setAttribute('role', 'checkbox');
+    checkbox.setAttribute('tabindex', '0');
+    checkbox.setAttribute('aria-checked', String(item.dataset.list === 'checked'));
+    checkbox.setAttribute('aria-label', item.textContent.trim() || 'Task');
+    checkbox.onkeydown = event => {
+      if (![' ', 'Enter'].includes(event.key) || !richEditor.isEnabled()) return;
+      event.preventDefault();
+      checkbox.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    };
+  });
+}
