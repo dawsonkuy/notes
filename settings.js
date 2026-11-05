@@ -5,6 +5,22 @@
   const currentTheme = () => document.documentElement.dataset.theme || 'ruled';
   const refresh = () => choices.forEach(input => { input.checked = input.value === currentTheme(); });
   refresh();
+  const fontPicker = document.getElementById('note-font');
+  const fontStatus = document.getElementById('font-status');
+  fontPicker.value = document.documentElement.dataset.font || 'mono';
+  fontPicker.addEventListener('change', () => {
+    document.documentElement.dataset.font = fontPicker.value;
+    try {
+      localStorage.setItem('notepad:font', fontPicker.value);
+      fontStatus.textContent = 'Your font is saved on this device.';
+    } catch { fontStatus.textContent = 'Font applied. Your browser could not save this preference.'; }
+  });
+  window.addEventListener('storage', event => {
+    if (event.key !== 'notepad:font') return;
+    const value = [...fontPicker.options].some(option => option.value === event.newValue) ? event.newValue : 'mono';
+    document.documentElement.dataset.font = value;
+    fontPicker.value = value;
+  });
   document.getElementById('open-settings').addEventListener('click', () => { refresh(); dialog.showModal(); });
   document.getElementById('close-settings').addEventListener('click', () => dialog.close());
   dialog.addEventListener('click', event => {

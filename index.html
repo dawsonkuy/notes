@@ -12,7 +12,9 @@
       const previous = { grey: 'ruled', light: 'plain', midnight: 'dot', forest: 'graph', sepia: 'legal' };
       const theme = previous[stored] || stored;
       document.documentElement.dataset.theme = ['ruled', 'plain', 'legal', 'graph', 'dot', 'darkpad'].includes(theme) ? theme : 'ruled';
-    } catch { /* Use the default theme when storage is unavailable. */ }
+      const font = localStorage.getItem('notepad:font');
+      if (['mono', 'sans', 'serif', 'rounded'].includes(font)) document.documentElement.dataset.font = font;
+    } catch { /* Use defaults when storage is unavailable. */ }
   </script>
   <link rel="stylesheet" href="/style.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js" defer></script>
@@ -33,6 +35,17 @@
         <label class="theme-option"><input type="radio" name="theme" value="plain"><span class="theme-swatch swatch-plain" aria-hidden="true"></span><span><strong>Blank sketchpad</strong><small>Clean, unlined white paper</small></span></label>
         <label class="theme-option"><input type="radio" name="theme" value="darkpad"><span class="theme-swatch swatch-darkpad" aria-hidden="true"></span><span><strong>Darkpad</strong><small>Blue-black paper with subtle blue lines</small></span></label>
       </fieldset>
+      <div class="font-setting">
+        <label for="note-font">Note font</label>
+        <select id="note-font">
+          <option value="mono">Typewriter · Monospace</option>
+          <option value="sans">Clean · Sans serif</option>
+          <option value="serif">Book · Serif</option>
+          <option value="rounded">Rounded · Friendly</option>
+        </select>
+        <p id="font-preview" aria-hidden="true">The quick brown fox jumps over the lazy dog.</p>
+        <p id="font-status" role="status">Your font is saved on this device.</p>
+      </div>
       <p id="theme-status" role="status">Your theme is saved on this device.</p>
     </dialog>
     <dialog id="login-dialog" aria-labelledby="login-title">
