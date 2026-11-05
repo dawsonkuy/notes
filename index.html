@@ -9,9 +9,9 @@
   <script>
     try {
       const stored = localStorage.getItem('notepad:theme');
-      const previous = { grey: 'ruled', light: 'plain', midnight: 'dot', forest: 'graph', sepia: 'legal' };
-      const theme = previous[stored] || stored;
-      document.documentElement.dataset.theme = ['ruled', 'plain', 'legal', 'graph', 'dot', 'darkpad'].includes(theme) ? theme : 'ruled';
+      const previous = { grey: 'ruled', light: 'plain', midnight: 'dot', forest: 'ruled', sepia: 'legal' };
+      const theme = stored === 'graph' ? 'ruled' : previous[stored] || stored;
+      document.documentElement.dataset.theme = ['ruled', 'plain', 'legal', 'dot', 'darkpad'].includes(theme) ? theme : 'ruled';
       const font = localStorage.getItem('notepad:font');
       if (['mono', 'sans', 'serif', 'rounded'].includes(font)) document.documentElement.dataset.font = font;
       const size = localStorage.getItem('notepad:text-size');
@@ -34,7 +34,6 @@
       <fieldset class="theme-options"><legend>Notepad style</legend>
         <label class="theme-option"><input type="radio" name="theme" value="ruled"><span class="theme-swatch swatch-ruled" aria-hidden="true"></span><span><strong>Ruled notebook</strong><small>Blue lines and a red margin</small></span></label>
         <label class="theme-option"><input type="radio" name="theme" value="legal"><span class="theme-swatch swatch-legal" aria-hidden="true"></span><span><strong>Yellow legal pad</strong><small>Warm yellow paper with ruled lines</small></span></label>
-        <label class="theme-option"><input type="radio" name="theme" value="graph"><span class="theme-swatch swatch-graph" aria-hidden="true"></span><span><strong>Graph paper</strong><small>A crisp square grid</small></span></label>
         <label class="theme-option"><input type="radio" name="theme" value="dot"><span class="theme-swatch swatch-dot" aria-hidden="true"></span><span><strong>Dot grid</strong><small>Subtle dots on ivory paper</small></span></label>
         <label class="theme-option"><input type="radio" name="theme" value="plain"><span class="theme-swatch swatch-plain" aria-hidden="true"></span><span><strong>Blank sketchpad</strong><small>Clean, unlined white paper</small></span></label>
         <label class="theme-option"><input type="radio" name="theme" value="darkpad"><span class="theme-swatch swatch-darkpad" aria-hidden="true"></span><span><strong>Darkpad</strong><small>Blue-black paper with subtle blue lines</small></span></label>
