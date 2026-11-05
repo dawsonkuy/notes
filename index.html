@@ -28,7 +28,16 @@
 </head>
 <body>
   <main id="notepad" class="notepad">
-    <header class="page-header"><img class="header-logo" src="/logo.png" alt="Bestpad" width="2172" height="724"><button id="open-settings" type="button" aria-haspopup="dialog">Settings</button><button id="open-login" type="button">Login</button></header>
+    <header class="page-header"><img class="header-logo" src="/logo.png" alt="Bestpad" width="2172" height="724"><div id="heading-toolbar" class="header-add" role="group" aria-label="Add to note" hidden>
+      <button id="open-add" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="add-menu">Add +</button>
+      <div id="add-menu" class="add-menu" role="menu" aria-label="Add to note" hidden>
+        <button type="button" role="menuitem" data-insert="heading">Heading</button>
+        <button type="button" role="menuitem" data-insert="time">Current time</button>
+        <button type="button" role="menuitem" data-insert="date">Current date</button>
+        <button type="button" role="menuitem" data-insert="checklist">Checklist</button>
+        <button type="button" role="menuitem" data-insert="divider">Divider</button>
+      </div>
+    </div><button id="open-settings" type="button" aria-haspopup="dialog">Settings</button><button id="open-login" type="button">Login</button></header>
     <dialog id="settings-dialog" aria-labelledby="settings-title">
       <div class="dialog-heading"><h2 id="settings-title">Settings</h2><button id="close-settings" class="close-dialog" type="button" aria-label="Close settings">×</button></div>
       <fieldset class="theme-options"><legend>Notepad style</legend>
@@ -70,16 +79,6 @@
       <p id="auth-status" role="status" aria-live="polite">Connecting to your account…</p>
     </dialog>
     <div class="tabbar"><div id="tabs" role="tablist" aria-label="Notes"></div><button id="add-tab" aria-label="New tab" title="New tab">+</button></div>
-    <div id="heading-toolbar" class="heading-toolbar" role="group" aria-label="Add to note" hidden>
-      <button id="open-add" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="add-menu">Add +</button>
-      <div id="add-menu" class="add-menu" role="menu" aria-label="Add to note" hidden>
-        <button type="button" role="menuitem" data-insert="heading">Heading</button>
-        <button type="button" role="menuitem" data-insert="time">Current time</button>
-        <button type="button" role="menuitem" data-insert="date">Current date</button>
-        <button type="button" role="menuitem" data-insert="checklist">Checklist</button>
-        <button type="button" role="menuitem" data-insert="divider">Divider</button>
-      </div>
-    </div>
     <div id="rich-editor" class="rich-host" hidden></div>
     <label class="sr-only" for="editor">Note text</label>
     <textarea id="editor" spellcheck="false" wrap="soft" placeholder="" aria-describedby="save-status"></textarea>
