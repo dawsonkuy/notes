@@ -17,3 +17,11 @@ New accounts must confirm their email before signing in. Set the production Site
 Signed-in notes autosave to Supabase after 700 ms without changes. Each account has its own workspace protected by row level security. Tab contents, names, order, and the active tab are saved together. The first account used in a browser imports its existing local notes when no cloud workspace exists; the original local copy stays available after sign-out.
 
 A local recovery copy is written immediately. Failed writes retry while the page is open; reconnecting retries failed reads. Wait for “Saved to Supabase” before closing the page or switching devices. Notes load from Supabase at sign-in; simultaneous device edits use revision checks, and conflicting changes stay local with a warning instead of overwriting cloud notes. Download local changes before clearing browser storage or resolving a conflict. Signing out returns to the separate guest workspace.
+
+## Cloudflare Workers deployment
+
+The Worker `notes` serves static assets built into `dist/`. `wrangler.jsonc` runs the build automatically before publishing. In Cloudflare Workers Builds, connect this repository's `main` branch with root directory `/`, build command `npm run build`, and deploy command `npx wrangler deploy`. Keep the existing `bestpad.app` custom domain attached to `notes`. Do not use `npm start` as the Cloudflare build command; that starts the local Node server.
+
+Run `npm run build` to check the asset bundle locally. Only browser assets are copied. No custom Worker script or database binding is required; the browser connects directly to Supabase.
+
+For the custom domain, set the Supabase Auth Site URL to `https://bestpad.app/` and add it to the allowed redirect URLs.
