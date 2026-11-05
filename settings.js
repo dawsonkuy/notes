@@ -21,21 +21,22 @@
     document.documentElement.dataset.textSize = value;
     sizePicker.value = value;
   });
-  const fontPicker = document.getElementById('note-font');
+  const fontChoices = [...document.querySelectorAll('input[name="note-font"]')];
   const fontStatus = document.getElementById('font-status');
-  fontPicker.value = document.documentElement.dataset.font || 'mono';
-  fontPicker.addEventListener('change', () => {
-    document.documentElement.dataset.font = fontPicker.value;
+  const refreshFonts = () => fontChoices.forEach(input => { input.checked = input.value === (document.documentElement.dataset.font || 'mono'); });
+  refreshFonts();
+  fontChoices.forEach(input => input.addEventListener('change', () => {
+    if (!input.checked) return;
+    document.documentElement.dataset.font = input.value;
     try {
-      localStorage.setItem('notepad:font', fontPicker.value);
+      localStorage.setItem('notepad:font', input.value);
       fontStatus.textContent = 'Your font is saved on this device.';
     } catch { fontStatus.textContent = 'Font applied. Your browser could not save this preference.'; }
-  });
+  }));
   window.addEventListener('storage', event => {
     if (event.key !== 'notepad:font') return;
-    const value = [...fontPicker.options].some(option => option.value === event.newValue) ? event.newValue : 'mono';
-    document.documentElement.dataset.font = value;
-    fontPicker.value = value;
+    document.documentElement.dataset.font = fontChoices.some(input => input.value === event.newValue) ? event.newValue : 'mono';
+    refreshFonts();
   });
   document.getElementById('open-settings').addEventListener('click', () => { refresh(); dialog.showModal(); });
   document.getElementById('close-settings').addEventListener('click', () => dialog.close());

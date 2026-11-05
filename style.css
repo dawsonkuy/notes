@@ -111,8 +111,6 @@ footer span:first-child { min-width: 0; overflow-wrap: anywhere; }
 :is(#editor, .ql-editor), #font-preview { font-family: var(--note-font); }
 .font-setting { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--border); }
 .font-setting > label { display: block; margin-bottom: 8px; font-size: 14px; }
-#note-font { width: 100%; min-height: 44px; padding: 10px; font: inherit; font-size: 16px; color: var(--text); background: var(--control); border: 1px solid var(--border); border-radius: 4px; }
-#note-font:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 #font-preview { margin: 12px 0; padding: 12px; font-size: 16px; line-height: 28px; color: var(--text); background: var(--canvas); border: 1px solid var(--border); border-radius: 4px; }
 #font-status { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 
@@ -173,3 +171,15 @@ label[for="note-size"] { margin-top: 16px; }
 
 .header-add { display: flex; align-items: center; flex-shrink: 0; }
 .header-add #open-add { margin: 0; }
+
+.header-add #open-add { font: inherit; font-weight: 400; }
+.font-options { padding: 0; margin: 0; border: 0; display: grid; gap: 8px; }
+.font-options legend { margin-bottom: 8px; font-size: 14px; }
+.font-choice { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--control); cursor: pointer; }
+.font-choice:has(input:checked) { background: var(--selected); }
+.font-choice input { margin: 0; accent-color: var(--text); }
+.font-choice span { font-size: 16px; }
+.font-mono { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', 'Courier New', monospace; }
+.font-sans { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; }
+.font-serif { font-family: Georgia, 'Times New Roman', serif; }
+.font-rounded { font-family: ui-rounded, 'SF Pro Rounded', 'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif; }

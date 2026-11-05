@@ -46,13 +46,12 @@
         <label class="theme-option"><input type="radio" name="theme" value="darkpad"><span class="theme-swatch swatch-darkpad" aria-hidden="true"></span><span><strong>Darkpad</strong><small>Blue-black paper with subtle blue lines</small></span></label>
       </fieldset>
       <div class="font-setting">
-        <label for="note-font">Note font</label>
-        <select id="note-font">
-          <option value="mono">Typewriter · Monospace</option>
-          <option value="sans">Clean · Sans serif</option>
-          <option value="serif">Book · Serif</option>
-          <option value="rounded">Rounded · Friendly</option>
-        </select>
+        <fieldset id="note-font" class="font-options"><legend>Note font</legend>
+          <label class="font-choice"><input type="radio" name="note-font" value="mono"><span class="font-mono">Typewriter · Monospace</span></label>
+          <label class="font-choice"><input type="radio" name="note-font" value="sans"><span class="font-sans">Clean · Sans serif</span></label>
+          <label class="font-choice"><input type="radio" name="note-font" value="serif"><span class="font-serif">Book · Serif</span></label>
+          <label class="font-choice"><input type="radio" name="note-font" value="rounded"><span class="font-rounded">Rounded · Friendly</span></label>
+        </fieldset>
         <label for="note-size">Text size</label>
         <select id="note-size">
           <option value="small">Small</option>
