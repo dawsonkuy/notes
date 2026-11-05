@@ -70,17 +70,12 @@
       <p id="auth-status" role="status" aria-live="polite">Connecting to your account…</p>
     </dialog>
     <div class="tabbar"><div id="tabs" role="tablist" aria-label="Notes"></div><button id="add-tab" aria-label="New tab" title="New tab">+</button></div>
-    <div id="heading-toolbar" class="heading-toolbar" role="group" aria-label="Text style" hidden>
+    <div id="heading-toolbar" class="heading-toolbar" role="group" aria-label="Add to note" hidden>
       <button id="open-add" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="add-menu">Add +</button>
       <div id="add-menu" class="add-menu" role="menu" aria-label="Add to note" hidden>
         <button type="button" role="menuitem" data-insert="heading">Heading</button>
         <button type="button" role="menuitem" data-insert="time">Current time</button>
       </div>
-      <span>Text style</span>
-      <button type="button" data-heading="0" aria-pressed="true">Body</button>
-      <button type="button" data-heading="1" aria-label="Heading 1" aria-pressed="false">H1</button>
-      <button type="button" data-heading="2" aria-label="Heading 2" aria-pressed="false">H2</button>
-      <button type="button" data-heading="3" aria-label="Heading 3" aria-pressed="false">H3</button>
     </div>
     <div id="rich-editor" class="rich-host" hidden></div>
     <label class="sr-only" for="editor">Note text</label>
