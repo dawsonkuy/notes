@@ -17,7 +17,7 @@ function cacheNotes() {
 }
 function queueCloudSave() {
   clearTimeout(cloudTimer);
-  if (cloudUser && cloudReady && !cloudConflict) cloudTimer = setTimeout(flushCloud, 700);
+  if (cloudUser && cloudReady && !cloudConflict) cloudTimer = setTimeout(flushCloud, 250);
 }
 
 const active = () => tabs.find(tab => tab.id === activeId);
@@ -105,7 +105,7 @@ function save() {
     const currentPayload = payload();
     if (currentPayload !== savedPayload) { cloudDirty = Boolean(cloudUser); savedPayload = currentPayload; }
     cacheNotes();
-    $('save-status').textContent = cloudUser ? (cloudConflict ? 'Cloud conflict — local copy kept; download before reloading' : cloudDirty ? 'Saved locally · waiting to sync…' : 'Saved to Supabase') : 'Saved locally';
+    $('save-status').textContent = cloudUser ? (cloudConflict ? 'Cloud conflict — local copy kept; download before reloading' : cloudDirty ? 'Saved locally · waiting to sync…' : 'Saved to cloud') : 'Saved locally';
     queueCloudSave();
   } catch { $('save-status').textContent = 'Unable to save — download a copy'; }
   position();
@@ -229,7 +229,7 @@ async function flushCloud() {
   if (!cloudUser || !cloudReady || cloudConflict || !cloudDirty || cloudWriting) return;
   cloudWriting = true;
   const userId = cloudUser, generation = accountGeneration, contents = payload(), revision = cloudRevision;
-  $('save-status').textContent = 'Saving to Supabase…';
+  $('save-status').textContent = 'Saving to cloud…';
   try {
     const snapshot = JSON.parse(contents);
     const row = { user_id: userId, tabs: snapshot.tabs, active_id: snapshot.activeId, revision: (revision || 0) + 1, updated_at: new Date().toISOString() };
@@ -246,7 +246,7 @@ async function flushCloud() {
     cloudRevision = data[0].revision;
     cloudDirty = payload() !== contents;
     cacheNotes();
-    $('save-status').textContent = cloudDirty ? 'Saved locally · waiting to sync…' : 'Saved to Supabase';
+    $('save-status').textContent = cloudDirty ? 'Saved locally · waiting to sync…' : 'Saved to cloud';
   } catch {
     if (generation === accountGeneration) $('save-status').textContent = cloudConflict ? 'Cloud conflict — local copy kept; download before reloading' : 'Saved locally · sync failed, will retry';
   } finally {
@@ -293,7 +293,7 @@ async function loadAccount(userId) {
     }
     cloudReady = true;
     cacheNotes();
-    $('save-status').textContent = cloudConflict ? 'Cloud conflict — local copy kept; download before reloading' : cloudDirty ? 'Saved locally · waiting to sync…' : 'Saved to Supabase';
+    $('save-status').textContent = cloudConflict ? 'Cloud conflict — local copy kept; download before reloading' : cloudDirty ? 'Saved locally · waiting to sync…' : 'Saved to cloud';
     queueCloudSave();
   } catch {
     // A failed read must never permit overwriting unknown cloud contents.
