@@ -32,10 +32,12 @@ Use Body, H1, H2, or H3 above the editor to format the current paragraph or sele
 
 The rich editor uses Quill 2.0.3, loaded from jsDelivr. If it cannot load, the plain-text editor stays available. Only text, heading levels, checked/unchecked checklist items, and the app’s divider embeds are accepted when restoring formatted notes.
 
-The Add menu inserts headings, the current local time/date, interactive checklists, and dividers. Checklist states and dividers autosave inside the workspace alongside the rest of the note.
+The Insert menu inserts headings, the current local time/date, interactive checklists, and dividers. Checklist states and dividers autosave inside the workspace alongside the rest of the note.
 
 ## App interface
 
-The desktop layout has a searchable notes sidebar and a focused editor with rename, download, and share controls. On phones, use the notes button beside the logo to open the notes drawer. Tools stays in the header with Heading, Current time, and Current date. The app retains the existing local/cloud workspace format and autosave behavior.
+The desktop layout has a searchable notes sidebar and a focused editor with rename, download, and share controls. On phones, use the notes button beside the logo to open the notes drawer. Insert stays in the header with Heading, Current time, and Current date. The app retains the existing local/cloud workspace format and autosave behavior.
 
 The sidebar supports vertical drag reordering on desktop, Up/Down/Home/End keyboard navigation, and Ctrl+Alt+N for a new note. All themes use solid backgrounds, and note fonts and text sizes remain adjustable in Settings.
+
+Type `/insert` in a note to open Heading, Current time, and Current date at the cursor. Use Up/Down and Enter, or tap an option. Choosing an item replaces the command; Escape dismisses the menu and leaves the typed text intact. The same actions are available from Insert in the header.

@@ -29,7 +29,14 @@ const tabMenu = document.createElement('div');
 tabMenu.className = 'tab-menu'; tabMenu.hidden = true;
 tabMenu.setAttribute('role', 'menu'); document.body.append(tabMenu);
 let draggedId = null;
+let slashCommand = null;
+let dismissedSlash = null;
+let slashComposing = false;
 const closeMenus = () => {
+  if (slashCommand) dismissedSlash = `${slashCommand.noteId}:${slashCommand.index}`;
+  slashCommand = null;
+  document.querySelectorAll('#add-menu .is-keyboard-active').forEach(button => button.classList.remove('is-keyboard-active'));
+  if (richEditor) { richEditor.root.removeAttribute('aria-activedescendant'); richEditor.root.removeAttribute('aria-expanded'); }
   tabMenu.hidden = true;
   $('add-menu').hidden = true;
   $('open-add').setAttribute('aria-expanded', 'false');
@@ -427,7 +434,7 @@ if (window.Quill) {
     static value() { return true; }
   }
   window.Quill.register(Divider);
-  richEditor = new window.Quill('#rich-editor', { formats: ['header', 'list', 'divider'], modules: { toolbar: false }, placeholder: 'Start writing…' });
+  richEditor = new window.Quill('#rich-editor', { formats: ['header', 'list', 'divider'], modules: { toolbar: false }, placeholder: 'Start writing… Type /insert to add a heading, date, or time.' });
   richEditor.root.setAttribute('role', 'textbox');
   richEditor.root.setAttribute('aria-label', 'Note text');
   richEditor.root.setAttribute('aria-multiline', 'true');
@@ -467,9 +474,12 @@ $('open-add').addEventListener('click', event => {
   if (event.detail === 0) menu.firstElementChild.focus({ preventScroll: true });
 });
 function insertNoteItem(kind) {
+  const command = slashCommand;
   closeMenus();
   if (!richEditor || !richEditor.isEnabled()) return;
-  const range = richEditor.getSelection(true) || { index: Math.max(0, richEditor.getLength() - 1), length: 0 };
+  const range = command && command.noteId === activeId && richEditor.getText(command.index, 7) === '/insert'
+    ? { index: command.index, length: 7 }
+    : richEditor.getSelection(true) || { index: Math.max(0, richEditor.getLength() - 1), length: 0 };
   richEditor.history.cutoff();
   const Delta = window.Quill.import('delta');
   if (kind === 'time' || kind === 'date') {
@@ -578,3 +588,68 @@ updateSaveIndicator();
 document.querySelector('.header-actions').addEventListener('click', () => {
   if ($('notepad').classList.contains('notes-open')) setNotesDrawer(false);
 });
+
+function highlightSlashOption(index) {
+  if (!slashCommand) return;
+  const options = [...$('add-menu').querySelectorAll('[data-insert]')];
+  slashCommand.selected = (index + options.length) % options.length;
+  options.forEach((button, i) => button.classList.toggle('is-keyboard-active', i === slashCommand.selected));
+  richEditor.root.setAttribute('aria-activedescendant', options[slashCommand.selected].id);
+}
+function updateSlashCommand() {
+  if (!richEditor || !richEditor.isEnabled() || slashComposing) return;
+  const range = richEditor.getSelection();
+  if (!range || range.length || document.activeElement !== richEditor.root) return;
+  const before = richEditor.getText(0, range.index);
+  const match = /(?:^|\s)(\/insert)$/.exec(before);
+  if (!match) {
+    if (slashCommand) closeMenus();
+    dismissedSlash = null;
+    return;
+  }
+  const index = range.index - 7;
+  const key = `${activeId}:${index}`;
+  if (key === dismissedSlash) return;
+  if (!slashCommand || slashCommand.index !== index || slashCommand.noteId !== activeId) {
+    closeMenus();
+    dismissedSlash = null;
+    slashCommand = { index, noteId: activeId, selected: 0 };
+  }
+  const menu = $('add-menu');
+  menu.hidden = false;
+  $('open-add').setAttribute('aria-expanded', 'true');
+  richEditor.root.setAttribute('aria-controls', 'add-menu');
+  richEditor.root.setAttribute('aria-expanded', 'true');
+  highlightSlashOption(slashCommand.selected);
+  const bounds = richEditor.getBounds(range.index);
+  if (!bounds) return;
+  const container = richEditor.container.getBoundingClientRect();
+  const viewport = window.visualViewport;
+  const minTop = (viewport?.offsetTop || 0) + 8;
+  const maxBottom = (viewport?.offsetTop || 0) + (viewport?.height || innerHeight) - 8;
+  let top = container.top + bounds.bottom + 8;
+  if (top + menu.offsetHeight > maxBottom) top = container.top + bounds.top - menu.offsetHeight - 8;
+  menu.style.left = `${Math.max(8, Math.min(container.left + bounds.left, innerWidth - menu.offsetWidth - 8))}px`;
+  menu.style.top = `${Math.max(minTop, Math.min(top, maxBottom - menu.offsetHeight))}px`;
+}
+if (richEditor) {
+  richEditor.on('text-change', () => queueMicrotask(updateSlashCommand));
+  richEditor.on('selection-change', () => queueMicrotask(updateSlashCommand));
+  richEditor.root.addEventListener('compositionstart', () => { slashComposing = true; closeMenus(); });
+  richEditor.root.addEventListener('compositionend', () => { slashComposing = false; queueMicrotask(updateSlashCommand); });
+  richEditor.root.addEventListener('scroll', () => { if (slashCommand) closeMenus(); }, { passive: true });
+  richEditor.root.addEventListener('keydown', event => {
+    if (!slashCommand || event.isComposing) return;
+    if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+      event.preventDefault(); event.stopImmediatePropagation();
+      const count = $('add-menu').querySelectorAll('[data-insert]').length;
+      const index = event.key === 'Home' ? 0 : event.key === 'End' ? count - 1 : slashCommand.selected + (event.key === 'ArrowDown' ? 1 : -1);
+      highlightSlashOption(index);
+    } else if (event.key === 'Enter') {
+      event.preventDefault(); event.stopImmediatePropagation();
+      insertNoteItem($('add-menu').querySelectorAll('[data-insert]')[slashCommand.selected].dataset.insert);
+    } else if (event.key === 'Escape') {
+      event.preventDefault(); event.stopImmediatePropagation(); closeMenus();
+    } else if (event.key === 'Tab') closeMenus();
+  }, true);
+}
