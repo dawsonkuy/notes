@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 
-const files = { '/logo.png': ['logo.png', 'image/png'], '/favicon.png': ['favicon.png', 'image/png'], '/settings.js': ['settings.js', 'text/javascript'], '/auth.js': ['auth.js', 'text/javascript'], '/': ['index.html', 'text/html'], '/app.js': ['app.js', 'text/javascript'], '/style.css': ['style.css', 'text/css'] };
+const files = { '/app-preview': ['app-preview.html', 'text/html'], '/app-preview.html': ['app-preview.html', 'text/html'], '/logo.png': ['logo.png', 'image/png'], '/favicon.png': ['favicon.png', 'image/png'], '/settings.js': ['settings.js', 'text/javascript'], '/auth.js': ['auth.js', 'text/javascript'], '/': ['index.html', 'text/html'], '/app.js': ['app.js', 'text/javascript'], '/style.css': ['style.css', 'text/css'] };
 const port = Number(process.env.PORT || 3000);
 http.createServer(async (req, res) => {
   const file = files[new URL(req.url, 'http://localhost').pathname];
