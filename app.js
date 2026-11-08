@@ -119,7 +119,7 @@ function save() {
   position();
 }
 function setTitle() {
-  document.title = `${noteName(active())} - Notepad`;
+  document.title = `${noteName(active())} - Bestpad`;
 }
 function refreshNames() {
   setTitle();
