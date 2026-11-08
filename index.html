@@ -11,7 +11,7 @@
       const stored = localStorage.getItem('notepad:theme');
       const previous = { grey: 'ruled', light: 'plain', midnight: 'dot', forest: 'ruled', sepia: 'legal' };
       const theme = stored === 'graph' ? 'ruled' : previous[stored] || stored;
-      document.documentElement.dataset.theme = ['ruled', 'plain', 'legal', 'dot', 'darkpad'].includes(theme) ? theme : 'ruled';
+      document.documentElement.dataset.theme = ['ruled', 'plain', 'legal', 'dot', 'darkpad', 'green', 'lavender', 'slate'].includes(theme) ? theme : 'ruled';
       const font = localStorage.getItem('notepad:font');
       if (['mono', 'sans', 'serif', 'rounded'].includes(font)) document.documentElement.dataset.font = font;
       const size = localStorage.getItem('notepad:text-size');
@@ -44,6 +44,9 @@
         <label class="theme-option"><input type="radio" name="theme" value="dot"><span class="theme-swatch swatch-dot" aria-hidden="true"></span><span><strong>Sand</strong><small>Ivory with warm neutral accents</small></span></label>
         <label class="theme-option"><input type="radio" name="theme" value="plain"><span class="theme-swatch swatch-plain" aria-hidden="true"></span><span><strong>White</strong><small>Clean white with neutral grey accents</small></span></label>
         <label class="theme-option"><input type="radio" name="theme" value="darkpad"><span class="theme-swatch swatch-darkpad" aria-hidden="true"></span><span><strong>Darkpad</strong><small>Blue-black with cool blue accents</small></span></label>
+        <label class="theme-option"><input type="radio" name="theme" value="green"><span class="theme-swatch swatch-green" aria-hidden="true"></span><span><strong>Forest</strong><small>Deep green with soft sage accents</small></span></label>
+        <label class="theme-option"><input type="radio" name="theme" value="lavender"><span class="theme-swatch swatch-lavender" aria-hidden="true"></span><span><strong>Lavender</strong><small>Soft purple with plum text</small></span></label>
+        <label class="theme-option"><input type="radio" name="theme" value="slate"><span class="theme-swatch swatch-slate" aria-hidden="true"></span><span><strong>Slate</strong><small>Charcoal grey with silver accents</small></span></label>
       </fieldset>
       <div class="font-setting">
         <fieldset id="note-font" class="font-options"><legend>Note font</legend>

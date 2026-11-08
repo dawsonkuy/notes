@@ -165,3 +165,10 @@ label[for="note-size"] { margin-top: 16px; }
 .font-sans { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; }
 .font-serif { font-family: Georgia, 'Times New Roman', serif; }
 .font-rounded { font-family: ui-rounded, 'SF Pro Rounded', 'Arial Rounded MT Bold', 'Trebuchet MS', sans-serif; }
+
+:root[data-theme="green"] { color-scheme: dark; --canvas: #14251e; --bar: #1b3228; --border: #4d7462; --selected: #2a4a3b; --hover: #355c49; --panel: #192c23; --control: #254133; --text: #ecf6ef; --muted: #c3d9ca; }
+:root[data-theme="lavender"] { color-scheme: light; --canvas: #f3eefb; --bar: #e5dbf2; --border: #b7a4cc; --selected: #d8c8eb; --hover: #cfc0e3; --panel: #ece3f6; --control: #faf6ff; --text: #39294f; --muted: #635276; }
+:root[data-theme="slate"] { color-scheme: dark; --canvas: #22262d; --bar: #2c323b; --border: #596573; --selected: #404c5b; --hover: #4b5868; --panel: #282e36; --control: #353e49; --text: #edf1f5; --muted: #bbc5cf; }
+.swatch-green { background: #14251e; }
+.swatch-lavender { background: #f3eefb; }
+.swatch-slate { background: #22262d; }
