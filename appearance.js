@@ -97,7 +97,7 @@
       find('[data-update-theme]').hidden = !selected;
       if (selected) find('[data-update-theme]').textContent = `Update “${selected.name}”`;
       const list = find('[data-saved-themes]'); list.replaceChildren();
-      if (!state.themes.length) { const empty = document.createElement('p'); empty.className = 'appearance-empty'; empty.textContent = 'Your colors, your collection. Save your first theme below.'; list.append(empty); }
+      if (!state.themes.length) { const empty = document.createElement('p'); empty.className = 'appearance-empty'; empty.textContent = 'No saved themes.'; list.append(empty); }
       state.themes.forEach(theme => {
         const row = document.createElement('div'); row.className = 'appearance-theme-row';
         const button = document.createElement('button'); button.type = 'button'; button.className = 'appearance-theme-choice'; button.dataset.savedTheme = theme.id; button.setAttribute('aria-pressed', String(theme.id === state.selected));
