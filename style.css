@@ -1,9 +1,9 @@
 * { box-sizing: border-box; }
 
-:root { color-scheme: light; --canvas: #fffef9; --bar: #e8edf1; --border: #b1bcc6; --selected: #dbe5ed; --hover: #d1dce7; --panel: #f0f3f5; --control: #fffef9; --text: #24354b; --muted: #526275; --rule: #b8cfe7; --margin: #df9b9f; --paper-pattern: repeating-linear-gradient(to bottom, transparent 0 calc(var(--note-line-height, 28px) - 1px), var(--rule) calc(var(--note-line-height, 28px) - 1px) var(--note-line-height, 28px)); --paper-margin: linear-gradient(to right, transparent 39px, var(--margin) 39px 40px, transparent 40px); --paper-inset: 56px; }
-:root[data-theme="legal"] { --canvas: #fff1ab; --bar: #e6d48b; --border: #b3a064; --selected: #ead78e; --hover: #e2cb7b; --panel: #f3e2a3; --control: #fff6cf; --text: #423921; --muted: #645733; --rule: #cabc7b; --margin: #d89182; }
-:root[data-theme="dot"] { --canvas: #f8f5ec; --bar: #e6e1d3; --border: #b8af9b; --selected: #dad3c2; --hover: #d0c7b3; --panel: #eee9dd; --control: #faf8f0; --text: #3d3a30; --muted: #66614f; --paper-pattern: radial-gradient(circle at 1px calc(100% - 1px), #b5ad98 1px, transparent 1px); --paper-margin: none; --paper-inset: 24px; }
-:root[data-theme="plain"] { --canvas: #fff; --bar: #eee; --border: #bbb; --selected: #ddd; --hover: #d5d5d5; --panel: #f5f5f5; --control: #fff; --text: #292929; --muted: #595959; --paper-pattern: none; --paper-margin: none; --paper-inset: 24px; }
+:root { color-scheme: light; --canvas: #fffef9; --bar: #e8edf1; --border: #b1bcc6; --selected: #dbe5ed; --hover: #d1dce7; --panel: #f0f3f5; --control: #fffef9; --text: #24354b; --muted: #526275; }
+:root[data-theme="legal"] { --canvas: #fff1ab; --bar: #e6d48b; --border: #b3a064; --selected: #ead78e; --hover: #e2cb7b; --panel: #f3e2a3; --control: #fff6cf; --text: #423921; --muted: #645733; }
+:root[data-theme="dot"] { --canvas: #f8f5ec; --bar: #e6e1d3; --border: #b8af9b; --selected: #dad3c2; --hover: #d0c7b3; --panel: #eee9dd; --control: #faf8f0; --text: #3d3a30; --muted: #66614f; }
+:root[data-theme="plain"] { --canvas: #fff; --bar: #eee; --border: #bbb; --selected: #ddd; --hover: #d5d5d5; --panel: #f5f5f5; --control: #fff; --text: #292929; --muted: #595959; }
 body { margin: 0; padding: 0; color: var(--text); background: var(--canvas); font: 13px 'Segoe UI', Arial, sans-serif; }
 [hidden] { display: none !important; }
 button, input { font: inherit; color: inherit; }
@@ -90,19 +90,17 @@ footer span:first-child { min-width: 0; overflow-wrap: anywhere; }
   .page-header button { padding-left: 10px; padding-right: 10px; }
 }
 
-/* Paper spacing follows the selected base text size. */
-:is(#editor, .ql-editor) { padding: 20px 24px 28px var(--paper-inset); line-height: 28px; background-color: var(--canvas); background-image: var(--paper-margin), var(--paper-pattern); background-position: 0 20px; background-attachment: local; }
-:root[data-theme="dot"] :is(#editor, .ql-editor) { background-size: auto, calc(var(--note-line-height) / 2) var(--note-line-height); }
+:is(#editor, .ql-editor) { padding: 20px 24px 28px; background-color: var(--canvas); }
 .theme-option strong { display: block; font-size: 13px; font-weight: 600; }
 .theme-option small { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; }
 .theme-swatch { width: 42px; height: 48px; border-radius: 3px; box-shadow: 2px 2px 0 #0001; }
-.swatch-ruled { background: linear-gradient(to right, transparent 8px, #df9b9f 8px 9px, transparent 9px), repeating-linear-gradient(to bottom, #fffef9 0 8px, #b8cfe7 8px 9px); }
-.swatch-legal { background: linear-gradient(to right, transparent 8px, #d89182 8px 9px, transparent 9px), repeating-linear-gradient(to bottom, #fff1ab 0 8px, #cabc7b 8px 9px); }
-.swatch-dot { background: radial-gradient(circle, #b5ad98 1px, transparent 1px) 0 0 / 8px 8px, #f8f5ec; }
+.swatch-ruled { background: #fffef9; }
+.swatch-legal { background: #fff1ab; }
+.swatch-dot { background: #f8f5ec; }
 .swatch-plain { background: #fff; }
 
-:root[data-theme="darkpad"] { color-scheme: dark; --canvas: #080f1c; --bar: #101e33; --border: #30496c; --selected: #1b3455; --hover: #254469; --panel: #0d192b; --control: #162740; --text: #e1edff; --muted: #a6bddb; --rule: #1d3554; --margin: #3d6da3; }
-.swatch-darkpad { background: linear-gradient(to right, transparent 8px, #3d6da3 8px 9px, transparent 9px), repeating-linear-gradient(to bottom, #080f1c 0 8px, #1d3554 8px 9px); }
+:root[data-theme="darkpad"] { color-scheme: dark; --canvas: #080f1c; --bar: #101e33; --border: #30496c; --selected: #1b3455; --hover: #254469; --panel: #0d192b; --control: #162740; --text: #e1edff; --muted: #a6bddb; }
+.swatch-darkpad { background: #080f1c; }
 
 :root { --note-font: 'SFMono-Regular', Consolas, 'Liberation Mono', 'Courier New', monospace; }
 :root[data-font="sans"] { --note-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; }
@@ -136,22 +134,6 @@ label[for="note-size"] { margin-top: 16px; }
 .heading-toolbar button[aria-pressed="true"] { background: var(--selected); box-shadow: inset 0 -2px var(--text); }
 .heading-toolbar button:disabled { opacity: .5; }
 @media (pointer: coarse) { .heading-toolbar button { min-height: 44px; } }
-
-/* Each paragraph owns its paper row so larger and wrapped headings fit too. */
-.ql-editor > p, .ql-editor > h1, .ql-editor > h2, .ql-editor > h3 {
-  --paper-step: var(--note-line-height);
-  background-color: var(--canvas);
-  background-image: repeating-linear-gradient(to bottom, transparent 0 calc(var(--paper-step) - 1px), var(--rule) calc(var(--paper-step) - 1px) var(--paper-step));
-  background-position: 0 0;
-  line-height: var(--paper-step);
-}
-.ql-editor > h1, .ql-editor > h2 { --paper-step: calc(var(--note-line-height) * 2); }
-:root[data-theme="dot"] .ql-editor > :is(p, h1, h2, h3) {
-  background-image: radial-gradient(circle at 1px calc(100% - 1px), #b5ad98 1px, transparent 1px);
-  background-size: calc(var(--paper-step) / 2) var(--paper-step);
-  background-position: calc(-1 * var(--paper-inset)) 0;
-}
-:root[data-theme="plain"] .ql-editor > :is(p, h1, h2, h3) { background-image: none; }
 
 #open-add { margin-right: 6px; font-weight: 600; }
 .add-menu { position: fixed; z-index: 20; width: 180px; padding: 5px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 6px 20px #0003; }
