@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node server.mjs",
     "start": "node server.mjs",
-    "check": "node --check settings.js && node --check auth.js && node --check app.js && node --check server.mjs && node --check build.mjs",
+    "check": "node --check settings.js && node --check auth.js && node --check app.js && node --check server.mjs && node --check build.mjs && node --check appearance.js",
     "build": "node build.mjs"
   }
 }

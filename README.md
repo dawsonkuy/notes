@@ -41,3 +41,9 @@ The desktop layout has a searchable notes sidebar and a focused editor with rena
 The sidebar supports vertical drag reordering on desktop, Up/Down/Home/End keyboard navigation, and Ctrl+Alt+N for a new note. All themes use solid backgrounds, and note fonts and text sizes remain adjustable in Settings.
 
 Type `/insert` in a note to open Heading, Current time, and Current date at the cursor. Use Up/Down and Enter, or tap an option. Choosing an item replaces the command; Escape dismisses the menu and leaves the typed text intact. The same actions are available from Insert in the header.
+
+## Custom appearance
+
+The website and iPhone app preview share appearance controls: Light/Dark starting modes, a color wheel with brightness and hex editing for Font, Primary (background), and Secondary (cards and controls), and up to four named custom themes. Apply, update, or delete saved themes in Settings. Switching Light/Dark resets the current colors to that mode’s starting colors and keeps saved themes.
+
+Appearance preferences and saved themes persist on the current device using the same origin-scoped localStorage key on both interfaces. They are separate from the notes workspace and do not change note contents or account permissions.
