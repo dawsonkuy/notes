@@ -33,3 +33,25 @@ test('completion of an old-account write cannot replace the current account', as
 test('explicit cloud-copy recovery resolves a conflict without changing cloud data', async () => {
   const f = fixture(); try { f.rows.set('alice', { workspace: f.workspace('Before'), revision: 1 }); await f.store.connect('alice'); f.store.updateNote({ ...f.store.getSnapshot().workspace.tabs[0], text: 'Local change' }); f.rows.set('alice', { workspace: f.workspace('Latest cloud'), revision: 2 }); await f.store.flush(); await f.store.useCloudCopy(); assert.equal(f.store.getSnapshot().status, 'saved'); assert.equal(f.store.getSnapshot().workspace.tabs[0].text, 'Latest cloud'); assert.equal(f.rows.get('alice')!.revision, 2); } finally { f.store.dispose(); }
 });
+
+test('live refresh loads new web notes and preserves the open note', async () => {
+  const f = fixture(); try {
+    f.rows.set('alice', { workspace: f.workspace('Before'), revision: 1 }); await f.store.connect('alice');
+    f.rows.set('alice', { workspace: { tabs: [...f.workspace('Updated').tabs, { ...newNote('from-web'), text: 'New on web' }], activeId: 'from-web' }, revision: 2 });
+    await f.store.refresh();
+    assert.equal(f.store.getSnapshot().workspace.tabs.length, 2);
+    assert.equal(f.store.getSnapshot().workspace.tabs[0].text, 'Updated');
+    assert.equal(f.store.getSnapshot().workspace.activeId, 'existing');
+    assert.equal(f.writeCount(), 0);
+  } finally { f.store.dispose(); }
+});
+test('an in-flight refresh cannot replace local typing', async () => {
+  const f = fixture(); try {
+    f.rows.set('alice', { workspace: f.workspace('Before'), revision: 1 }); await f.store.connect('alice');
+    let release!: () => void; const gate = new Promise<void>(resolve => { release = resolve; });
+    f.remote.read = async () => { await gate; return { workspace: f.workspace('Remote'), revision: 2 }; };
+    const refresh = f.store.refresh(); f.store.updateNote({ ...f.store.getSnapshot().workspace.tabs[0], text: 'Local pending' }); release(); await refresh;
+    assert.equal(f.store.getSnapshot().workspace.tabs[0].text, 'Local pending');
+    assert.equal(f.store.getSnapshot().status, 'pending');
+  } finally { f.store.dispose(); }
+});

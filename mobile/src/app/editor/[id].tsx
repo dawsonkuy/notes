@@ -11,13 +11,18 @@ function NoteEditor({ note }: { note: Note }) {
   const { colors, appearance, snapshot, store } = useBestpad(), insets = useSafeAreaInsets();
   const [blocks, setBlocks] = useState(() => toBlocks(note, randomUUID)), [insertOpen, setInsertOpen] = useState(false);
   const blocksRef = useRef(blocks); const noteRef = useRef(note);
-  useLayoutEffect(() => { noteRef.current = note; }, [note]);
+  const displayed = useRef(JSON.stringify([note.text, note.content]));
+  useLayoutEffect(() => {
+    noteRef.current = note;
+    const signature = JSON.stringify([note.text, note.content]);
+    if (signature !== displayed.current) { const next = toBlocks(note, randomUUID); blocksRef.current = next; setBlocks(next); displayed.current = signature; }
+  }, [note]);
   const inputs = useRef<Record<string, React.ComponentRef<typeof TextInput> | null>>({});
   const cursor = useRef<Cursor>({ id: blocks[0].id, start: 0, end: 0 });
   const slash = useRef<Cursor | null>(null), dismissedSlash = useRef<string | null>(null);
   const [pendingFocus, setPendingFocus] = useState<Cursor | null>(null);
   const fontFamily = appearance.font === 'serif' ? Platform.OS === 'ios' ? 'Georgia' : 'serif' : appearance.font === 'mono' ? Platform.OS === 'ios' ? 'Menlo' : 'monospace' : appearance.font === 'rounded' ? Platform.OS === 'ios' ? 'Avenir Next' : 'sans-serif' : undefined;
-  function emit(next: Block[]) { blocksRef.current = next; setBlocks(next); store.updateNote(fromBlocks(noteRef.current, next)); }
+  function emit(next: Block[]) { blocksRef.current = next; setBlocks(next); const updated = fromBlocks(noteRef.current, next); displayed.current = JSON.stringify([updated.text, updated.content]); store.updateNote(updated); }
   useEffect(() => { if (!pendingFocus) return; const frame = requestAnimationFrame(() => { const input = inputs.current[pendingFocus.id]; input?.focus(); input?.setNativeProps?.({ selection: { start: pendingFocus.start, end: pendingFocus.end } }); cursor.current = pendingFocus; }); return () => cancelAnimationFrame(frame); }, [pendingFocus]);
   function checkSlash(selection: Cursor) {
     const block = blocksRef.current.find(item => item.id === selection.id); if (!block || selection.start !== selection.end || !inputs.current[selection.id]?.isFocused()) return;
@@ -63,7 +68,6 @@ function NoteEditor({ note }: { note: Note }) {
   return <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={[ui.container, { backgroundColor: colors.primary }]}><KeyboardAvoidingView style={ui.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <View style={[ui.row, { justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 6 }]}><Pressable accessibilityRole="button" accessibilityLabel="Notes" onPress={close} style={[ui.row, { minHeight: 44 }]}><Icon name="chevron-back" /><Text style={{ color: colors.font, fontSize: 15 }}>Notes</Text></Pressable><IconButton name="share-outline" label="Share note" onPress={() => { void Share.share({ title: noteName(note), message: `${noteName(note)}\n\n${note.text}` }).catch(() => undefined); }} /></View>
     <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} contentContainerStyle={{ padding: 24, paddingTop: 20, paddingBottom: 50 }}>
-      <TextInput accessibilityLabel="Note title" placeholder={noteName(note)} placeholderTextColor={colors.muted} value={typeof note.customName === 'string' ? note.customName : ''} onChangeText={text => store.updateNote({ ...note, customName: text.slice(0, 80) || null })} maxLength={80} style={{ color: colors.font, fontSize: appearance.size * 1.8, fontWeight: '700', fontFamily, marginBottom: 24, padding: 0 }} />
       {blocks.map((block, index) => block.divider ? <View key={block.id} style={[ui.row, { marginVertical: 10 }]}><View style={{ height: 1, flex: 1, backgroundColor: colors.border }} /><IconButton name="close" label="Remove divider" onPress={() => { const next = blocks.filter(item => item.id !== block.id); emit(next.length ? next : [{ id: randomUUID(), text: '' }]); }} /></View> : <View key={block.id} style={{ flexDirection: 'row', alignItems: 'flex-start' }}>{block.list && <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: block.list === 'checked' }} accessibilityLabel={block.text || 'Task'} onPress={() => emit(blocks.map(item => item.id === block.id ? { ...item, list: item.list === 'checked' ? 'unchecked' : 'checked' } : item))} style={{ minWidth: 40, minHeight: 40, paddingTop: 4 }}><Icon name={block.list === 'checked' ? 'checkbox-outline' : 'square-outline'} /></Pressable>}
       <TextInput ref={input => { inputs.current[block.id] = input; }} accessibilityLabel={block.heading ? `Heading ${block.heading}` : `Note paragraph ${index + 1}`} multiline scrollEnabled={false} placeholder={blocks.length === 1 ? 'Start writing…' : ''} placeholderTextColor={colors.muted} value={block.text} onChangeText={text => change(block, text)} onSelectionChange={event => { const next = { id: block.id, ...event.nativeEvent.selection }; cursor.current = next; checkSlash(next); }} onKeyPress={event => { if (event.nativeEvent.key === 'Backspace') backspace(block); }} style={{ flex: 1, padding: 0, margin: 0, color: colors.font, fontFamily, fontSize: appearance.size * (block.heading === 1 ? 2 : block.heading === 2 ? 1.5 : block.heading === 3 ? 1.2 : 1), lineHeight: appearance.size * (block.heading === 1 ? 2.7 : block.heading === 2 ? 2.2 : 1.7), minHeight: appearance.size * 1.7, fontWeight: block.heading ? '700' : '400', textDecorationLine: block.list === 'checked' ? 'line-through' : 'none', textAlignVertical: 'top' }} /></View>)}
     </ScrollView>

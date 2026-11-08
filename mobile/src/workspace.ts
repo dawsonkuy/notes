@@ -7,7 +7,7 @@ export type Snapshot = { workspace: Workspace; loading: boolean; status: Status;
 type Cache = Workspace & { revision: number | null; dirty: boolean };
 export class WorkspaceStore {
   private listeners = new Set<() => void>();
-  private generation = 0; private revision: number | null = null; private dirty = false; private ready = false; private writing = false; private conflict = false;
+  private refreshing = false; private generation = 0; private revision: number | null = null; private dirty = false; private ready = false; private writing = false; private conflict = false;
   private timer: ReturnType<typeof setTimeout> | undefined; private cacheQueue = Promise.resolve(); private connected = false; private version = 0;
   private snapshot: Snapshot;
   constructor(private storage: Storage, private remote: Remote, private id: () => string) { const note = newNote(id()); this.snapshot = { workspace: { tabs: [note], activeId: note.id }, loading: true, status: 'loading', user: null }; }
@@ -56,7 +56,7 @@ export class WorkspaceStore {
   }
   updateNote(note: Note) { this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(n => n.id === note.id ? note : n) }); }
   add() { const note = newNote(this.id()); this.update({ tabs: [...this.snapshot.workspace.tabs, note], activeId: note.id }); return note.id; }
-  activate(id: string) { if (this.snapshot.workspace.tabs.some(n => n.id === id)) this.update({ ...this.snapshot.workspace, activeId: id }); }
+  activate(id: string) { if (this.snapshot.workspace.tabs.some(n => n.id === id)) { this.emit({ workspace: { ...this.snapshot.workspace, activeId: id } }); void this.cache(); } }
   remove(id: string) {
     let tabs = this.snapshot.workspace.tabs.filter(note => note.id !== id); if (!tabs.length) tabs = [newNote(this.id())];
     this.update({ tabs, activeId: tabs.some(note => note.id === this.snapshot.workspace.activeId) ? this.snapshot.workspace.activeId : tabs[0].id });
@@ -78,6 +78,23 @@ export class WorkspaceStore {
       this.emit({ status: this.conflict ? 'conflict' : 'offline' }); await this.cache();
     } finally { this.writing = false; this.schedule(retry); }
   }
+  async refresh() {
+    const user = this.snapshot.user;
+    if (!user || this.snapshot.loading || this.refreshing || this.writing || this.dirty || this.conflict) return;
+    if (!this.ready) { await this.connect(user, true); return; }
+    const generation = this.generation, version = this.version;
+    this.refreshing = true;
+    try {
+      const row = await this.remote.read(user);
+      if (generation !== this.generation || version !== this.version || this.dirty || this.writing || !row || !validWorkspace(row.workspace)) return;
+      if (row.revision === this.revision) return;
+      const activeId = this.snapshot.workspace.activeId;
+      const workspace = { ...row.workspace, activeId: row.workspace.tabs.some(note => note.id === activeId) ? activeId : row.workspace.activeId };
+      this.revision = row.revision; this.version++;
+      this.emit({ workspace, status: 'saved' }); await this.cache();
+    } catch { /* Keep the local copy; the next event or fallback timer retries. */ }
+    finally { this.refreshing = false; }
+  }
   async useCloudCopy() {
     const user = this.snapshot.user, generation = this.generation; if (!user || this.snapshot.loading) return;
     const row = await this.remote.read(user);
@@ -86,6 +103,6 @@ export class WorkspaceStore {
     this.revision = row.revision; this.dirty = false; this.conflict = false; this.ready = true; this.version++;
     this.emit({ workspace: row.workspace, status: 'saved' }); await this.cache();
   }
-  retry = () => this.ready && !this.conflict ? this.flush() : this.connect(this.snapshot.user, true);
+  retry = () => this.ready && !this.conflict ? (this.dirty ? this.flush() : this.refresh()) : this.connect(this.snapshot.user, true);
   dispose() { clearTimeout(this.timer); this.listeners.clear(); }
 }

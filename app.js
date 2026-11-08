@@ -13,6 +13,8 @@ let cloudTimer;
 let cloudWriting = false;
 let accountGeneration = 0;
 let savedPayload = '';
+let cloudChannel = null;
+let cloudRefreshing = false;
 const payload = () => JSON.stringify({ tabs, activeId });
 function cacheNotes() {
   localStorage.setItem(storageKey, JSON.stringify({ tabs, activeId, revision: cloudRevision, dirty: cloudDirty }));
@@ -291,12 +293,30 @@ async function flushCloud() {
     if (cloudDirty && !cloudConflict && cloudReady) cloudTimer = setTimeout(flushCloud, 5000);
   }
 }
+async function refreshCloud() {
+  if (!cloudUser || !cloudReady || cloudDirty || cloudWriting || cloudConflict || cloudRefreshing || document.hidden) return;
+  const user = cloudUser, generation = accountGeneration, contents = payload();
+  cloudRefreshing = true;
+  try {
+    const { data, error } = await window.notesClient.from('note_workspaces').select('*').eq('user_id', user).maybeSingle();
+    if (error || !data || generation !== accountGeneration || cloudDirty || cloudWriting || contents !== payload() || data.revision === cloudRevision || !validWorkspace({ tabs: data.tabs })) return;
+    const selection = richEditor?.getSelection(), scroll = richEditor?.root.scrollTop;
+    const selected = activeId;
+    cloudRevision = data.revision;
+    useWorkspace({ tabs: data.tabs, activeId: data.tabs.some(note => note.id === selected) ? selected : data.active_id });
+    if (richEditor && selection) { richEditor.setSelection(Math.min(selection.index, richEditor.getLength() - 1), 0, 'silent'); richEditor.root.scrollTop = scroll; }
+    cacheNotes(); $('save-status').textContent = 'Saved to cloud';
+  } catch { /* Retry on the next live event or fallback refresh. */ }
+  finally { cloudRefreshing = false; }
+}
 async function loadAccount(userId) {
   if (userId === cloudUser) return;
   save();
   clearTimeout(cloudTimer);
   const generation = ++accountGeneration;
+  if (cloudChannel) { void window.notesClient.removeChannel(cloudChannel); cloudChannel = null; }
   cloudUser = userId;
+  if (userId) cloudChannel = window.notesClient.channel(`web-notes:${userId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'note_workspaces', filter: `user_id=eq.${userId}` }, refreshCloud).subscribe(status => { if (status === 'SUBSCRIBED') void refreshCloud(); });
   cloudReady = false; cloudConflict = false; cloudRevision = null; cloudDirty = false;
   storageKey = userId ? `notepad:tabs:${userId}` : 'notepad:tabs';
   let cached;
@@ -357,7 +377,7 @@ window.addEventListener('online', () => {
     const userId = cloudUser; cloudUser = null; loadAccount(userId);
   } else flushCloud();
 });
-document.addEventListener('visibilitychange', () => { if (document.hidden) flushCloud(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushCloud(); else void refreshCloud(); });
 window.addEventListener('beforeunload', event => {
   if (cloudUser && cloudDirty) { event.preventDefault(); event.returnValue = ''; }
 });
@@ -653,3 +673,6 @@ if (richEditor) {
     } else if (event.key === 'Tab') closeMenus();
   }, true);
 }
+
+setInterval(() => { void refreshCloud(); }, 3000);
+window.addEventListener('focus', () => { void refreshCloud(); });

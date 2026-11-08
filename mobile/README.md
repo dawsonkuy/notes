@@ -33,7 +33,7 @@ Expo may prompt to install its tunnel package. This needs internet access and a 
 
 ## Features
 
-- Native notes library, search, editor, and bottom navigation for Notes / Settings.
+- Native notes library, search, editor, and bottom navigation for Notes / Settings. Note titles appear in the library, while the editor opens directly into the note body.
 - Email/password sign-in and account creation against your existing Supabase project.
 - Local saving with a recovery copy, 250 ms debounced cloud saving, and five-second retries after failed writes while the app is active.
 - Existing note names, headings, checked/unchecked checklist items, and dividers are retained when editing website notes.
@@ -47,7 +47,7 @@ Color preferences and saved themes stay on the device. Cloud notes sync with the
 
 ## Saving and conflicts
 
-Wait for **Saved to cloud** before switching devices. The app reads cloud notes when an account workspace loads. If another device has saved a newer workspace revision, the app keeps local changes and stops automatic writes rather than replacing the newer cloud copy.
+Wait for **Saved to cloud** before switching devices. Both the app and website listen for Supabase Realtime updates and refresh every three seconds while active as a fallback. New notes and edits appear without reloading; each device keeps its own open-note selection. Incoming updates never replace pending local edits. If another device has saved a newer workspace revision, the app keeps local changes and stops automatic writes rather than replacing the newer cloud copy.
 
 To resolve a conflict, share a backup of your local note from the editor, return to Notes, and choose **Use cloud copy…**. That action requires confirmation and replaces the local workspace with the current cloud version. **Retry sync** retries failed reads/writes and preserves pending local changes.
 
