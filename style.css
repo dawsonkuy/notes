@@ -83,7 +83,11 @@ footer span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .theme-swatch { width: 24px; height: 24px; flex-shrink: 0; border-radius: 50%; border: 1px solid var(--border); }
 #theme-status { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 16px 0 0; }
 
-.header-logo { display: block; width: clamp(100px, 30vw, 180px); height: auto; max-height: 60px; object-fit: contain; margin-right: auto; flex-shrink: 1; min-width: 0; }
+.header-logo { display: block; width: clamp(100px, 30vw, 180px); height: auto; max-height: 60px; object-fit: contain; margin-right: auto; flex-shrink: 1; min-width: 0; filter: brightness(0); }
+/* Preserve the white mark on dark themes; use black on light paper backgrounds. */
+:root[data-theme="darkpad"] .header-logo,
+:root[data-theme="green"] .header-logo,
+:root[data-theme="slate"] .header-logo { filter: none; }
 .page-header > button { flex-shrink: 0; }
 @media (max-width: 380px) {
   .page-header { gap: 8px; padding-left: 10px; padding-right: 10px; }
