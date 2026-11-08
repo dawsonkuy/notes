@@ -120,13 +120,16 @@ function save() {
 }
 function setTitle() {
   document.title = `${noteName(active())} - Bestpad`;
+  $('note-title').textContent = noteName(active());
 }
 function refreshNames() {
   setTitle();
   tabs.forEach(tab => {
     const button = document.getElementById(`tab-${tab.id}`);
     if (!button) return;
-    button.textContent = noteName(tab);
+    const title = button.querySelector('.note-list-title');
+    if (title) { title.textContent = noteName(tab); button.querySelector('.note-list-preview').textContent = notePreview(tab); }
+    else button.textContent = noteName(tab);
     button.parentElement.querySelector('.edit-tab').setAttribute('aria-label', `Options for ${noteName(tab)}`);
   });
 }
@@ -134,14 +137,20 @@ $('editor').addEventListener('input', save);
 ['click', 'keyup', 'select'].forEach(type => $('editor').addEventListener(type, position));
 function renderTabs() {
   $('tabs').replaceChildren();
-  tabs.forEach(tab => {
+  $('note-total').textContent = tabs.length;
+  const query = $('note-search').value.trim().toLocaleLowerCase();
+  const visibleTabs = tabs.filter(tab => !query || `${noteName(tab)} ${tab.text}`.toLocaleLowerCase().includes(query));
+  $('search-empty').hidden = visibleTabs.length > 0;
+  visibleTabs.forEach(tab => {
     const item = document.createElement('div'); item.className = 'tab';
     const button = document.createElement('button');
     button.id = `tab-${tab.id}`; button.setAttribute('role', 'tab');
     button.setAttribute('aria-selected', String(tab.id === activeId));
     button.setAttribute('aria-controls', richEditor ? 'rich-editor' : 'editor');
     button.tabIndex = tab.id === activeId ? 0 : -1;
-    button.textContent = noteName(tab);
+    const title = document.createElement('span'); title.className = 'note-list-title'; title.textContent = noteName(tab);
+    const preview = document.createElement('span'); preview.className = 'note-list-preview'; preview.textContent = notePreview(tab);
+    button.append(title, preview);
     button.title = `${noteName(tab)} — drag to reorder; right-click to rename`;
     button.oncontextmenu = event => { event.preventDefault(); renameTab(tab); };
     button.draggable = !window.matchMedia('(pointer: coarse)').matches;
@@ -157,29 +166,29 @@ function renderTabs() {
     item.ondragover = event => {
       if (!draggedId || draggedId === tab.id) return;
       event.preventDefault(); event.dataTransfer.dropEffect = 'move';
-      const after = event.clientX > item.getBoundingClientRect().left + item.offsetWidth / 2;
+      const after = event.clientY > item.getBoundingClientRect().top + item.offsetHeight / 2;
       item.classList.toggle('drop-after', after); item.classList.toggle('drop-before', !after);
       const strip = $('tabs').getBoundingClientRect();
-      if (event.clientX < strip.left + 35) $('tabs').scrollLeft -= 20;
-      if (event.clientX > strip.right - 35) $('tabs').scrollLeft += 20;
+      if (event.clientY < strip.top + 35) $('tabs').scrollTop -= 20;
+      if (event.clientY > strip.bottom - 35) $('tabs').scrollTop += 20;
     };
     item.ondragleave = () => item.classList.remove('drop-before', 'drop-after');
     item.ondrop = event => {
       if (!draggedId) return;
       event.preventDefault();
-      reorderTab(draggedId, tab.id, event.clientX > item.getBoundingClientRect().left + item.offsetWidth / 2);
+      reorderTab(draggedId, tab.id, event.clientY > item.getBoundingClientRect().top + item.offsetHeight / 2);
       draggedId = null;
     };
     button.onclick = () => switchTab(tab.id);
     button.onkeydown = event => {
-      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault();
-      const index = tabs.findIndex(t => t.id === tab.id);
-      const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
-      switchTab(tabs[next].id); document.getElementById(`tab-${activeId}`).focus();
+      const index = visibleTabs.findIndex(t => t.id === tab.id);
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? visibleTabs.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + visibleTabs.length) % visibleTabs.length;
+      switchTab(visibleTabs[next].id, true); document.getElementById(`tab-${activeId}`).focus();
     };
     const edit = document.createElement('button'); edit.className = 'edit-tab';
-    edit.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z"/></svg>';
+    edit.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>';
     edit.setAttribute('aria-label', `Options for ${noteName(tab)}`);
     edit.setAttribute('aria-haspopup', 'menu'); edit.title = 'Note options';
     edit.onclick = () => openTabMenu(tab, edit);
@@ -197,19 +206,21 @@ function showTab() {
   const selected = document.getElementById(`tab-${activeId}`)?.parentElement;
   if (selected) {
     const strip = $('tabs');
-    if (selected.offsetLeft < strip.scrollLeft) strip.scrollLeft = selected.offsetLeft;
-    else if (selected.offsetLeft + selected.offsetWidth > strip.scrollLeft + strip.clientWidth) strip.scrollLeft = selected.offsetLeft + selected.offsetWidth - strip.clientWidth;
+    if (selected.offsetTop < strip.scrollTop) strip.scrollTop = selected.offsetTop;
+    else if (selected.offsetTop + selected.offsetHeight > strip.scrollTop + strip.clientHeight) strip.scrollTop = selected.offsetTop + selected.offsetHeight - strip.clientHeight;
   }
 }
-function switchTab(id) { save(); activeId = id; showTab(); save(); }
+function switchTab(id, keepSidebar = false) { save(); activeId = id; showTab(); save(); if (!keepSidebar) setNotesDrawer(false); }
 function addTab(text = '', filename = 'Untitled') {
+  if ($('add-tab').disabled) return;
+  $('note-search').value = '';
   save(); const tab = makeTab(text, filename); tabs.push(tab); activeId = tab.id;
-  showTab(); save(); closeMenus();
+  showTab(); save(); closeMenus(); setNotesDrawer(false);
 }
 $('add-tab').onclick = () => addTab();
 document.addEventListener('click', event => { if (!event.target.closest('.edit-tab, .tab-menu, #open-add, .add-menu')) closeMenus(); });
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape') closeMenus();
+  if (event.key === 'Escape') { closeMenus(); setNotesDrawer(false, true); }
   if (tabMenu.contains(event.target) && ['ArrowDown', 'ArrowUp'].includes(event.key)) {
     event.preventDefault();
     const items = [...tabMenu.children];
@@ -284,6 +295,7 @@ async function loadAccount(userId) {
   let cached;
   try { cached = JSON.parse(localStorage.getItem(storageKey)); } catch { /* Keep recovery available through local storage. */ }
   const empty = () => { const tab = makeTab(); return { tabs: [tab], activeId: tab.id }; };
+  $('note-search').value = '';
   useWorkspace(validWorkspace(cached) ? cached : empty());
   if (!userId) { $('save-status').textContent = 'Saved locally'; return; }
   setEditorEnabled(false);
@@ -415,7 +427,7 @@ if (window.Quill) {
     static value() { return true; }
   }
   window.Quill.register(Divider);
-  richEditor = new window.Quill('#rich-editor', { formats: ['header', 'list', 'divider'], modules: { toolbar: false }, placeholder: '' });
+  richEditor = new window.Quill('#rich-editor', { formats: ['header', 'list', 'divider'], modules: { toolbar: false }, placeholder: 'Start writing…' });
   richEditor.root.setAttribute('role', 'textbox');
   richEditor.root.setAttribute('aria-label', 'Note text');
   richEditor.root.setAttribute('aria-multiline', 'true');
@@ -517,3 +529,52 @@ function enhanceChecklist() {
     };
   });
 }
+
+function notePreview(tab) {
+  const lines = tab.text.split('\n');
+  const preview = (lines[0].trim() === noteName(tab) ? lines.slice(1).join(' ') : tab.text).trim().replace(/\s+/g, ' ');
+  return preview.slice(0, 100) || 'No additional text';
+}
+function setNotesDrawer(open, returnFocus = false) {
+  if (!window.matchMedia('(max-width: 760px)').matches) open = false;
+  $('notepad').classList.toggle('notes-open', open);
+  $('toggle-notes').setAttribute('aria-expanded', String(open));
+  $('notes-backdrop').hidden = !open;
+  $('notes-sidebar').inert = window.matchMedia('(max-width: 760px)').matches && !open;
+  document.querySelector('.editor-pane').inert = open;
+  if (open) {
+    $('notes-sidebar').setAttribute('role', 'dialog');
+    $('notes-sidebar').setAttribute('aria-modal', 'true');
+    $('close-notes').focus({ preventScroll: true });
+  } else {
+    $('notes-sidebar').removeAttribute('role');
+    $('notes-sidebar').removeAttribute('aria-modal');
+    if (returnFocus) $('toggle-notes').focus({ preventScroll: true });
+  }
+}
+$('toggle-notes').onclick = () => setNotesDrawer(!$('notepad').classList.contains('notes-open'));
+$('close-notes').onclick = () => setNotesDrawer(false, true);
+$('notes-backdrop').onclick = () => setNotesDrawer(false, true);
+$('note-search').addEventListener('input', renderTabs);
+$('rename-current').onclick = () => { if (!$('editor').disabled) renameTab(active()); };
+$('download-current').onclick = () => downloadTab(active());
+$('share-current').onclick = () => shareTab(active());
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Tab' || !$('notepad').classList.contains('notes-open')) return;
+  const focusable = [...$('notes-sidebar').querySelectorAll('button:not(:disabled), input, [tabindex="0"]')].filter(el => el.offsetParent !== null && el.tabIndex >= 0);
+  const first = focusable[0], last = focusable.at(-1);
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+});
+window.matchMedia('(max-width: 760px)').addEventListener('change', () => setNotesDrawer(false));
+setNotesDrawer(false);
+const updateSaveIndicator = () => {
+  const message = $('save-status').textContent.toLowerCase();
+  document.querySelector('footer').dataset.saveState = /conflict|failed|unable|unavailable/.test(message) ? 'error' : /saving|waiting|loading/.test(message) ? 'waiting' : 'saved';
+};
+new MutationObserver(updateSaveIndicator).observe($('save-status'), { childList: true, characterData: true, subtree: true });
+updateSaveIndicator();
+
+document.querySelector('.header-actions').addEventListener('click', () => {
+  if ($('notepad').classList.contains('notes-open')) setNotesDrawer(false);
+});
