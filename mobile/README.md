@@ -45,9 +45,15 @@ Guest notes and account notes are separate workspaces. Signing in loads that acc
 
 Color preferences and saved themes stay on the device. Cloud notes sync with the website, but browser-local preferences and native-device preferences are separate.
 
+## Trash
+
+The note's trash button moves it to **Trash** instead of deleting its contents. Open **Trash** from Notes to restore a note or choose **Delete permanently**, which requires confirmation. Trashed notes retain their names and formatting. They remain until manually removed; there is no automatic expiry. If the last active note is trashed, a new blank note is created so the editor stays usable.
+
+Trash, restore, and permanent deletion sync with the website using the existing workspace and revision checks. Website Trash is in the notes sidebar. Update both clients to this version before using Trash.
+
 ## Delete an account
 
-In **Settings → Account → Delete account**, confirm the permanent deletion. This deletes the signed-in Auth user and all their cloud notes, clears that account's recovery cache on this device, and signs out. Guest notes and appearance preferences are kept. A failed server request keeps the account signed in and shows an error.
+In the app, open **Settings → Account → Delete account**. On the website, open **Account → Delete account**. Confirm the permanent deletion. This deletes the signed-in Auth user and all their cloud notes (including Trash), clears that account's recovery cache on this device, and signs out. Guest notes and appearance preferences are kept. A failed server request keeps the account signed in and shows an error.
 
 The server endpoint is in `supabase/functions/delete-account/`. It verifies the access token with Supabase Auth and uses only that verified user ID. Its service-role key is a server environment secret, never an app setting. The existing `ON DELETE CASCADE` foreign key removes the user's `note_workspaces` row. The function performs its own authentication, so gateway JWT verification is disabled in `supabase/config.toml`.
 

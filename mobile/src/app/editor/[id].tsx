@@ -4,7 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router, useLocalSearchParams } from 'expo-router';
 import { randomUUID } from 'expo-crypto';
 import { useBestpad } from '../../context';
-import { fromBlocks, noteName, toBlocks, type Block, type Note } from '../../model';
+import { fromBlocks, isTrashed, noteName, toBlocks, type Block, type Note } from '../../model';
 import { Button, Icon, IconButton, SaveStatus, ui } from '../../components/ui';
 type Cursor = { id: string; start: number; end: number };
 function NoteEditor({ note }: { note: Note }) {
@@ -77,7 +77,7 @@ function NoteEditor({ note }: { note: Note }) {
 }
 export default function Editor() {
   const { id } = useLocalSearchParams<{ id: string }>(); const { snapshot, colors } = useBestpad();
-  const note = snapshot.workspace.tabs.find(item => item.id === id);
+  const note = snapshot.workspace.tabs.find(item => item.id === id && !isTrashed(item));
   if (snapshot.loading) return <View style={[ui.container, { backgroundColor: colors.primary, justifyContent: 'center' }]}><ActivityIndicator color={colors.font} /></View>;
   if (!note) return <View style={[ui.container, { padding: 24, justifyContent: 'center', backgroundColor: colors.primary }]}><Button label="Back to notes" onPress={() => router.replace('/')} /></View>;
   return <NoteEditor key={`${snapshot.user || 'guest'}:${note.id}`} note={note} />;

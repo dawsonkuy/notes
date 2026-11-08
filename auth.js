@@ -5,7 +5,7 @@
   const status = document.getElementById('auth-status');
   const sessionPanel = document.getElementById('account-session');
   const password = document.getElementById('auth-password');
-  const controls = [...form.querySelectorAll('button'), document.getElementById('sign-out')];
+  const controls = [...form.querySelectorAll('button'), document.getElementById('sign-out'), document.getElementById('delete-account')];
   const dialog = document.getElementById('login-dialog');
   const loginButton = document.getElementById('open-login');
   loginButton.addEventListener('click', () => {
@@ -77,5 +77,24 @@
       renderSession(null);
     } catch (error) { message(error.message || 'Unable to sign out. Please try again.'); }
     finally { busy(false); }
+  });
+  document.getElementById('delete-account').addEventListener('click', async () => {
+    if (!confirm('Permanently delete your Bestpad account and all cloud notes, including Trash? This cannot be undone. Guest notes and appearance settings in this browser are kept.')) return;
+    busy(true); message('Deleting account…');
+    let deleted = false;
+    try {
+      const { data: sessionData, error: sessionError } = await client.auth.getSession();
+      if (sessionError || !sessionData.session) throw new Error('Sign in before deleting your account.');
+      const userId = sessionData.session.user.id;
+      const { data, error } = await client.functions.invoke('delete-account', { body: { confirmation: 'DELETE' } });
+      if (error || data?.deleted !== true) throw new Error('Could not delete your account. Check your connection and try again.');
+      deleted = true;
+      await window.forgetDeletedAccount(userId);
+      await client.auth.signOut({ scope: 'local' });
+      renderSession(null); message('Your account and cloud notes have been permanently deleted.');
+    } catch (error) {
+      if (deleted) { await client.auth.signOut({ scope: 'local' }).catch(() => undefined); renderSession(null); message('Account deleted. A local recovery copy could not be removed from this browser.'); }
+      else message(error.message || 'Account deletion failed. Please try again.');
+    } finally { busy(false); }
   });
 })();

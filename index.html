@@ -75,9 +75,10 @@
         <button id="sign-in" type="submit">Sign in</button>
         <button id="sign-up" type="submit">Create account</button>
       </form>
-      <div id="account-session" hidden><span id="account-email"></span><button id="sign-out" type="button">Sign out</button></div>
+      <div id="account-session" hidden><span id="account-email"></span><button id="sign-out" type="button">Sign out</button><button id="delete-account" class="danger-button" type="button">Delete account</button></div>
       <p id="auth-status" role="status" aria-live="polite">Connecting to your account…</p>
     </dialog>
+    <dialog id="trash-dialog" aria-labelledby="trash-title"><div class="dialog-heading"><h2 id="trash-title">Trash</h2><button id="close-trash" type="button" aria-label="Close Trash">×</button></div><p>Notes stay here until you restore or permanently delete them.</p><div id="trash-list"></div></dialog>
     <div class="app-workspace">
       <aside id="notes-sidebar" class="notes-sidebar" aria-label="Your notes">
         <div class="sidebar-heading"><h2>All notes <span id="note-total">0</span></h2><button id="close-notes" class="icon-button mobile-only" type="button" aria-label="Close notes"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
@@ -86,6 +87,7 @@
         <div class="list-caption">YOUR NOTES</div>
         <div id="tabs" role="tablist" aria-label="Notes" aria-orientation="vertical"></div>
         <p id="search-empty" hidden>No notes found. Try another search.</p>
+        <button id="open-trash" class="trash-button" type="button">Trash (0)</button>
         <div class="sidebar-foot"><img class="small-brand-mark" src="/favicon.png" alt="" width="27" height="27"><span>Bestpad</span></div>
       </aside>
       <button id="notes-backdrop" class="notes-backdrop" type="button" aria-label="Close notes" hidden></button>

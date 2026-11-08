@@ -65,3 +65,30 @@ test('deleted-account cleanup removes its cache and keeps guest notes', async ()
     assert.equal(f.data.get('bestpad:mobile:workspace:alice'), 'null');
   } finally { f.store.dispose(); }
 });
+
+test('Trash retains note content, restores by ID, and never permanently deletes a live note', async () => {
+  const f = fixture(); try {
+    const original = { ...newNote('existing'), text: 'Keep this', customName: 'Named note', content: [{ insert: 'Keep this\n' }] };
+    f.rows.set('alice', { workspace: { tabs: [original], activeId: original.id }, revision: 1 }); await f.store.connect('alice');
+    f.store.deletePermanently(original.id); assert.equal(f.store.getSnapshot().workspace.tabs.length, 1);
+    f.store.remove(original.id); const trashed = f.store.getSnapshot().workspace.tabs.find(n => n.id === original.id)!;
+    assert.equal(trashed.text, original.text); assert.deepEqual(trashed.content, original.content); assert.equal(typeof trashed.deletedAt, 'string');
+    assert.notEqual(f.store.getSnapshot().workspace.activeId, original.id); await f.store.flush();
+    assert.ok(f.rows.get('alice')!.workspace.tabs.find(n => n.id === original.id)?.deletedAt);
+    f.store.restore(original.id); const restored = f.store.getSnapshot().workspace.tabs.find(n => n.id === original.id)!;
+    assert.equal(restored.deletedAt, undefined); assert.equal(restored.customName, original.customName); assert.deepEqual(restored.content, original.content);
+    f.store.remove(original.id); f.store.deletePermanently(original.id); await f.store.flush();
+    assert.equal(f.rows.get('alice')!.workspace.tabs.some(n => n.id === original.id), false);
+  } finally { f.store.dispose(); }
+});
+test('Trash and restore sync between two clients, including a remotely trashed open note', async () => {
+  const f = fixture(); const other = new WorkspaceStore({ getItem: async () => null, setItem: async () => {} }, f.remote, () => 'other-new');
+  try {
+    f.rows.set('alice', { workspace: f.workspace('Cross-device'), revision: 1 }); await f.store.connect('alice'); await other.connect('alice');
+    f.store.remove('existing'); await f.store.flush(); await other.refresh();
+    assert.ok(other.getSnapshot().workspace.tabs.find(n => n.id === 'existing')?.deletedAt);
+    assert.notEqual(other.getSnapshot().workspace.activeId, 'existing');
+    other.restore('existing'); await other.flush(); await f.store.refresh();
+    assert.equal(f.store.getSnapshot().workspace.tabs.find(n => n.id === 'existing')?.deletedAt, undefined);
+  } finally { f.store.dispose(); other.dispose(); }
+});

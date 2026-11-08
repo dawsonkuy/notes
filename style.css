@@ -173,3 +173,10 @@ dialog::backdrop { background: #10172270; backdrop-filter: blur(5px); }
 img.small-brand-mark { display: block; object-fit: contain; padding: 3px; }
 
 :root[data-theme="dark"] { color-scheme: dark; --canvas: #0c1422; --bar: #162236; --border: #526174; --selected: #2a374c; --hover: #344259; --panel: #162236; --control: #122031; --text: #f1f4f9; --muted: #a1aaba; }
+
+.trash-button { margin: 10px 16px; min-height: 44px; text-align: left; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+.trash-row { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.trash-row span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.trash-row button { min-height: 44px; padding: 8px; }
+.danger-button { color: #d75353; }
+@media(max-width:480px) { .trash-row { flex-wrap: wrap; } .trash-row span { flex-basis: 100%; } }

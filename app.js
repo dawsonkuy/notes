@@ -24,6 +24,8 @@ function queueCloudSave() {
   if (cloudUser && cloudReady && !cloudConflict) cloudTimer = setTimeout(flushCloud, 250);
 }
 
+const isTrashed = note => typeof note.deletedAt === 'string' && note.deletedAt.length > 0;
+const liveTabs = () => tabs.filter(note => !isTrashed(note));
 const active = () => tabs.find(tab => tab.id === activeId);
 const makeTab = (text = '', filename = 'Untitled') => ({ id: crypto.randomUUID(), text, filename, customName: filename !== 'Untitled' ? filename : null });
 const noteName = tab => tab.customName || tab.text.split(/\r?\n/, 1)[0].trim().slice(0, 80) || 'Untitled';
@@ -51,13 +53,26 @@ function renameTab(tab) {
   save();
 }
 function deleteTab(tab) {
-  closeMenus();
-  if (tab.text && !confirm(`Delete ${noteName(tab)}? Download a copy first to keep it.`)) return;
-  save();
-  const index = tabs.indexOf(tab); tabs.splice(index, 1);
-  if (!tabs.length) tabs.push(makeTab());
-  if (activeId === tab.id) activeId = tabs[Math.min(index, tabs.length - 1)].id;
+  closeMenus(); save();
+  tab.deletedAt = new Date().toISOString();
+  if (!liveTabs().length) tabs.push(makeTab());
+  if (activeId === tab.id) activeId = liveTabs()[0].id;
   showTab(); save();
+}
+function renderTrash() {
+  const deleted = tabs.filter(isTrashed);
+  $('open-trash').textContent = `Trash (${deleted.length})`;
+  const list = $('trash-list'); list.replaceChildren();
+  if (!deleted.length) { const empty = document.createElement('p'); empty.textContent = 'Trash is empty.'; list.append(empty); }
+  deleted.forEach(note => {
+    const row = document.createElement('div'); row.className = 'trash-row';
+    const title = document.createElement('span'); title.textContent = noteName(note);
+    const restore = document.createElement('button'); restore.type = 'button'; restore.textContent = 'Restore'; restore.setAttribute('aria-label', `Restore ${noteName(note)}`);
+    restore.onclick = () => { save(); delete note.deletedAt; renderTabs(); save(); };
+    const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'danger-button'; remove.textContent = 'Delete permanently'; remove.setAttribute('aria-label', `Permanently delete ${noteName(note)}`);
+    remove.onclick = () => { if (!confirm(`Permanently delete ${noteName(note)}? This cannot be undone.`)) return; save(); tabs = tabs.filter(tab => tab.id !== note.id); renderTabs(); save(); };
+    row.append(title, restore, remove); list.append(row);
+  });
 }
 function downloadTab(tab) {
   closeMenus(); save();
@@ -84,7 +99,7 @@ async function shareTab(tab) {
 }
 function openTabMenu(tab, anchor) {
   closeMenus(); tabMenu.replaceChildren();
-  [['✎', 'Rename', () => renameTab(tab)], ['↓', 'Save as…', () => downloadTab(tab)], ['↗', 'Share', () => shareTab(tab)], ['⌫', 'Delete', () => deleteTab(tab)]].forEach(([icon, label, action]) => {
+  [['✎', 'Rename', () => renameTab(tab)], ['↓', 'Save as…', () => downloadTab(tab)], ['↗', 'Share', () => shareTab(tab)], ['⌫', 'Move to Trash', () => deleteTab(tab)]].forEach(([icon, label, action]) => {
     const button = document.createElement('button'); button.setAttribute('role', 'menuitem');
     const glyph = document.createElement('span'); glyph.textContent = icon; glyph.setAttribute('aria-hidden', 'true');
     button.append(glyph, document.createTextNode(label)); button.onclick = action; tabMenu.append(button);
@@ -146,9 +161,10 @@ $('editor').addEventListener('input', save);
 ['click', 'keyup', 'select'].forEach(type => $('editor').addEventListener(type, position));
 function renderTabs() {
   $('tabs').replaceChildren();
-  $('note-total').textContent = tabs.length;
+  renderTrash();
+  $('note-total').textContent = liveTabs().length;
   const query = $('note-search').value.trim().toLocaleLowerCase();
-  const visibleTabs = tabs.filter(tab => !query || `${noteName(tab)} ${tab.text}`.toLocaleLowerCase().includes(query));
+  const visibleTabs = liveTabs().filter(tab => !query || `${noteName(tab)} ${tab.text}`.toLocaleLowerCase().includes(query));
   $('search-empty').hidden = visibleTabs.length > 0;
   visibleTabs.forEach(tab => {
     const item = document.createElement('div'); item.className = 'tab';
@@ -219,7 +235,7 @@ function showTab() {
     else if (selected.offsetTop + selected.offsetHeight > strip.scrollTop + strip.clientHeight) strip.scrollTop = selected.offsetTop + selected.offsetHeight - strip.clientHeight;
   }
 }
-function switchTab(id, keepSidebar = false) { save(); activeId = id; showTab(); save(); if (!keepSidebar) setNotesDrawer(false); }
+function switchTab(id, keepSidebar = false) { if (!tabs.some(note => note.id === id && !isTrashed(note))) return; save(); activeId = id; showTab(); save(); if (!keepSidebar) setNotesDrawer(false); }
 function addTab(text = '', filename = 'Untitled') {
   if ($('add-tab').disabled) return;
   $('note-search').value = '';
@@ -253,6 +269,8 @@ try {
   tabs = [makeTab()]; activeId = tabs[0].id;
   $('save-status').textContent = 'Unable to restore local notes — you can still edit and download';
 }
+if (!liveTabs().length) tabs.push(makeTab());
+if (!liveTabs().some(note => note.id === activeId)) activeId = liveTabs()[0].id;
 showTab();
 
 function validWorkspace(value) {
@@ -260,7 +278,8 @@ function validWorkspace(value) {
 }
 function useWorkspace(value) {
   tabs = value.tabs;
-  activeId = tabs.some(tab => tab.id === value.activeId) ? value.activeId : tabs[0].id;
+  if (!liveTabs().length) tabs.push(makeTab());
+  activeId = liveTabs().some(tab => tab.id === value.activeId) ? value.activeId : liveTabs()[0].id;
   savedPayload = payload();
   showTab();
 }
@@ -676,3 +695,12 @@ if (richEditor) {
 
 setInterval(() => { void refreshCloud(); }, 3000);
 window.addEventListener('focus', () => { void refreshCloud(); });
+
+$('open-trash').onclick = () => { renderTrash(); $('trash-dialog').showModal(); };
+$('close-trash').onclick = () => $('trash-dialog').close();
+window.forgetDeletedAccount = async userId => {
+  await loadAccount(null);
+  localStorage.removeItem(`notepad:tabs:${userId}`);
+  if (localStorage.getItem('notepad:import-owner') === userId) localStorage.removeItem('notepad:import-owner');
+  $('trash-dialog').close();
+};

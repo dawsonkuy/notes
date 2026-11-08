@@ -1,4 +1,4 @@
-import { newNote, validWorkspace, type Note, type Workspace } from './model';
+import { isTrashed, newNote, validWorkspace, type Note, type Workspace } from './model';
 export type Status = 'loading' | 'local' | 'pending' | 'saving' | 'saved' | 'offline' | 'conflict' | 'cache-error';
 export interface Storage { getItem(key: string): Promise<string | null>; setItem(key: string, value: string): Promise<unknown> }
 export interface Remote { read(user: string): Promise<{ workspace: Workspace; revision: number } | null>; write(user: string, workspace: Workspace, revision: number | null): Promise<number> }
@@ -56,10 +56,18 @@ export class WorkspaceStore {
   }
   updateNote(note: Note) { this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(n => n.id === note.id ? note : n) }); }
   add() { const note = newNote(this.id()); this.update({ tabs: [...this.snapshot.workspace.tabs, note], activeId: note.id }); return note.id; }
-  activate(id: string) { if (this.snapshot.workspace.tabs.some(n => n.id === id)) { this.emit({ workspace: { ...this.snapshot.workspace, activeId: id } }); void this.cache(); } }
+  activate(id: string) { if (this.snapshot.workspace.tabs.some(n => n.id === id && !isTrashed(n))) { this.emit({ workspace: { ...this.snapshot.workspace, activeId: id } }); void this.cache(); } }
   remove(id: string) {
-    let tabs = this.snapshot.workspace.tabs.filter(note => note.id !== id); if (!tabs.length) tabs = [newNote(this.id())];
-    this.update({ tabs, activeId: tabs.some(note => note.id === this.snapshot.workspace.activeId) ? this.snapshot.workspace.activeId : tabs[0].id });
+    const tabs = this.snapshot.workspace.tabs.map(note => note.id === id && !isTrashed(note) ? { ...note, deletedAt: new Date().toISOString() } : note);
+    if (!tabs.some(note => !isTrashed(note))) tabs.push(newNote(this.id()));
+    const activeId = tabs.some(note => note.id === this.snapshot.workspace.activeId && !isTrashed(note)) ? this.snapshot.workspace.activeId : tabs.find(note => !isTrashed(note))!.id;
+    this.update({ tabs, activeId });
+  }
+  restore(id: string) {
+    this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(note => { if (note.id !== id || !isTrashed(note)) return note; const restored = { ...note }; delete restored.deletedAt; return restored; }) });
+  }
+  deletePermanently(id: string) {
+    this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.filter(note => note.id !== id || !isTrashed(note)) });
   }
   async flush() {
     clearTimeout(this.timer);
@@ -89,7 +97,7 @@ export class WorkspaceStore {
       if (generation !== this.generation || version !== this.version || this.dirty || this.writing || !row || !validWorkspace(row.workspace)) return;
       if (row.revision === this.revision) return;
       const activeId = this.snapshot.workspace.activeId;
-      const workspace = { ...row.workspace, activeId: row.workspace.tabs.some(note => note.id === activeId) ? activeId : row.workspace.activeId };
+      const workspace = { ...row.workspace, activeId: row.workspace.tabs.some(note => note.id === activeId && !isTrashed(note)) ? activeId : row.workspace.activeId };
       this.revision = row.revision; this.version++;
       this.emit({ workspace, status: 'saved' }); await this.cache();
     } catch { /* Keep the local copy; the next event or fallback timer retries. */ }

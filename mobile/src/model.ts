@@ -1,8 +1,9 @@
 export type Op = { insert: string | { divider: true }; attributes?: { header?: 1 | 2 | 3; list?: 'checked' | 'unchecked' } };
-export type Note = { id: string; text: string; filename: string; customName?: string | null; content?: Op[]; [key: string]: unknown };
+export type Note = { id: string; text: string; filename: string; customName?: string | null; deletedAt?: string; content?: Op[]; [key: string]: unknown };
 export type Workspace = { tabs: Note[]; activeId: string };
 export type Block = { id: string; text: string; heading?: 1 | 2 | 3; list?: 'checked' | 'unchecked'; divider?: boolean };
 export const noteName = (note: Note) => (typeof note.customName === 'string' && note.customName) || note.text.split(/\r?\n/, 1)[0].trim().slice(0, 80) || 'Untitled';
+export const isTrashed = (note: Note) => typeof note.deletedAt === 'string' && note.deletedAt.length > 0;
 export const newNote = (id: string): Note => ({ id, text: '', filename: 'Untitled', customName: null });
 export function validWorkspace(value: unknown): value is Workspace {
   const v = value as Workspace | null;
