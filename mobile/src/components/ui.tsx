@@ -4,7 +4,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useBestpad } from '../context';
 import type { Status } from '../workspace';
 export type IconName = ComponentProps<typeof Ionicons>['name'];
-export function Icon({ name, size = 21, color }: { name: IconName; size?: number; color?: ColorValue }) { const { colors } = useBestpad(); return <Ionicons name={name} size={size} color={color || colors.font} />; }
+export function Icon({ name, size = 21, color }: { name: IconName; size?: number; color?: ColorValue }) { const { colors } = useBestpad(); return <Ionicons name={name} size={size} color={typeof color === 'number' || color == null ? colors.font : color} />; }
 export function Button({ label, onPress, icon, disabled, primary = false }: { label: string; onPress: () => void; icon?: IconName; disabled?: boolean; primary?: boolean }) {
   const { colors } = useBestpad();
   return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} style={({ pressed }) => [ui.button, { backgroundColor: primary ? colors.font : colors.secondary, borderColor: colors.border, opacity: disabled ? .4 : pressed ? .65 : 1 }]}>{icon && <Icon name={icon} size={18} color={primary ? colors.primary : colors.font} />}<Text style={{ color: primary ? colors.primary : colors.font, fontSize: 14, fontWeight: '600' }}>{label}</Text></Pressable>;

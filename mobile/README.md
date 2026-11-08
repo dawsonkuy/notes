@@ -4,29 +4,29 @@ A native React Native app with Notes and Settings. It uses the existing Bestpad 
 
 ## Run on your iPhone
 
-1. Install Node.js 24 LTS (or Node.js 22.13+) on your computer.
+1. Install Node.js 24 LTS (24.3+), or Node.js 22.13+ on your computer.
 2. Install **Expo Go** from the iPhone App Store.
 3. In a terminal, run:
 
    ```bash
    git clone https://github.com/dawsonkuy/notes.git
    cd notes/mobile
-   npm ci
-   npm start
+   npm.cmd ci
+   npm.cmd start
    ```
 
 4. Connect the computer and iPhone to the same Wi-Fi network.
 5. Scan the terminal QR code with the iPhone Camera, then tap **Open in Expo Go**.
 6. Keep the terminal running while testing. In the app, open **Settings → Login / Create account** to access your existing Bestpad account and cloud notes.
 
-If you already cloned the repository, run `git pull` in it, then `cd mobile`, `npm ci`, and `npm start`.
+If you already cloned the repository, run `git pull` in it, then `cd mobile`, `npm.cmd ci`, and `npm.cmd start -- --clear`. On Windows, use `npm.cmd` to avoid PowerShell execution-policy errors. On macOS/Linux, use `npm` instead.
 
-This project targets **Expo SDK 57**, the version Expo currently recommends for Expo Go on physical phones during the SDK 58 transition. If Expo Go reports an SDK mismatch, compare its supported SDK against the project's version before upgrading the dependencies.
+This project targets **Expo SDK 58** for the current Expo Go app. If Expo Go reports an SDK mismatch, compare its supported SDK against the project's version before upgrading the dependencies.
 
 If the QR code cannot connect over your network, stop Metro and try:
 
 ```bash
-npx expo start --go --tunnel
+npx.cmd expo start --go --tunnel
 ```
 
 Expo may prompt to install its tunnel package. This needs internet access and a running development server on your computer.

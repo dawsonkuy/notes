@@ -12,7 +12,7 @@ function NoteEditor({ note }: { note: Note }) {
   const [blocks, setBlocks] = useState(() => toBlocks(note, randomUUID)), [insertOpen, setInsertOpen] = useState(false);
   const blocksRef = useRef(blocks); const noteRef = useRef(note);
   useLayoutEffect(() => { noteRef.current = note; }, [note]);
-  const inputs = useRef<Record<string, TextInput | null>>({});
+  const inputs = useRef<Record<string, React.ComponentRef<typeof TextInput> | null>>({});
   const cursor = useRef<Cursor>({ id: blocks[0].id, start: 0, end: 0 });
   const slash = useRef<Cursor | null>(null), dismissedSlash = useRef<string | null>(null);
   const [pendingFocus, setPendingFocus] = useState<Cursor | null>(null);
