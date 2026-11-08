@@ -55,3 +55,13 @@ test('an in-flight refresh cannot replace local typing', async () => {
     assert.equal(f.store.getSnapshot().status, 'pending');
   } finally { f.store.dispose(); }
 });
+
+test('deleted-account cleanup removes its cache and keeps guest notes', async () => {
+  const f = fixture(); try {
+    await f.store.connect(null); const guest = f.store.getSnapshot().workspace.tabs[0]; f.store.updateNote({ ...guest, text: 'Guest kept' });
+    f.rows.set('alice', { workspace: f.workspace('Private account notes'), revision: 1 }); await f.store.connect('alice');
+    await f.store.forgetAccount('alice');
+    assert.equal(f.store.getSnapshot().user, null); assert.equal(f.store.getSnapshot().workspace.tabs[0].text, 'Guest kept');
+    assert.equal(f.data.get('bestpad:mobile:workspace:alice'), 'null');
+  } finally { f.store.dispose(); }
+});

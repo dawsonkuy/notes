@@ -45,6 +45,12 @@ Guest notes and account notes are separate workspaces. Signing in loads that acc
 
 Color preferences and saved themes stay on the device. Cloud notes sync with the website, but browser-local preferences and native-device preferences are separate.
 
+## Delete an account
+
+In **Settings → Account → Delete account**, confirm the permanent deletion. This deletes the signed-in Auth user and all their cloud notes, clears that account's recovery cache on this device, and signs out. Guest notes and appearance preferences are kept. A failed server request keeps the account signed in and shows an error.
+
+The server endpoint is in `supabase/functions/delete-account/`. It verifies the access token with Supabase Auth and uses only that verified user ID. Its service-role key is a server environment secret, never an app setting. The existing `ON DELETE CASCADE` foreign key removes the user's `note_workspaces` row. The function performs its own authentication, so gateway JWT verification is disabled in `supabase/config.toml`.
+
 ## Saving and conflicts
 
 Wait for **Saved to cloud** before switching devices. Both the app and website listen for Supabase Realtime updates and refresh every three seconds while active as a fallback. New notes and edits appear without reloading; each device keeps its own open-note selection. Incoming updates never replace pending local edits. If another device has saved a newer workspace revision, the app keeps local changes and stops automatic writes rather than replacing the newer cloud copy.

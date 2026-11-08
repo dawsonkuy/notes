@@ -95,6 +95,12 @@ export class WorkspaceStore {
     } catch { /* Keep the local copy; the next event or fallback timer retries. */ }
     finally { this.refreshing = false; }
   }
+  async forgetAccount(user: string) {
+    // Switch first so connect cannot recreate the deleted account's recovery cache.
+    await this.connect(null);
+    await this.cacheQueue;
+    await this.storage.setItem(`bestpad:mobile:workspace:${user}`, 'null');
+  }
   async useCloudCopy() {
     const user = this.snapshot.user, generation = this.generation; if (!user || this.snapshot.loading) return;
     const row = await this.remote.read(user);
