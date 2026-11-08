@@ -1,0 +1,80 @@
+# Bestpad for Expo Go
+
+A native React Native app with Notes and Settings. It uses the existing Bestpad Supabase project and `note_workspaces` table. The website stays in the repository root; this app is isolated in `mobile/`.
+
+## Run on your iPhone
+
+1. Install Node.js 24 LTS (or Node.js 22.13+) on your computer.
+2. Install **Expo Go** from the iPhone App Store.
+3. In a terminal, run:
+
+   ```bash
+   git clone https://github.com/dawsonkuy/notes.git
+   cd notes/mobile
+   npm ci
+   npm start
+   ```
+
+4. Connect the computer and iPhone to the same Wi-Fi network.
+5. Scan the terminal QR code with the iPhone Camera, then tap **Open in Expo Go**.
+6. Keep the terminal running while testing. In the app, open **Settings → Login / Create account** to access your existing Bestpad account and cloud notes.
+
+If you already cloned the repository, run `git pull` in it, then `cd mobile`, `npm ci`, and `npm start`.
+
+This project targets **Expo SDK 57**, the version Expo currently recommends for Expo Go on physical phones during the SDK 58 transition. If Expo Go reports an SDK mismatch, compare its supported SDK against the project's version before upgrading the dependencies.
+
+If the QR code cannot connect over your network, stop Metro and try:
+
+```bash
+npx expo start --go --tunnel
+```
+
+Expo may prompt to install its tunnel package. This needs internet access and a running development server on your computer.
+
+## Features
+
+- Native notes library, search, editor, and bottom navigation for Notes / Settings.
+- Email/password sign-in and account creation against your existing Supabase project.
+- Local saving with a recovery copy, 250 ms debounced cloud saving, and five-second retries after failed writes while the app is active.
+- Existing note names, headings, checked/unchecked checklist items, and dividers are retained when editing website notes.
+- Insert Heading, Current time, or Current date. Typing `/insert` at the cursor also opens the Insert sheet.
+- Native system sharing of a plain-text copy.
+- Light/Dark modes, color-wheel and hex editing for Font / Primary / Secondary, up to four named custom themes, four font choices, and three text sizes.
+
+Guest notes and account notes are separate workspaces. Signing in loads that account's cloud notes; signing out returns to the device's guest notes. Guest notes are not automatically uploaded to another account.
+
+Color preferences and saved themes stay on the device. Cloud notes sync with the website, but browser-local preferences and native-device preferences are separate.
+
+## Saving and conflicts
+
+Wait for **Saved to cloud** before switching devices. The app reads cloud notes when an account workspace loads. If another device has saved a newer workspace revision, the app keeps local changes and stops automatic writes rather than replacing the newer cloud copy.
+
+To resolve a conflict, share a backup of your local note from the editor, return to Notes, and choose **Use cloud copy…**. That action requires confirmation and replaces the local workspace with the current cloud version. **Retry sync** retries failed reads/writes and preserves pending local changes.
+
+## Configuration
+
+The existing public Supabase URL and publishable key are configured in `src/supabase.ts`, so no environment file is required to test. There is no service-role key in the app. You can override the public settings with `.env` using the names in `.env.example`.
+
+Email confirmation follows your project's Supabase setting. If confirmation is enabled, confirm via the email and return to the app to sign in. The signup redirect is `https://bestpad.app/`. Turning **Confirm email** off in the Supabase dashboard enables immediate signup/login; the app does not change that project setting.
+
+No new database tables or permissions are required. The existing row-level security policies enforce each account's access.
+
+## Validation
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npx expo install --check
+npm run export:ios
+```
+
+The iOS export checks that Metro and Hermes can bundle the native application. It does not install or sign an iPhone binary. Physical iPhone keyboard and gesture behavior should be checked in Expo Go.
+
+For a browser smoke test of the same React Native screens:
+
+```bash
+npm run web
+```
+
+A later TestFlight/App Store release can use EAS Build. No Apple Developer account is needed for testing in Expo Go.

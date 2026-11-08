@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Bestpad",
+    "slug": "bestpad",
+    "scheme": "bestpad",
+    "version": "1.0.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.bestpad.mobile"
+    },
+    "android": {
+      "package": "app.bestpad.mobile",
+      "softwareKeyboardLayoutMode": "resize"
+    },
+    "web": {
+      "favicon": "./assets/icon.png",
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}

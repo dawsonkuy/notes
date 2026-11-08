@@ -47,3 +47,7 @@ Type `/insert` in a note to open Heading, Current time, and Current date at the 
 The website and iPhone app preview share appearance controls: Light/Dark starting modes, a color wheel with brightness and hex editing for Font, Primary (background), and Secondary (cards and controls), and up to four named custom themes. Apply, update, or delete saved themes in Settings. Switching Light/Dark resets the current colors to that mode’s starting colors and keeps saved themes.
 
 Appearance preferences and saved themes persist on the current device using the same origin-scoped localStorage key on both interfaces. They are separate from the notes workspace and do not change note contents or account permissions.
+
+## Expo Go app
+
+The native iPhone/Android project is in [`mobile/`](mobile/README.md). Run `cd mobile`, `npm ci`, and `npm start`, then scan its QR code with Expo Go. It has native Notes/Settings screens and uses the same Supabase notes as the website.
