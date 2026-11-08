@@ -185,3 +185,5 @@ dialog::backdrop { background: #10172270; backdrop-filter: blur(5px); }
 :root[data-theme="darkpad"] .header-logo, :root[data-theme="green"] .header-logo, :root[data-theme="slate"] .header-logo { filter: none; }
 
 .add-menu button.is-keyboard-active { background: var(--selected); outline: 1px solid var(--soft-border); }
+
+img.small-brand-mark { display: block; object-fit: contain; padding: 3px; }
