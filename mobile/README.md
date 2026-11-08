@@ -33,7 +33,7 @@ Expo may prompt to install its tunnel package. This needs internet access and a 
 
 ## Features
 
-- Native notes library, search, editor, and bottom navigation for Notes / Settings. Note titles appear in the library, while the editor opens directly into the note body.
+- Native notes library, editor, and bottom navigation for Notes / Settings. Note titles appear in the library, while the editor opens directly into the note body.
 - Email/password sign-in and account creation against your existing Supabase project.
 - Local saving with a recovery copy, 250 ms debounced cloud saving, and five-second retries after failed writes while the app is active.
 - Existing note names, headings, checked/unchecked checklist items, and dividers are retained when editing website notes.
