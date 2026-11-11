@@ -36,4 +36,6 @@ test('mobile conflict recovery writes backup before exposing destructive replace
   assert.ok(home.indexOf('await saveWorkspaceBackup(store.getSnapshot().workspace)') >= 0);
   assert.ok(home.indexOf('await saveWorkspaceBackup(store.getSnapshot().workspace)') < home.indexOf('store.useCloudCopy()'));
   assert.match(file('mobile/src/backup.ts'), /Paths\.document/);
+  assert.match(file('mobile/src/backup.ts'), /requireExternalCopy && !shared/);
+  assert.match(home, /saveWorkspaceBackup\(store\.getSnapshot\(\)\.workspace, true\)/);
 });

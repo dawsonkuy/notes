@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import Constants from 'expo-constants';
 import { useBestpad } from '../../context';
 import { saveWorkspaceBackup } from '../../backup';
 import { isTrashed, noteName } from '../../model';
@@ -40,9 +41,9 @@ export default function Notes() {
     setExporting(true);
     try {
       await saveWorkspaceBackup(store.getSnapshot().workspace);
-      Alert.alert('Backup saved', Platform.OS === 'ios'
-        ? 'A JSON copy of all your notes, including Trash, is saved in Files → On My iPhone → Bestpad. Keep a copy outside this device too.'
-        : 'A JSON copy of your notes has been created. Keep the shared copy somewhere safe.');
+      Alert.alert('Backup saved', Platform.OS === 'ios' && Constants.appOwnership !== 'expo'
+        ? 'A JSON copy of all notes, including Trash, was saved in Files → On My iPhone → Bestpad. Keep an external copy too.'
+        : 'A complete JSON backup was created. Save a separate copy with the share sheet so you can recover it outside this app.');
     } catch (error) {
       Alert.alert('Backup failed', error instanceof Error ? error.message : 'Could not save your notes. Try again before replacing anything.');
     } finally {
@@ -53,7 +54,7 @@ export default function Notes() {
     if (snapshot.loading || exporting) return;
     setExporting(true);
     try {
-      await saveWorkspaceBackup(store.getSnapshot().workspace);
+      await saveWorkspaceBackup(store.getSnapshot().workspace, true);
       Alert.alert('Backup saved', 'Your complete local workspace was saved as JSON. The next action replaces this device\'s notes with the current cloud version. Make sure you want the cloud copy.', [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Use cloud copy', style: 'destructive', onPress: () => {
