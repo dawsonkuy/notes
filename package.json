@@ -7,6 +7,7 @@
     "start": "node server.mjs",
     "check": "node --check settings.js && node --check auth.js && node --check app.js && node --check server.mjs && node --check build.mjs && node --check appearance.js",
     "build": "node build.mjs",
-    "test:legal": "node --test tests/legal-pages.test.mjs"
+    "test:legal": "node --test tests/legal-pages.test.mjs",
+    "test:formatting": "node --test tests/formatting-insert.test.mjs"
   }
 }

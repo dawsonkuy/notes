@@ -60,3 +60,5 @@ Run `npm run test:legal` to verify that the legal pages, static deployment mappi
 
 ## Heading sizes and lists (web and mobile)
 Use Insert or type `/insert` for Large (H1), Medium (H2), Small (H3) headings; bulleted, numbered and checkbox lists; and date/time. The website uses Quill v2 list markers and the native app displays lists with native input rows. The existing Supabase `note_workspaces` JSON stores these styles as `header` and `list` attributes with no schema change. Deploy the web update and restart Expo Go to test both clients before an App Store build.
+
+To check editor menu support before publishing, run `npm run check`, `npm run test:formatting`, and `npm run test:legal` at the repository root. From `mobile/`, run `npm run typecheck`, `npm test`, and `npx expo install --check`. Verify headings and lists in Expo Go on a real device before submitting an iOS build.
