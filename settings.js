@@ -35,6 +35,10 @@
   });
   document.getElementById('open-settings').addEventListener('click', () => { dialog.showModal(); });
   document.getElementById('close-settings').addEventListener('click', () => dialog.close());
+  document.getElementById('open-account-settings').addEventListener('click', () => {
+    dialog.close();
+    document.getElementById('open-login').click();
+  });
   dialog.addEventListener('click', event => {
     const bounds = dialog.getBoundingClientRect();
     if (event.target === dialog && (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom)) dialog.close();

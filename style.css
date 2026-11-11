@@ -186,3 +186,9 @@ img.small-brand-mark { display: block; object-fit: contain; padding: 3px; }
 .trash-row button { min-height: 44px; padding: 8px; }
 .danger-button { color: #d75353; }
 @media(max-width:480px) { .trash-row { flex-wrap: wrap; } .trash-row span { flex-basis: 100%; } }
+
+.legal-settings { margin-top: 26px; padding-top: 24px; border-top: 1px solid var(--soft-border); }
+.legal-settings h3 { margin: 0 0 13px; font-size: 14px; color: var(--text); }
+.legal-settings-links { display: grid; gap: 7px; }
+.legal-settings-links a, .legal-settings-links button { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 14px; min-height: 44px; width: 100%; border: 1px solid var(--soft-border); border-radius: 10px; background: var(--control); color: var(--text); font: inherit; font-size: 13px; text-align: left; text-decoration: none; cursor: pointer; }
+.legal-settings-links a:hover, .legal-settings-links button:hover, .legal-settings-links a:focus-visible, .legal-settings-links button:focus-visible { background: var(--selected); }
