@@ -5,12 +5,18 @@
   const status = document.getElementById('auth-status');
   const sessionPanel = document.getElementById('account-session');
   const password = document.getElementById('auth-password');
-  const controls = [...form.querySelectorAll('button'), document.getElementById('sign-out'), document.getElementById('delete-account')];
+  const recoveryForm = document.getElementById('password-recovery-form');
+  const recoveryPassword = document.getElementById('recovery-password');
+  const recoveryConfirm = document.getElementById('recovery-confirm');
+  const forgotPassword = document.getElementById('forgot-password');
+  let recoveryMode = false;
+  const controls = [...form.querySelectorAll('button'), ...recoveryForm.querySelectorAll('button'), document.getElementById('sign-out'), document.getElementById('delete-account')];
   const dialog = document.getElementById('login-dialog');
   const loginButton = document.getElementById('open-login');
   loginButton.addEventListener('click', () => {
-    dialog.showModal();
+    if (!dialog.open) dialog.showModal();
     if (!form.hidden) document.getElementById('auth-email').focus();
+    else if (!recoveryForm.hidden) recoveryPassword.focus();
   });
   document.getElementById('close-login').addEventListener('click', () => dialog.close());
   dialog.addEventListener('click', event => {
@@ -22,6 +28,8 @@
   const busy = value => { controls.forEach(button => { button.disabled = value; }); };
   const renderSession = session => {
     loginButton.textContent = session ? 'Account' : 'Login';
+    if (recoveryMode) return;
+    recoveryForm.hidden = true;
     form.hidden = Boolean(session);
     sessionPanel.hidden = !session;
     document.getElementById('account-email').textContent = session?.user.email || '';
@@ -32,15 +40,35 @@
       message('Sign in or create an account. Notes are saved in this browser.');
     }
   };
+  const showRecovery = () => {
+    recoveryMode = true;
+    form.hidden = true;
+    sessionPanel.hidden = true;
+    recoveryForm.hidden = false;
+    password.value = '';
+    if (!dialog.open) dialog.showModal();
+    message('Enter a new password to finish account recovery.');
+    requestAnimationFrame(() => recoveryPassword.focus());
+  };
   try {
     if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) throw new Error('Account setup is not complete yet.');
     if (!window.supabase) throw new Error('Unable to load sign-in. Check your connection and reload.');
     client = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
     window.notesClient = client;
-    client.auth.onAuthStateChange((_event, session) => renderSession(session));
+    client.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') showRecovery();
+      else renderSession(session);
+    });
     client.auth.getSession().then(({ data, error }) => {
+      if (recoveryMode) return;
       if (error) { renderSession(null); message(error.message); }
-      else renderSession(data.session);
+      else {
+        renderSession(data.session);
+        if (new URLSearchParams(window.location.search).has('password_reset') && !data.session) {
+          if (!dialog.open) dialog.showModal();
+          message('If your reset link has expired, request a new one using Forgot password.');
+        }
+      }
     }).catch(() => { renderSession(null); message('Unable to restore your session. Please sign in again.'); });
   } catch (error) {
     message(error.message);
@@ -59,7 +87,7 @@
     try {
       const credentials = { email: document.getElementById('auth-email').value.trim(), password: password.value };
       const { data, error } = signingUp
-        ? await client.auth.signUp({ ...credentials, options: { emailRedirectTo: 'https://aesthetic-starlight-a2aad5.netlify.app/' } })
+        ? await client.auth.signUp({ ...credentials, options: { emailRedirectTo: 'https://bestpad.app/' } })
         : await client.auth.signInWithPassword(credentials);
       if (error) throw error;
       password.value = '';
@@ -68,6 +96,45 @@
     } catch (error) {
       message(error.message || 'Unable to sign in. Please try again.');
     } finally { busy(false); }
+  });
+  forgotPassword.addEventListener('click', async () => {
+    const email = document.getElementById('auth-email').value.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      message('Enter your account email address first.');
+      document.getElementById('auth-email').focus();
+      return;
+    }
+    busy(true); message('Requesting reset email…');
+    try {
+      const { error } = await client.auth.resetPasswordForEmail(email, {
+        redirectTo: 'https://bestpad.app/?password_reset=1',
+      });
+      if (error) throw error;
+      message('If the address has an account, a password reset email will arrive. Open the link to set a new password.');
+    } catch (error) { message(error.message || 'Could not request a reset. Try again.'); }
+    finally { busy(false); }
+  });
+  recoveryForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!recoveryMode) return;
+    if (recoveryPassword.value.length < 8 || recoveryPassword.value !== recoveryConfirm.value) {
+      message('Use at least 8 characters, and make sure both passwords match.');
+      return;
+    }
+    busy(true); message('Updating password…');
+    try {
+      const { error } = await client.auth.updateUser({ password: recoveryPassword.value });
+      if (error) throw error;
+      recoveryPassword.value = '';
+      recoveryConfirm.value = '';
+      recoveryMode = false;
+      recoveryForm.hidden = true;
+      const { data } = await client.auth.getSession();
+      renderSession(data.session);
+      window.history.replaceState({}, '', window.location.pathname);
+      message('Password updated. Your account is ready.');
+    } catch (error) { message(error.message || 'Unable to update password. Please request a new link.'); }
+    finally { busy(false); }
   });
   document.getElementById('sign-out').addEventListener('click', async () => {
     busy(true);

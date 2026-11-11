@@ -93,3 +93,17 @@ A later TestFlight/App Store release can use EAS Build. No Apple Developer accou
 
 ## Headings and lists (App Store editor)
 The Insert sheet and `/insert` menu provide H1 (large), H2 (medium), H3 (small), bulleted lists, numbered lists, and checked/unchecked to-do lists, along with date and time. Pressing Return after a heading moves to normal text; pressing Return inside a list adds the next item, and pressing Return on an empty list item returns to plain text. Rich formatting persists in the existing `note_workspaces.tabs[].content` Quill Delta format without a database migration. Test editing the same note on mobile and on the website, including offline conflict recovery.
+
+## App Store release preparation
+
+**Recovery:** Use "Forgot password?" on the native login screen or in the website login dialog. An email links to `https://bestpad.app/?password_reset=1` to choose a new password in the browser. Return to the native app and sign in with it. This URL must be allowed in Supabase Auth redirect settings and the deployed website must serve the updated `auth.js`.
+
+**Backups:** Notes → Export all creates a timestamped JSON file containing the complete currently selected guest or account workspace, including Trash and rich formatting. On iOS, it is saved under Files → On My iPhone → Bestpad (enabled via the expo-file-system config plugin), and the app opens the share sheet. Store another copy outside the device. If local and cloud notes conflict, the native "Back up local notes, then use cloud copy" flow creates the backup before offering replacement.
+
+**Notes library:** Search filters the selected Notes/Trash view by note title or content. Rename sets a separate title without changing note text; choosing Automatic title returns to the first-line title behavior.
+
+**Release:** `eas.json` defines a production build with remote build-number increments. The iOS bundle identifier is `app.bestpad.mobile` and v1 targets iPhone only (`supportsTablet: false`). On a Windows machine, sign in to Expo/Apple and run `npx.cmd eas-cli@latest init` once in `mobile/` to attach an EAS project ID, then `npx.cmd eas-cli@latest build --platform ios --profile production`. A production build needs App Store Connect access and must be validated in TestFlight before public submission. Do not set or guess a project ID in the repository.
+
+The app uses standard HTTPS to connect to Supabase; the iOS export-compliance field `ITSAppUsesNonExemptEncryption` is set to false on that basis. Re-evaluate it if non-exempt cryptographic features are introduced.
+
+Use `npm run typecheck`, `npm run lint`, `npm test` and `npx expo-doctor@latest` before building. Test the password reset email end-to-end and the backup's saved JSON file on a physical iPhone. Supabase's leaked-password-protection Auth toggle still requires a user with project admin access; enabling it changes Auth configuration, not note contents.

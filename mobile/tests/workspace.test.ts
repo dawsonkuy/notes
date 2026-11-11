@@ -92,3 +92,36 @@ test('Trash and restore sync between two clients, including a remotely trashed o
     assert.equal(f.store.getSnapshot().workspace.tabs.find(n => n.id === 'existing')?.deletedAt, undefined);
   } finally { f.store.dispose(); other.dispose(); }
 });
+
+test('renaming a note preserves its body and rich formatting in local and cloud copies', async () => {
+  const f = fixture();
+  try {
+    const original = { ...newNote('existing'), text: 'First line', content: [
+      { insert: 'First line' }, { insert: '\n', attributes: { header: 2 as const } },
+    ] };
+    f.rows.set('alice', { workspace: { tabs: [original], activeId: 'existing' }, revision: 3 });
+    await f.store.connect('alice');
+    f.store.rename('existing', '  New title  ');
+    const updated = f.store.getSnapshot().workspace.tabs[0];
+    assert.equal(updated.customName, 'New title');
+    assert.equal(updated.text, original.text);
+    assert.deepEqual(updated.content, original.content);
+    await f.store.flush();
+    assert.equal(f.rows.get('alice')!.workspace.tabs[0].customName, 'New title');
+    f.store.rename('existing', null);
+    assert.equal(f.store.getSnapshot().workspace.tabs[0].customName, null);
+  } finally { f.store.dispose(); }
+});
+test('renaming an unknown or trashed note never creates a new record', async () => {
+  const f = fixture();
+  try {
+    await f.store.connect(null);
+    const before = f.store.getSnapshot().workspace.tabs.length;
+    f.store.rename('not-there', 'Wrong');
+    assert.equal(f.store.getSnapshot().workspace.tabs.length, before);
+    const id = f.store.getSnapshot().workspace.tabs[0].id;
+    f.store.remove(id);
+    f.store.rename(id, 'Deleted');
+    assert.notEqual(f.store.getSnapshot().workspace.tabs.find(n => n.id === id)?.customName, 'Deleted');
+  } finally { f.store.dispose(); }
+});

@@ -56,6 +56,13 @@ export class WorkspaceStore {
   }
   updateNote(note: Note) { this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(n => n.id === note.id ? note : n) }); }
   add() { const note = newNote(this.id()); this.update({ tabs: [...this.snapshot.workspace.tabs, note], activeId: note.id }); return note.id; }
+  rename(id: string, name: string | null) {
+    const current = this.snapshot.workspace.tabs.find(note => note.id === id && !isTrashed(note));
+    if (!current) return;
+    const customName = name?.trim().slice(0, 80) || null;
+    if ((current.customName || null) === customName) return;
+    this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(note => note.id === id ? { ...note, customName } : note) });
+  }
   activate(id: string) { if (this.snapshot.workspace.tabs.some(n => n.id === id && !isTrashed(n))) { this.emit({ workspace: { ...this.snapshot.workspace, activeId: id } }); void this.cache(); } }
   remove(id: string) {
     const tabs = this.snapshot.workspace.tabs.map(note => note.id === id && !isTrashed(note) ? { ...note, deletedAt: new Date().toISOString() } : note);

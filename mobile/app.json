@@ -8,8 +8,11 @@
     "icon": "./assets/app-icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "app.bestpad.mobile"
+      "supportsTablet": false,
+      "bundleIdentifier": "app.bestpad.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "app.bestpad.mobile",
@@ -21,7 +24,14 @@
       "output": "single"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-file-system",
+        {
+          "supportsOpeningDocumentsInPlace": true,
+          "enableFileSharing": true
+        }
+      ]
     ]
   }
 }
