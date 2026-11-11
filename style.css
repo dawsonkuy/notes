@@ -192,3 +192,10 @@ img.small-brand-mark { display: block; object-fit: contain; padding: 3px; }
 .legal-settings-links { display: grid; gap: 7px; }
 .legal-settings-links a, .legal-settings-links button { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 14px; min-height: 44px; width: 100%; border: 1px solid var(--soft-border); border-radius: 10px; background: var(--control); color: var(--text); font: inherit; font-size: 13px; text-align: left; text-decoration: none; cursor: pointer; }
 .legal-settings-links a:hover, .legal-settings-links button:hover, .legal-settings-links a:focus-visible, .legal-settings-links button:focus-visible { background: var(--selected); }
+
+/* Keep the insert palette reachable on small screens and with the keyboard. */
+#add-menu { max-height: min(66dvh, 510px); overflow-y: auto; overscroll-behavior: contain; }
+#add-menu .menu-symbol { flex: 0 0 24px; font-size: 12px; text-align: center; font-weight: 700; }
+/* Quill owns list numbers and bullets; use its original counters and spacing. */
+.ql-editor ol, .ql-editor ul { padding-left: 1.5em; }
+.ql-editor li[data-list="bullet"], .ql-editor li[data-list="ordered"] { text-decoration: none; }

@@ -1,7 +1,8 @@
-export type Op = { insert: string | { divider: true }; attributes?: { header?: 1 | 2 | 3; list?: 'checked' | 'unchecked' } };
+export type ListStyle = 'checked' | 'unchecked' | 'bullet' | 'ordered';
+export type Op = { insert: string | { divider: true }; attributes?: { header?: 1 | 2 | 3; list?: ListStyle } };
 export type Note = { id: string; text: string; filename: string; customName?: string | null; deletedAt?: string; content?: Op[]; [key: string]: unknown };
 export type Workspace = { tabs: Note[]; activeId: string };
-export type Block = { id: string; text: string; heading?: 1 | 2 | 3; list?: 'checked' | 'unchecked'; divider?: boolean };
+export type Block = { id: string; text: string; heading?: 1 | 2 | 3; list?: ListStyle; divider?: boolean };
 export const noteName = (note: Note) => (typeof note.customName === 'string' && note.customName) || note.text.split(/\r?\n/, 1)[0].trim().slice(0, 80) || 'Untitled';
 export const isTrashed = (note: Note) => typeof note.deletedAt === 'string' && note.deletedAt.length > 0;
 export const newNote = (id: string): Note => ({ id, text: '', filename: 'Untitled', customName: null });
@@ -20,7 +21,7 @@ export function safeOps(note: Note): Op[] | null {
     }
     const result: Op = { insert: op.insert };
     if ([1, 2, 3].includes(op.attributes?.header as number)) result.attributes = { header: op.attributes!.header };
-    else if (['checked', 'unchecked'].includes(op.attributes?.list as string)) result.attributes = { list: op.attributes!.list };
+    else if (['checked', 'unchecked', 'bullet', 'ordered'].includes(op.attributes?.list as string)) result.attributes = { list: op.attributes!.list };
     ops.push(result);
   }
   return ops.filter(op => typeof op.insert === 'string').map(op => op.insert).join('') === note.text + '\n' ? ops : null;
@@ -61,7 +62,8 @@ export function breakParagraph(blocks: Block[], id: string, selection: { start: 
       return { blocks, focus: { id: next.id, start: 0, end: 0 } };
     }
   }
-  const nextBlock: Block = { id: newId(), text: block.text.slice(end), ...(block.list ? { list: 'unchecked' as const } : {}) };
+  // Lists continue in the same style; completed tasks create unchecked items.
+  const nextBlock: Block = { id: newId(), text: block.text.slice(end), ...(block.list ? { list: block.list === 'checked' ? 'unchecked' as const : block.list } : {}) };
   return {
     blocks: [...blocks.slice(0, index), { ...block, text: block.text.slice(0, start) }, nextBlock, ...blocks.slice(index + 1)],
     focus: { id: nextBlock.id, start: 0, end: 0 }

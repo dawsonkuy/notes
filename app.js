@@ -536,7 +536,7 @@ function safeNoteContents(tab) {
     }
     const result = { insert: op.insert };
     if ([1, 2, 3].includes(op.attributes?.header)) result.attributes = { header: op.attributes.header };
-    else if (['checked', 'unchecked'].includes(op.attributes?.list)) result.attributes = { list: op.attributes.list };
+    else if (['checked', 'unchecked', 'bullet', 'ordered'].includes(op.attributes?.list)) result.attributes = { list: op.attributes.list };
     return result;
   });
   if (ops.some(op => !op) || ops.filter(op => typeof op.insert === 'string').map(op => op.insert).join('') !== tab.text + '\n') return null;
@@ -578,7 +578,7 @@ if (window.Quill) {
     static value() { return true; }
   }
   window.Quill.register(Divider);
-  richEditor = new window.Quill('#rich-editor', { formats: ['header', 'list', 'divider'], modules: { toolbar: false }, placeholder: 'Start writing… Type /insert to add a heading, date, or time.' });
+  richEditor = new window.Quill('#rich-editor', { formats: ['header', 'list', 'divider'], modules: { toolbar: false }, placeholder: 'Start writing… Type /insert to add a heading, list, date, or time.' });
   richEditor.root.setAttribute('role', 'textbox');
   richEditor.root.setAttribute('aria-label', 'Note text');
   richEditor.root.setAttribute('aria-multiline', 'true');
@@ -641,8 +641,12 @@ function insertNoteItem(kind) {
       richEditor.updateContents(change, 'user');
       richEditor.setSelection(range.index + prefix.length + 1, 0, 'user');
     } else {
-      const placeholder = kind === 'checklist' ? 'To-do' : 'Heading';
-      change.insert(placeholder).insert('\n', kind === 'checklist' ? { list: 'unchecked' } : { header: 1 });
+      const headingLevel = kind === 'heading' ? 1 : /^heading-[123]$/.test(kind) ? Number(kind.slice(-1)) : null;
+      const listType = kind === 'checklist' ? 'unchecked' : kind === 'bullet-list' ? 'bullet' : kind === 'numbered-list' ? 'ordered' : null;
+      if (!headingLevel && !listType) return;
+      const placeholder = headingLevel ? 'Heading' : kind === 'checklist' ? 'To-do' : 'List item';
+      const attributes = headingLevel ? { header: headingLevel } : { list: listType };
+      change.insert(placeholder).insert('\n', attributes);
       richEditor.updateContents(change, 'user');
       richEditor.setSelection(range.index + prefix.length, placeholder.length, 'user');
     }

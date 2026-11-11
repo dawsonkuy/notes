@@ -56,3 +56,36 @@ test('Return after an inserted heading reuses the existing empty body paragraph'
   assert.equal(result.blocks, blocks);
   assert.equal(result.focus.id, 'body');
 });
+
+test('bulleted and ordered lists survive cross-device rich-content round trips', () => {
+  const note = { ...newNote('list-note'), text: 'Tasks\\nFirst\\nSecond\\nDone', content: [
+    { insert: 'Tasks' }, { insert: '\\n', attributes: { header: 2 as const } },
+    { insert: 'First' }, { insert: '\\n', attributes: { list: 'bullet' as const } },
+    { insert: 'Second' }, { insert: '\\n', attributes: { list: 'ordered' as const } },
+    { insert: 'Done' }, { insert: '\\n', attributes: { list: 'checked' as const } },
+  ] };
+  const parsed = toBlocks(note, id);
+  assert.equal(parsed[0].heading, 2);
+  assert.equal(parsed[1].list, 'bullet');
+  assert.equal(parsed[2].list, 'ordered');
+  assert.equal(parsed[3].list, 'checked');
+  const saved = fromBlocks(note, parsed);
+  assert.equal(saved.text, note.text);
+  assert.deepEqual(saved.content, note.content);
+  assert.ok(safeOps(saved));
+});
+test('Return continues bullet and numbered lists; blank list item exits cleanly', () => {
+  for (const type of ['bullet', 'ordered', 'unchecked'] as const) {
+    const first = [{ id: 'test', text: 'One', list: type }];
+    const next = breakParagraph(first, 'test', { start: 3, end: 3 }, id)!;
+    assert.equal(next.blocks[1].list, type);
+    const exit = breakParagraph([{ id: 'empty', text: '', list: type }], 'empty', { start: 0, end: 0 }, id)!;
+    assert.equal(exit.blocks[0].list, undefined);
+  }
+  const checked = breakParagraph([{ id: 'task', text: 'Done', list: 'checked' as const }], 'task', { start: 4, end: 4 }, id)!;
+  assert.equal(checked.blocks[1].list, 'unchecked');
+});
+test('unknown list formatting is discarded without dropping plain text', () => {
+  const n = { ...newNote('unsafe'), text: 'item', content: [{ insert: 'item' }, { insert: '\\n', attributes: { list: 'spoofed' as 'bullet' } }] };
+  assert.deepEqual(safeOps(n), [{ insert: 'item' }, { insert: '\\n' }]);
+});
