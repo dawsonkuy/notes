@@ -52,9 +52,12 @@ export function breakParagraph(blocks: Block[], id: string, selection: { start: 
   if (block.list && !block.text) {
     return { blocks: blocks.map(item => item.id === id ? { ...item, list: undefined } : item), focus: { id, start: 0, end: 0 } };
   }
-  if (block.heading && !block.text) {
+  if (block.heading) {
     const next = blocks[index + 1];
-    if (next && !next.heading && !next.list && !next.divider) {
+    // Insert Heading already creates a body block. Do not add a second empty
+    // paragraph when Return is pressed at the end of the heading.
+    if (next && !next.heading && !next.list && !next.divider &&
+        (!block.text || (start === end && end === block.text.length && !next.text))) {
       return { blocks, focus: { id: next.id, start: 0, end: 0 } };
     }
   }

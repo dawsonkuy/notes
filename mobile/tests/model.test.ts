@@ -50,3 +50,9 @@ test('Empty heading navigates into existing body, empty checklist exits list, an
   const body = breakParagraph([{ id: 'body', text: 'Hello' }], 'body', { start: 5, end: 5 }, id)!;
   assert.equal(body.blocks[1].heading, undefined);
 });
+test('Return after an inserted heading reuses the existing empty body paragraph', () => {
+  const blocks = [{ id: 'heading', text: 'Title', heading: 1 as const }, { id: 'body', text: '' }];
+  const result = breakParagraph(blocks, 'heading', { start: 5, end: 5 }, id)!;
+  assert.equal(result.blocks, blocks);
+  assert.equal(result.focus.id, 'body');
+});
