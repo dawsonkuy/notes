@@ -51,3 +51,9 @@ Appearance preferences and saved themes persist on the current device using the 
 ## Expo Go app
 
 The native iPhone/Android project is in [`mobile/`](mobile/README.md). Run `cd mobile`, `npm ci`, and `npm start`, then scan its QR code with Expo Go. It has native Notes/Settings screens and uses the same Supabase notes as the website.
+
+## App Store legal pages and account deletion
+
+The public privacy policy is at `https://bestpad.app/privacy.html`, Terms of Service at `https://bestpad.app/terms.html`, and account deletion instructions at `https://bestpad.app/delete-account.html`. These are static HTML pages bundled as Cloudflare Worker assets and also served by the local Node dev server. The native app and website Settings link to them; the mobile app's Account deletion section provides the existing authenticated in-app delete action.
+
+Run `npm run test:legal` to verify that the legal pages, static deployment mapping, and mobile Settings links exist. Use the privacy-policy URL in App Store Connect's App Privacy settings. Before App Store release, provide a private, working developer support contact address; current general support links lead to the public GitHub issue tracker and must not be used to share sensitive note or account content. Review the legal drafts with qualified counsel for the countries you serve, and verify App Privacy disclosures against production provider behavior.
