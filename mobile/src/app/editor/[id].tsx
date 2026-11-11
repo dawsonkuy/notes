@@ -86,7 +86,7 @@ function NoteEditor({ note }: { note: Note }) {
     dismissInsert();
     if (kind !== 'time' && kind !== 'date') {
       const heading = kind.startsWith('heading-') ? Number(kind.slice(-1)) as 1 | 2 | 3 : undefined;
-      const listStyle = kind === 'bullet-list' ? 'bullet' : kind === 'numbered-list' ? 'ordered' : kind === 'checklist' ? 'unchecked' : undefined;
+      const listStyle: Block['list'] = kind === 'bullet-list' ? 'bullet' : kind === 'numbered-list' ? 'ordered' : kind === 'checklist' ? 'unchecked' : undefined;
       // On an empty paragraph, apply formatting in place to avoid extra blank lines.
       if (!block.text && !block.heading && !block.list && !before && !after) {
         emit(list.map(item => item.id === block.id ? { ...item, heading, list: listStyle } : item));

@@ -58,11 +58,11 @@ test('Return after an inserted heading reuses the existing empty body paragraph'
 });
 
 test('bulleted and ordered lists survive cross-device rich-content round trips', () => {
-  const note = { ...newNote('list-note'), text: 'Tasks\\nFirst\\nSecond\\nDone', content: [
-    { insert: 'Tasks' }, { insert: '\\n', attributes: { header: 2 as const } },
-    { insert: 'First' }, { insert: '\\n', attributes: { list: 'bullet' as const } },
-    { insert: 'Second' }, { insert: '\\n', attributes: { list: 'ordered' as const } },
-    { insert: 'Done' }, { insert: '\\n', attributes: { list: 'checked' as const } },
+  const note = { ...newNote('list-note'), text: 'Tasks\nFirst\nSecond\nDone', content: [
+    { insert: 'Tasks' }, { insert: '\n', attributes: { header: 2 as const } },
+    { insert: 'First' }, { insert: '\n', attributes: { list: 'bullet' as const } },
+    { insert: 'Second' }, { insert: '\n', attributes: { list: 'ordered' as const } },
+    { insert: 'Done' }, { insert: '\n', attributes: { list: 'checked' as const } },
   ] };
   const parsed = toBlocks(note, id);
   assert.equal(parsed[0].heading, 2);
@@ -86,6 +86,6 @@ test('Return continues bullet and numbered lists; blank list item exits cleanly'
   assert.equal(checked.blocks[1].list, 'unchecked');
 });
 test('unknown list formatting is discarded without dropping plain text', () => {
-  const n = { ...newNote('unsafe'), text: 'item', content: [{ insert: 'item' }, { insert: '\\n', attributes: { list: 'spoofed' as 'bullet' } }] };
-  assert.deepEqual(safeOps(n), [{ insert: 'item' }, { insert: '\\n' }]);
+  const n = { ...newNote('unsafe'), text: 'item', content: [{ insert: 'item' }, { insert: '\n', attributes: { list: 'spoofed' as 'bullet' } }] };
+  assert.deepEqual(safeOps(n), [{ insert: 'item' }, { insert: '\n' }]);
 });

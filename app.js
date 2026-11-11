@@ -742,7 +742,10 @@ function highlightSlashOption(index) {
   if (!slashCommand) return;
   const options = [...$('add-menu').querySelectorAll('[data-insert]')];
   slashCommand.selected = (index + options.length) % options.length;
-  options.forEach((button, i) => button.classList.toggle('is-keyboard-active', i === slashCommand.selected));
+  options.forEach((button, i) => {
+    button.classList.toggle('is-keyboard-active', i === slashCommand.selected);
+    if (i === slashCommand.selected) button.scrollIntoView({ block: 'nearest' });
+  });
   richEditor.root.setAttribute('aria-activedescendant', options[slashCommand.selected].id);
 }
 function updateSlashCommand() {
