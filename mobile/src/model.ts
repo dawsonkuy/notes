@@ -40,6 +40,33 @@ export function toBlocks(note: Note, id: () => string): Block[] {
   if (text || !blocks.length) blocks.push({ id: id(), text });
   return blocks;
 }
+export type ParagraphFocus = { id: string; start: number; end: number };
+// Each mobile text field represents exactly one paragraph. Handle Return by
+// creating a separate body paragraph instead of inserting a newline into a heading.
+export function breakParagraph(blocks: Block[], id: string, selection: { start: number; end: number }, newId: () => string): { blocks: Block[]; focus: ParagraphFocus } | null {
+  const index = blocks.findIndex(block => block.id === id && !block.divider);
+  if (index < 0) return null;
+  const block = blocks[index];
+  const start = Math.max(0, Math.min(block.text.length, selection.start));
+  const end = Math.max(start, Math.min(block.text.length, selection.end));
+  if (block.list && !block.text) {
+    return { blocks: blocks.map(item => item.id === id ? { ...item, list: undefined } : item), focus: { id, start: 0, end: 0 } };
+  }
+  if (block.heading) {
+    const next = blocks[index + 1];
+    // Insert Heading already creates a body block. Do not add a second empty
+    // paragraph when Return is pressed at the end of the heading.
+    if (next && !next.heading && !next.list && !next.divider &&
+        (!block.text || (start === end && end === block.text.length && !next.text))) {
+      return { blocks, focus: { id: next.id, start: 0, end: 0 } };
+    }
+  }
+  const nextBlock: Block = { id: newId(), text: block.text.slice(end), ...(block.list ? { list: 'unchecked' as const } : {}) };
+  return {
+    blocks: [...blocks.slice(0, index), { ...block, text: block.text.slice(0, start) }, nextBlock, ...blocks.slice(index + 1)],
+    focus: { id: nextBlock.id, start: 0, end: 0 }
+  };
+}
 export function fromBlocks(note: Note, blocks: Block[]): Note {
   const content: Op[] = [];
   const editable = blocks.length ? blocks : [{ id: 'empty', text: '' }];
