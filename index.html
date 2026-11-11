@@ -77,6 +77,7 @@
           <a href="/privacy.html">Privacy Policy <span aria-hidden="true">↗</span></a>
           <a href="/terms.html">Terms of Service <span aria-hidden="true">↗</span></a>
           <a href="/delete-account.html">Account Deletion <span aria-hidden="true">↗</span></a>
+          <a href="/support.html">Help &amp; Support <span aria-hidden="true">↗</span></a>
           <button id="open-account-settings" type="button">Manage account / Delete account <span aria-hidden="true">→</span></button>
         </div>
       </section>
@@ -88,6 +89,13 @@
         <label>Password<input id="auth-password" type="password" autocomplete="current-password" required></label>
         <button id="sign-in" type="submit">Sign in</button>
         <button id="sign-up" type="submit">Create account</button>
+        <button id="forgot-password" type="button">Forgot password?</button>
+      </form>
+      <form id="password-recovery-form" aria-label="Set a new password" hidden>
+        <p>Choose a new password for your Bestpad account.</p>
+        <label>New password<input id="recovery-password" type="password" autocomplete="new-password" minlength="8" required></label>
+        <label>Confirm new password<input id="recovery-confirm" type="password" autocomplete="new-password" minlength="8" required></label>
+        <button id="save-recovery-password" type="submit">Update password</button>
       </form>
       <div id="account-session" hidden><span id="account-email"></span><button id="sign-out" type="button">Sign out</button><button id="delete-account" class="danger-button" type="button">Delete account</button></div>
       <p id="auth-status" role="status" aria-live="polite">Connecting to your account…</p>

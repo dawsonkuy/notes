@@ -16,6 +16,7 @@ export default function Settings() {
     { title: 'Privacy Policy', description: 'How your notes and account data are handled', url: 'https://bestpad.app/privacy.html' },
     { title: 'Terms of Service', description: 'Rules for using Bestpad', url: 'https://bestpad.app/terms.html' },
     { title: 'Account Deletion', description: 'What is removed and how to delete your account', url: 'https://bestpad.app/delete-account.html' },
+    { title: 'Help & support', description: 'Troubleshooting, account help and support', url: 'https://bestpad.app/support.html' },
   ] as const;
   function openLegalPage(url: string) {
     void Linking.openURL(url).catch(() => Alert.alert('Unable to open page', 'Check your internet connection and try again.'));

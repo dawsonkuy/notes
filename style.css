@@ -199,3 +199,13 @@ img.small-brand-mark { display: block; object-fit: contain; padding: 3px; }
 /* Quill owns list numbers and bullets; use its original counters and spacing. */
 .ql-editor ol, .ql-editor ul { padding-left: 1.5em; }
 .ql-editor li[data-list="bullet"], .ql-editor li[data-list="ordered"] { text-decoration: none; }
+
+/* Password recovery uses the same minimal account-dialog styling. */
+#password-recovery-form { display: grid; gap: 14px; }
+#password-recovery-form[hidden], #auth-form[hidden], #account-session[hidden] { display: none; }
+#password-recovery-form label { display: grid; gap: 7px; font-size: 12px; font-weight: 500; }
+#password-recovery-form input { width: 100%; font-size: 16px; padding: 12px; background: var(--control); color: var(--text); border: 1px solid var(--soft-border); border-radius: 9px; }
+#password-recovery-form button, #forgot-password { min-height: 44px; padding: 10px 12px; border-radius: 9px; border: 1px solid var(--soft-border); background: var(--control); color: var(--text); font: inherit; cursor: pointer; }
+#password-recovery-form #save-recovery-password { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+#forgot-password { font-size: 12px; }
+#password-recovery-form p { color: var(--muted); margin: 0; font-size: 12px; line-height: 1.5; }
