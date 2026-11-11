@@ -90,3 +90,6 @@ npm run web
 ```
 
 A later TestFlight/App Store release can use EAS Build. No Apple Developer account is needed for testing in Expo Go.
+
+## Headings and lists (App Store editor)
+The Insert sheet and `/insert` menu provide H1 (large), H2 (medium), H3 (small), bulleted lists, numbered lists, and checked/unchecked to-do lists, along with date and time. Pressing Return after a heading moves to normal text; pressing Return inside a list adds the next item, and pressing Return on an empty list item returns to plain text. Rich formatting persists in the existing `note_workspaces.tabs[].content` Quill Delta format without a database migration. Test editing the same note on mobile and on the website, including offline conflict recovery.
