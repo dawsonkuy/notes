@@ -39,3 +39,11 @@ test('mobile conflict recovery writes backup before exposing destructive replace
   assert.match(file('mobile/src/backup.ts'), /requireExternalCopy && !shared/);
   assert.match(home, /saveWorkspaceBackup\(store\.getSnapshot\(\)\.workspace, true\)/);
 });
+
+test('support page is accessible in both Settings pages and bundled with the website', () => {
+  assert.match(file('mobile/src/app/(tabs)/settings.tsx'), /https:\/\/bestpad\.app\/support\.html/);
+  assert.match(file('index.html'), /href="\/support\.html"/);
+  assert.match(file('build.mjs'), /'support\.html'/);
+  assert.match(file('server.mjs'), /'\/support\.html'/);
+  assert.match(file('support.html'), /Help &amp; support/);
+});

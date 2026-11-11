@@ -107,3 +107,5 @@ The Insert sheet and `/insert` menu provide H1 (large), H2 (medium), H3 (small),
 The app uses standard HTTPS to connect to Supabase; the iOS export-compliance field `ITSAppUsesNonExemptEncryption` is set to false on that basis. Re-evaluate it if non-exempt cryptographic features are introduced.
 
 Use `npm run typecheck`, `npm run lint`, `npm test` and `npx expo-doctor@latest` before building. Test the password reset email end-to-end and the backup's saved JSON file on a physical iPhone. Supabase's leaked-password-protection Auth toggle still requires a user with project admin access; enabling it changes Auth configuration, not note contents.
+
+The public App Store Support URL is `https://bestpad.app/support.html`. Its support issue tracker is public, so do not ask users to post passwords, notes, or account identifiers. Before App Store submission, establish a private support contact for sensitive inquiries.

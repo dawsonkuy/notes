@@ -29,7 +29,7 @@ export default function Login() {
     setBusy(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(address, {
-        redirectTo: 'https://bestpad.app/?password_reset=1',
+        redirectTo: 'https://bestpad.app/',
       });
       if (error) throw error;
       Alert.alert('Check your email', 'If the address has a Bestpad account, a reset link will arrive. Open it in your browser, set a new password, then sign in here.');

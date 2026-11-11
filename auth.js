@@ -107,7 +107,7 @@
     busy(true); message('Requesting reset email…');
     try {
       const { error } = await client.auth.resetPasswordForEmail(email, {
-        redirectTo: 'https://bestpad.app/?password_reset=1',
+        redirectTo: 'https://bestpad.app/',
       });
       if (error) throw error;
       message('If the address has an account, a password reset email will arrive. Open the link to set a new password.');
