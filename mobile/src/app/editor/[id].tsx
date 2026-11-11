@@ -4,7 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router, useLocalSearchParams } from 'expo-router';
 import { randomUUID } from 'expo-crypto';
 import { useBestpad } from '../../context';
-import { fromBlocks, isTrashed, noteName, toBlocks, type Block, type Note } from '../../model';
+import { breakParagraph, fromBlocks, isTrashed, noteName, toBlocks, type Block, type Note } from '../../model';
 import { Button, Icon, IconButton, SaveStatus, ui } from '../../components/ui';
 type Cursor = { id: string; start: number; end: number };
 function NoteEditor({ note }: { note: Note }) {
@@ -23,7 +23,23 @@ function NoteEditor({ note }: { note: Note }) {
   const [pendingFocus, setPendingFocus] = useState<Cursor | null>(null);
   const fontFamily = appearance.font === 'serif' ? Platform.OS === 'ios' ? 'Georgia' : 'serif' : appearance.font === 'mono' ? Platform.OS === 'ios' ? 'Menlo' : 'monospace' : appearance.font === 'rounded' ? Platform.OS === 'ios' ? 'Avenir Next' : 'sans-serif' : undefined;
   function emit(next: Block[]) { blocksRef.current = next; setBlocks(next); const updated = fromBlocks(noteRef.current, next); displayed.current = JSON.stringify([updated.text, updated.content]); store.updateNote(updated); }
-  useEffect(() => { if (!pendingFocus) return; const frame = requestAnimationFrame(() => { const input = inputs.current[pendingFocus.id]; input?.focus(); input?.setNativeProps?.({ selection: { start: pendingFocus.start, end: pendingFocus.end } }); cursor.current = pendingFocus; }); return () => cancelAnimationFrame(frame); }, [pendingFocus]);
+  useEffect(() => {
+    if (!pendingFocus) return;
+    let frame: number;
+    let tries = 0;
+    const focus = () => {
+      const input = inputs.current[pendingFocus.id];
+      if (!input && tries++ < 3) { frame = requestAnimationFrame(focus); return; }
+      if (input) {
+        input.focus();
+        input.setNativeProps({ selection: { start: pendingFocus.start, end: pendingFocus.end } });
+        cursor.current = pendingFocus;
+      }
+      setPendingFocus(current => current === pendingFocus ? null : current);
+    };
+    frame = requestAnimationFrame(focus);
+    return () => cancelAnimationFrame(frame);
+  }, [pendingFocus]);
   function checkSlash(selection: Cursor) {
     const block = blocksRef.current.find(item => item.id === selection.id); if (!block || selection.start !== selection.end || !inputs.current[selection.id]?.isFocused()) return;
     const match = /(?:^|\s)(\/insert)$/.exec(block.text.slice(0, selection.start));
@@ -41,6 +57,13 @@ function NoteEditor({ note }: { note: Note }) {
     const next = [...blocksRef.current.slice(0, index), ...replacements, ...blocksRef.current.slice(index + 1)]; emit(next);
     const focus = replacements[Math.min(target.length - 1, replacements.length - 1)]; setPendingFocus({ id: focus.id, start: target.at(-1)!.length, end: target.at(-1)!.length });
   }
+  function returnFromParagraph(block: Block) {
+    const selection = cursor.current.id === block.id ? cursor.current : { id: block.id, start: block.text.length, end: block.text.length };
+    const result = breakParagraph(blocksRef.current, block.id, selection, randomUUID);
+    if (!result) return;
+    if (result.blocks !== blocksRef.current) emit(result.blocks);
+    setPendingFocus(result.focus);
+  }
   function backspace(block: Block) {
     const selection = cursor.current, index = blocksRef.current.findIndex(item => item.id === block.id);
     if (selection.id !== block.id || selection.start || selection.end || index <= 0) return;
@@ -56,9 +79,9 @@ function NoteEditor({ note }: { note: Note }) {
     const block = list[index], start = Math.min(range.start, block.text.length), end = Math.min(range.end, block.text.length), before = block.text.slice(0, start), after = block.text.slice(end);
     dismissInsert();
     if (kind === 'heading') {
-      const heading: Block = { id: randomUUID(), text: 'Heading', heading: 1 };
+      const heading: Block = { id: randomUUID(), text: '', heading: 1 };
       const replacement: Block[] = [...(before ? [{ ...block, text: before }] : []), heading, { id: randomUUID(), text: after, ...(after ? { heading: block.heading, list: block.list } : {}) }];
-      emit([...list.slice(0, index), ...replacement, ...list.slice(index + 1)]); setPendingFocus({ id: heading.id, start: 0, end: 7 });
+      emit([...list.slice(0, index), ...replacement, ...list.slice(index + 1)]); setPendingFocus({ id: heading.id, start: 0, end: 0 });
     } else {
       const text = new Intl.DateTimeFormat(undefined, kind === 'time' ? { hour: 'numeric', minute: '2-digit' } : { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date());
       emit(list.map(item => item.id === block.id ? { ...block, text: before + text + after } : item)); setPendingFocus({ id: block.id, start: start + text.length, end: start + text.length });
@@ -67,9 +90,9 @@ function NoteEditor({ note }: { note: Note }) {
   const close = () => { void store.flush(); if (router.canGoBack()) router.back(); else router.replace('/'); };
   return <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={[ui.container, { backgroundColor: colors.primary }]}><KeyboardAvoidingView style={ui.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <View style={[ui.row, { justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 6 }]}><Pressable accessibilityRole="button" accessibilityLabel="Notes" onPress={close} style={[ui.row, { minHeight: 44 }]}><Icon name="chevron-back" /><Text style={{ color: colors.font, fontSize: 15 }}>Notes</Text></Pressable><IconButton name="share-outline" label="Share note" onPress={() => { void Share.share({ title: noteName(note), message: `${noteName(note)}\n\n${note.text}` }).catch(() => undefined); }} /></View>
-    <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} contentContainerStyle={{ padding: 24, paddingTop: 20, paddingBottom: 50 }}>
+    <ScrollView keyboardShouldPersistTaps="always" keyboardDismissMode="none" contentContainerStyle={{ padding: 24, paddingTop: 20, paddingBottom: 50 }}>
       {blocks.map((block, index) => block.divider ? <View key={block.id} style={[ui.row, { marginVertical: 10 }]}><View style={{ height: 1, flex: 1, backgroundColor: colors.border }} /><IconButton name="close" label="Remove divider" onPress={() => { const next = blocks.filter(item => item.id !== block.id); emit(next.length ? next : [{ id: randomUUID(), text: '' }]); }} /></View> : <View key={block.id} style={{ flexDirection: 'row', alignItems: 'flex-start' }}>{block.list && <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: block.list === 'checked' }} accessibilityLabel={block.text || 'Task'} onPress={() => emit(blocks.map(item => item.id === block.id ? { ...item, list: item.list === 'checked' ? 'unchecked' : 'checked' } : item))} style={{ minWidth: 40, minHeight: 40, paddingTop: 4 }}><Icon name={block.list === 'checked' ? 'checkbox-outline' : 'square-outline'} /></Pressable>}
-      <TextInput ref={input => { inputs.current[block.id] = input; }} accessibilityLabel={block.heading ? `Heading ${block.heading}` : `Note paragraph ${index + 1}`} multiline scrollEnabled={false} placeholder={blocks.length === 1 ? 'Start writing…' : ''} placeholderTextColor={colors.muted} value={block.text} onChangeText={text => change(block, text)} onSelectionChange={event => { const next = { id: block.id, ...event.nativeEvent.selection }; cursor.current = next; checkSlash(next); }} onKeyPress={event => { if (event.nativeEvent.key === 'Backspace') backspace(block); }} style={{ flex: 1, padding: 0, margin: 0, color: colors.font, fontFamily, fontSize: appearance.size * (block.heading === 1 ? 2 : block.heading === 2 ? 1.5 : block.heading === 3 ? 1.2 : 1), lineHeight: appearance.size * (block.heading === 1 ? 2.7 : block.heading === 2 ? 2.2 : 1.7), minHeight: appearance.size * 1.7, fontWeight: block.heading ? '700' : '400', textDecorationLine: block.list === 'checked' ? 'line-through' : 'none', textAlignVertical: 'top' }} /></View>)}
+      <TextInput ref={input => { inputs.current[block.id] = input; }} accessibilityLabel={block.heading ? `Heading ${block.heading}` : `Note paragraph ${index + 1}`} multiline scrollEnabled={false} submitBehavior="submit" returnKeyType="default" placeholder={block.heading ? 'Heading' : blocks.length === 1 ? 'Start writing…' : ''} placeholderTextColor={colors.muted} value={block.text} onChangeText={text => change(block, text)} onSubmitEditing={() => returnFromParagraph(block)} onSelectionChange={event => { if (!inputs.current[block.id]?.isFocused()) return; const next = { id: block.id, ...event.nativeEvent.selection }; cursor.current = next; checkSlash(next); }} onKeyPress={event => { if (event.nativeEvent.key === 'Backspace') backspace(block); }} style={{ flex: 1, padding: 0, margin: 0, color: colors.font, fontFamily, fontSize: appearance.size * (block.heading === 1 ? 1.6 : block.heading === 2 ? 1.35 : block.heading === 3 ? 1.15 : 1), lineHeight: appearance.size * (block.heading === 1 ? 2.1 : block.heading === 2 ? 1.85 : block.heading === 3 ? 1.65 : 1.55), minHeight: appearance.size * 1.55, fontWeight: block.heading ? '700' : '400', textDecorationLine: block.list === 'checked' ? 'line-through' : 'none', textAlignVertical: 'top' }} /></View>)}
     </ScrollView>
     <View style={{ padding: 16, paddingBottom: 10, borderTopWidth: 1, borderTopColor: colors.border }}><View style={[ui.row, { justifyContent: 'space-between', marginBottom: 12 }]}><SaveStatus status={snapshot.status} /><Text style={{ color: colors.muted, fontSize: 10 }}>{note.text.trim().split(/\s+/).filter(Boolean).length} words</Text></View><View style={[ui.row, { justifyContent: 'space-between' }]}><Button label="Insert" icon="add" onPress={() => setInsertOpen(true)} /></View></View>
     <Modal visible={insertOpen} transparent animationType="fade" onRequestClose={dismissInsert}><Pressable accessibilityRole="button" accessibilityLabel="Close Insert menu" onPress={dismissInsert} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#0006' }}><Pressable accessibilityRole="none" onPress={() => undefined} style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 20), backgroundColor: colors.secondary, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}><Text style={{ color: colors.muted, marginBottom: 10 }}>Insert</Text>{([{ kind: 'heading', label: 'Heading', icon: 'text-outline' }, { kind: 'time', label: 'Current time', icon: 'time-outline' }, { kind: 'date', label: 'Current date', icon: 'calendar-outline' }] as const).map(item => <Pressable key={item.kind} accessibilityRole="button" accessibilityLabel={item.label} onPress={() => insert(item.kind)} style={[ui.row, { minHeight: 54 }]}><Icon name={item.icon} /><Text style={{ color: colors.font, fontSize: 16 }}>{item.label}</Text></Pressable>)}</Pressable></Pressable></Modal>
