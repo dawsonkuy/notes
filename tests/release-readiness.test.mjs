@@ -7,9 +7,9 @@ test('native and web support a password reset from an emailed link', () => {
   assert.match(web, /resetPasswordForEmail/);
   assert.match(web, /PASSWORD_RECOVERY/);
   assert.match(web, /updateUser\(\{ password:/);
-  assert.match(web, /https:\/\/bestpad\.app\/\?password_reset=1/);
+  assert.ok(web.includes("redirectTo: 'https://bestpad.app/'"));
   assert.match(login, /resetPasswordForEmail/);
-  assert.match(login, /https:\/\/bestpad\.app\/\?password_reset=1/);
+  assert.ok(login.includes("redirectTo: 'https://bestpad.app/'"));
   assert.doesNotMatch(web, /aesthetic-starlight/);
 });
 test('iOS EAS configuration, non-transparent icon, and real file backups are available', () => {
