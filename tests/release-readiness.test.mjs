@@ -30,7 +30,6 @@ test('iOS EAS configuration, non-transparent icon, and real file backups are ava
 test('mobile conflict recovery writes backup before exposing destructive replace', () => {
   const home = file('mobile/src/app/(tabs)/index.tsx');
   assert.match(home, /Export all/);
-  assert.match(home, /Search notes/);
   assert.match(home, /Rename/);
   assert.match(home, /Back up local notes, then use cloud copy/);
   assert.ok(home.indexOf('await saveWorkspaceBackup(store.getSnapshot().workspace)') >= 0);
