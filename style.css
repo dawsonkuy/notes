@@ -209,3 +209,6 @@ img.small-brand-mark { display: block; object-fit: contain; padding: 3px; }
 #password-recovery-form #save-recovery-password { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
 #forgot-password { font-size: 12px; }
 #password-recovery-form p { color: var(--muted); margin: 0; font-size: 12px; line-height: 1.5; }
+
+/* Leave breathing room when the browser scrolls the typing caret into view. */
+#editor, .ql-editor { scroll-padding-block: 24px 96px; }

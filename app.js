@@ -3,6 +3,8 @@ let tabs = [];
 let activeId;
 let richEditor = null;
 let renderingNote = false;
+let renderedNoteId = null;
+const editorPositions = new Map();
 let storageKey = 'notepad:tabs';
 let cloudUser = null;
 let cloudRevision = null;
@@ -154,15 +156,15 @@ function setTitle() {
   $('note-title').textContent = noteName(active());
 }
 function refreshNames() {
-  setTitle();
-  tabs.forEach(tab => {
-    const button = document.getElementById(`tab-${tab.id}`);
-    if (!button) return;
-    const title = button.querySelector('.note-list-title');
-    if (title) { title.textContent = noteName(tab); button.querySelector('.note-list-preview').textContent = notePreview(tab); }
-    else button.textContent = noteName(tab);
-    button.parentElement.querySelector('.edit-tab').setAttribute('aria-label', `Options for ${noteName(tab)}`);
-  });
+  const tab = active(), name = noteName(tab);
+  if ($('note-title').textContent !== name) setTitle();
+  const button = document.getElementById(`tab-${tab.id}`);
+  if (!button) return;
+  const title = button.querySelector('.note-list-title'), preview = button.querySelector('.note-list-preview'), text = notePreview(tab);
+  if (title && title.textContent !== name) title.textContent = name;
+  if (preview && preview.textContent !== text) preview.textContent = text;
+  const options = button.parentElement.querySelector('.edit-tab');
+  if (options?.getAttribute('aria-label') !== `Options for ${name}`) options?.setAttribute('aria-label', `Options for ${name}`);
 }
 $('editor').addEventListener('input', save);
 ['click', 'keyup', 'select'].forEach(type => $('editor').addEventListener(type, position));
@@ -227,7 +229,21 @@ function renderTabs() {
     item.append(button, edit); $('tabs').append(item);
   });
 }
+function rememberEditorPosition() {
+  if (!renderedNoteId) return;
+  const previous = editorPositions.get(renderedNoteId);
+  const range = richEditor ? richEditor.getSelection() || previous?.range : { index: $('editor').selectionStart, length: $('editor').selectionEnd - $('editor').selectionStart };
+  editorPositions.set(renderedNoteId, { range, scroll: richEditor ? richEditor.root.scrollTop : $('editor').scrollTop });
+}
+function restoreEditorPosition() {
+  const position = editorPositions.get(activeId);
+  const max = richEditor ? richEditor.getLength() - 1 : $('editor').value.length;
+  const index = Math.max(0, Math.min(position?.range?.index ?? 0, max)), length = Math.max(0, Math.min(position?.range?.length ?? 0, max - index));
+  if (richEditor) { if (richEditor.root.contains(document.activeElement)) richEditor.setSelection(index, length, 'silent'); richEditor.root.scrollTop = position?.scroll || 0; }
+  else { $('editor').setSelectionRange(index, index + length); $('editor').scrollTop = position?.scroll || 0; }
+}
 function showTab() {
+  rememberEditorPosition();
   $('editor').value = active().text;
   if (richEditor) renderRichNote();
   setTitle(); renderTabs(); position();
@@ -235,6 +251,7 @@ function showTab() {
     if (richEditor) richEditor.focus({ preventScroll: true });
     else $('editor').focus({ preventScroll: true });
   }
+  restoreEditorPosition(); renderedNoteId = activeId; position();
   const selected = document.getElementById(`tab-${activeId}`)?.parentElement;
   if (selected) {
     const strip = $('tabs');
@@ -283,13 +300,13 @@ showTab();
 function validWorkspace(value) {
   return value && Array.isArray(value.tabs) && value.tabs.length > 0 && value.tabs.every(tab => typeof tab.id === 'string' && typeof tab.text === 'string' && typeof tab.filename === 'string');
 }
-function useWorkspace(value) {
+function useWorkspace(value, preserveEditor = false) {
   tabs = value.tabs;
   if (!liveTabs().length) tabs.push(makeTab());
   activeId = liveTabs().some(tab => tab.id === value.activeId) ? value.activeId : liveTabs()[0].id;
   savedPayload = payload();
   savedNotesPayload = notesPayload();
-  showTab();
+  if (preserveEditor) { setTitle(); renderTabs(); position(); } else showTab();
 }
 async function flushCloud() {
   if (!cloudUser || !cloudReady || cloudConflict || !cloudDirty || cloudWriting) return;
@@ -415,17 +432,20 @@ $('sync-use-cloud').onclick = () => { void resolveCloudConflict('cloud'); };
 $('sync-use-local').onclick = () => { void resolveCloudConflict('local'); };
 
 async function refreshCloud() {
-  if (!cloudUser || !cloudReady || cloudDirty || cloudWriting || cloudConflict || cloudRefreshing || document.hidden) return;
+  if (!cloudUser || !cloudReady || cloudDirty || cloudWriting || cloudConflict || cloudRefreshing || slashComposing || document.hidden) return;
   const user = cloudUser, generation = accountGeneration, contents = payload();
   cloudRefreshing = true;
   try {
     const { data, error } = await window.notesClient.from('note_workspaces').select('*').eq('user_id', user).maybeSingle();
-    if (error || !data || generation !== accountGeneration || cloudDirty || cloudWriting || contents !== payload() || data.revision === cloudRevision || !validWorkspace({ tabs: data.tabs })) return;
-    const selection = richEditor?.getSelection(), scroll = richEditor?.root.scrollTop;
+    if (error || !data || generation !== accountGeneration || cloudDirty || cloudWriting || slashComposing || contents !== payload() || data.revision === cloudRevision || !validWorkspace({ tabs: data.tabs })) return;
+    const selection = richEditor?.getSelection(), scroll = richEditor?.root.scrollTop, focused = document.activeElement;
     const selected = activeId;
     cloudRevision = data.revision;
-    useWorkspace({ tabs: data.tabs, activeId: data.tabs.some(note => note.id === selected) ? selected : data.active_id });
-    if (richEditor && selection) { richEditor.setSelection(Math.min(selection.index, richEditor.getLength() - 1), 0, 'silent'); richEditor.root.scrollTop = scroll; }
+    const incoming = data.tabs.find(note => note.id === selected && !isTrashed(note));
+    const sameBody = incoming && incoming.text === active().text && JSON.stringify(incoming.content) === JSON.stringify(active().content);
+    useWorkspace({ tabs: data.tabs, activeId: data.tabs.some(note => note.id === selected) ? selected : data.active_id }, Boolean(sameBody));
+    if (richEditor && selection) { const index = Math.min(selection.index, richEditor.getLength() - 1); richEditor.setSelection(index, Math.min(selection.length, richEditor.getLength() - 1 - index), 'silent'); richEditor.root.scrollTop = scroll; }
+    if (focused instanceof HTMLElement && focused !== $('editor') && !richEditor?.root.contains(focused)) focused.focus({ preventScroll: true });
     cacheNotes(); $('save-status').textContent = 'Saved to cloud';
   } catch { /* Retry on the next live event or fallback refresh. */ }
   finally { cloudRefreshing = false; }
@@ -435,6 +455,7 @@ async function loadAccount(userId) {
   save();
   clearTimeout(cloudTimer);
   if ($('sync-dialog').open) $('sync-dialog').close();
+  editorPositions.clear(); renderedNoteId = null;
   const generation = ++accountGeneration;
   if (cloudChannel) { void window.notesClient.removeChannel(cloudChannel); cloudChannel = null; }
   cloudUser = userId;
@@ -583,7 +604,7 @@ if (window.Quill) {
   richEditor.root.setAttribute('aria-label', 'Note text');
   richEditor.root.setAttribute('aria-multiline', 'true');
   richEditor.root.setAttribute('aria-describedby', 'save-status');
-  richEditor.root.setAttribute('spellcheck', 'false');
+  richEditor.root.setAttribute('spellcheck', 'true');
   $('rich-editor').hidden = false;
   $('heading-toolbar').hidden = false;
   $('editor').hidden = true;
@@ -591,7 +612,7 @@ if (window.Quill) {
   renderRichNote();
   richEditor.on('text-change', () => { if (!renderingNote) { save(); updateHeadingButtons(); enhanceChecklist(); } });
   richEditor.on('selection-change', range => {
-    if (range) $('editor').selectionStart = Math.min(range.index, $('editor').value.length);
+    if (range) { $('editor').selectionStart = Math.min(range.index, $('editor').value.length); editorPositions.set(activeId, { range, scroll: richEditor.root.scrollTop }); }
     position(); updateHeadingButtons();
   });
   document.querySelectorAll('[data-heading]').forEach(button => {

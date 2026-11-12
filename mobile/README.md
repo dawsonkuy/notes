@@ -45,6 +45,10 @@ Guest notes and account notes are separate workspaces. Signing in loads that acc
 
 Color preferences and saved themes stay on the device. Cloud notes sync with the website, but browser-local preferences and native-device preferences are separate.
 
+## Typing
+
+Return creates a new paragraph and continues lists. Backspace at the start of a heading or list item removes its formatting before joining paragraphs. Multiline paste keeps the following text and normalizes Windows line endings. Tap below the text to continue at the end, swipe down to dismiss the iOS keyboard, or use the checkmark button. Spellcheck and autocorrection are enabled; the system keyboard appearance follows light/dark mode. The editor scrolls growing text into view when typing at the end of a paragraph.
+
 ## Trash
 
 The note's trash button moves it to **Trash** instead of deleting its contents. Open **Trash** from Notes to restore a note or choose **Delete permanently**, which requires confirmation. Trashed notes retain their names and formatting. They remain until manually removed; there is no automatic expiry. If the last active note is trashed, a new blank note is created so the editor stays usable.

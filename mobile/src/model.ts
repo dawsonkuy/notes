@@ -69,6 +69,36 @@ export function breakParagraph(blocks: Block[], id: string, selection: { start: 
     focus: { id: nextBlock.id, start: 0, end: 0 }
   };
 }
+// Backspace at a paragraph's start first removes its formatting, then joins it.
+export function joinBackward(blocks: Block[], id: string, selection: { start: number; end: number }): { blocks: Block[]; focus: ParagraphFocus } | null {
+  const index = blocks.findIndex(block => block.id === id && !block.divider);
+  if (index < 0 || selection.start !== 0 || selection.end !== 0) return null;
+  const block = blocks[index];
+  if (block.heading || block.list) return { blocks: blocks.map(item => item.id === id ? { ...item, heading: undefined, list: undefined } : item), focus: { id, start: 0, end: 0 } };
+  if (index === 0) return null;
+  const previous = blocks[index - 1];
+  if (previous.divider) return { blocks: blocks.filter(item => item.id !== previous.id), focus: { id, start: 0, end: 0 } };
+  return { blocks: blocks.filter(item => item.id !== id).map(item => item.id === previous.id ? { ...item, text: previous.text + block.text } : item), focus: { id: previous.id, start: previous.text.length, end: previous.text.length } };
+}
+// Normalize pasted line endings and keep the caret just after the inserted text.
+export function replaceParagraphText(blocks: Block[], id: string, value: string, newId: () => string, selection?: { start: number; end: number }): { blocks: Block[]; focus?: ParagraphFocus } | null {
+  const index = blocks.findIndex(block => block.id === id && !block.divider);
+  if (index < 0) return null;
+  const block = blocks[index], text = value.replace(/\r\n?/g, '\n');
+  if (!text.includes('\n')) return { blocks: blocks.map(item => item.id === id ? { ...item, text } : item) };
+  let prefix = 0, suffix = 0;
+  while (prefix < block.text.length && prefix < text.length && block.text[prefix] === text[prefix]) prefix++;
+  while (suffix < block.text.length - prefix && suffix < text.length - prefix && block.text.at(-1 - suffix) === text.at(-1 - suffix)) suffix++;
+  let insertionEnd = text.length - suffix;
+  if (selection && selection.start >= 0 && selection.end >= selection.start && selection.end <= block.text.length) {
+    const before = block.text.slice(0, selection.start), after = block.text.slice(selection.end);
+    if (text.startsWith(before) && text.endsWith(after) && text.length >= before.length + after.length) insertionEnd = text.length - after.length;
+  }
+  const inserted = text.slice(0, insertionEnd).split('\n');
+  const replacement: Block[] = text.split('\n').map((line, i) => i === 0 ? { ...block, text: line } : { id: newId(), text: line, list: block.list === 'checked' ? 'unchecked' : block.list });
+  const target = replacement[Math.min(inserted.length - 1, replacement.length - 1)], offset = inserted.at(-1)!.length;
+  return { blocks: [...blocks.slice(0, index), ...replacement, ...blocks.slice(index + 1)], focus: { id: target.id, start: offset, end: offset } };
+}
 export function fromBlocks(note: Note, blocks: Block[]): Note {
   const content: Op[] = [];
   const editable = blocks.length ? blocks : [{ id: 'empty', text: '' }];

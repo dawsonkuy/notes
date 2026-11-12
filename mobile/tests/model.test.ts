@@ -89,3 +89,30 @@ test('unknown list formatting is discarded without dropping plain text', () => {
   const n = { ...newNote('unsafe'), text: 'item', content: [{ insert: 'item' }, { insert: '\n', attributes: { list: 'spoofed' as 'bullet' } }] };
   assert.deepEqual(safeOps(n), [{ insert: 'item' }, { insert: '\n' }]);
 });
+
+test('Backspace removes heading or list formatting before joining paragraphs', async () => {
+  const { joinBackward } = await import('../src/model');
+  const blocks = [{ id: 'a', text: 'Before' }, { id: 'b', text: 'Heading', heading: 1 as const }];
+  const unformatted = joinBackward(blocks, 'b', { start: 0, end: 0 })!;
+  assert.equal(unformatted.blocks.length, 2); assert.equal(unformatted.blocks[1].heading, undefined);
+  const merged = joinBackward(unformatted.blocks, 'b', { start: 0, end: 0 })!;
+  assert.equal(merged.blocks[0].text, 'BeforeHeading'); assert.equal(merged.focus.start, 6);
+  assert.equal(joinBackward(blocks, 'b', { start: 0, end: 3 }), null);
+  for (const list of ['bullet', 'ordered', 'checked', 'unchecked'] as const) {
+    const result = joinBackward([{ id: 'first', text: 'Item', list }], 'first', { start: 0, end: 0 })!;
+    assert.equal(result.blocks[0].text, 'Item'); assert.equal(result.blocks[0].list, undefined);
+  }
+});
+test('Backspace removes a divider without dropping the following paragraph', async () => {
+  const { joinBackward } = await import('../src/model');
+  const result = joinBackward([{ id: 'a', text: '', divider: true }, { id: 'b', text: 'Keep' }], 'b', { start: 0, end: 0 })!;
+  assert.deepEqual(result.blocks, [{ id: 'b', text: 'Keep' }]); assert.equal(result.focus.id, 'b');
+});
+test('multiline paste normalizes Windows line endings and keeps the caret before untouched text', async () => {
+  const { replaceParagraphText } = await import('../src/model');
+  const result = replaceParagraphText([{ id: 'a', text: 'Hello world', heading: 2 }, { id: 'b', text: 'After' }], 'a', 'Hello one\r\ntwo world', id, { start: 5, end: 5 })!;
+  assert.deepEqual(result.blocks.map(block => block.text), ['Hello one', 'two world', 'After']);
+  assert.equal(result.blocks[0].heading, 2); assert.equal(result.blocks[1].heading, undefined);
+  assert.equal(result.focus?.id, result.blocks[1].id); assert.equal(result.focus?.start, 3);
+  assert.equal(fromBlocks(newNote('paste'), result.blocks).text, 'Hello one\ntwo world\nAfter');
+});
