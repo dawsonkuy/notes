@@ -2,6 +2,7 @@ const $ = (id) => document.getElementById(id);
 let tabs = [];
 let folders = [];
 let currentFolder = null;
+let libraryDrag = null, libraryDragEndedAt = 0;
 const expandedFolders = new Set();
 const unlockedNotes = new Map();
 let noteKeyEpoch = 0;
@@ -185,32 +186,23 @@ function refreshNames() {
 $('editor').addEventListener('input', save);
 ['click', 'keyup', 'select'].forEach(type => $('editor').addEventListener(type, position));
 function renderTabs() {
+  if (libraryDrag?.active) finishLibraryDrag(false);
   $('tabs').replaceChildren(); renderTrash(); $('note-total').textContent = liveTabs().length;
   const query = $('note-search').value.trim().toLocaleLowerCase();
   const items = features.treeEntries(workspaceValue(), expandedFolders).filter(item => !query || item.name.toLocaleLowerCase().includes(query) || (tabs.find(note => note.id === item.id)?.text || '').toLocaleLowerCase().includes(query));
   $('search-empty').hidden = items.length > 0;
   items.forEach(entry => {
-    const item = document.createElement('div'); item.className = 'tab'; item.dataset.entry = entry.id; item.style.marginLeft = `${entry.depth * 18}px`; item.style.width = `calc(100% - ${entry.depth * 18}px)`; item.draggable = true;
-    const button = document.createElement('button'); button.type = 'button'; button.draggable = true; button.className = 'library-open';
+    const item = document.createElement('div'); item.className = 'tab'; item.dataset.entry = entry.id; item.style.marginLeft = `${entry.depth * 18}px`; item.style.width = `calc(100% - ${entry.depth * 18}px)`; item.draggable = false;
+    const button = document.createElement('button'); button.type = 'button'; button.draggable = false; button.className = 'library-open';
     const note = tabs.find(note => note.id === entry.id);
     if (note) { button.id = `tab-${note.id}`; button.setAttribute('role', 'tab'); button.setAttribute('aria-selected', String(note.id === activeId)); }
     const title = document.createElement('span'); title.className = 'note-list-title'; title.textContent = `${entry.pinned ? '📌 ' : ''}${note?.sealed ? '🔒 ' : ''}${entry.name}`;
     const preview = document.createElement('span'); preview.className = 'note-list-preview'; preview.textContent = note ? note.sealed ? 'Password protected' : notePreview(note) : 'Folder'; button.append(title, preview);
     button.onclick = () => { if (entry.kind === 'folder') { toggleFolder(entry.id); } else switchTab(entry.id); };
-    button.ondragstart = event => { draggedId = entry.id; event.dataTransfer.setData('text/plain', entry.id); event.dataTransfer.effectAllowed = 'move'; item.classList.add('dragging'); };
-    button.ondragend = () => { draggedId = null; document.querySelectorAll('.drop-target,.dragging').forEach(node => node.classList.remove('drop-target', 'dragging')); };
-    item.ondragover = event => { event.preventDefault(); item.classList.add('drop-target'); };
-    item.ondragleave = () => item.classList.remove('drop-target');
-    item.ondrop = event => {
-      event.preventDefault(); const id = draggedId; draggedId = null; item.classList.remove('drop-target'); if (!id || id === entry.id) return;
-      const box = item.getBoundingClientRect(), ratio = (event.clientY - box.top) / box.height;
-      if (entry.kind === 'folder' && ratio > .25 && ratio < .75) applyMove(id, entry.id);
-      else { const siblings = features.entries(workspaceValue(), entry.parentId); const before = ratio < .5 ? entry.id : siblings[siblings.findIndex(value => value.id === entry.id) + 1]?.id; applyMove(id, entry.parentId, before); }
-    };
     const options = document.createElement('button'); options.type = 'button'; options.className = 'edit-tab'; options.textContent = '⋯'; options.setAttribute('aria-label', `Options for ${entry.name}`);
     options.onclick = () => { if (note) openTabMenu(note, options); else openFolderMenu(entry, options); };
-    if (entry.kind === 'folder') { const arrow = document.createElement('button'); arrow.type = 'button'; arrow.className = 'folder-toggle'; arrow.textContent = expandedFolders.has(entry.id) ? '⌄' : '›'; arrow.setAttribute('aria-label', `${expandedFolders.has(entry.id) ? 'Collapse' : 'Expand'} folder ${entry.name}`); arrow.setAttribute('aria-expanded', String(expandedFolders.has(entry.id))); arrow.onclick = () => toggleFolder(entry.id); item.append(arrow); }
-    item.append(button, options); item.ondragstart = button.ondragstart; item.ondragend = button.ondragend; bindItemDrag(item, entry); $('tabs').append(item);
+    if (entry.kind === 'folder') { const arrow = document.createElement('button'); arrow.type = 'button'; arrow.className = 'folder-toggle'; arrow.innerHTML = folderIcon(expandedFolders.has(entry.id)); arrow.setAttribute('aria-label', `${expandedFolders.has(entry.id) ? 'Collapse' : 'Expand'} folder ${entry.name}`); arrow.setAttribute('aria-expanded', String(expandedFolders.has(entry.id))); arrow.onclick = () => toggleFolder(entry.id); item.append(arrow); }
+    item.append(button, options); bindItemDrag(item, entry); $('tabs').append(item);
   });
 }
 function rememberEditorPosition() {
@@ -418,7 +410,7 @@ $('sync-use-cloud').onclick = () => { void resolveCloudConflict('cloud'); };
 $('sync-use-local').onclick = () => { void resolveCloudConflict('local'); };
 
 async function refreshCloud() {
-  if (!cloudUser || !cloudReady || cloudDirty || cloudWriting || cloudConflict || cloudRefreshing || slashComposing || document.hidden) return;
+  if (!cloudUser || !cloudReady || cloudDirty || cloudWriting || cloudConflict || cloudRefreshing || slashComposing || libraryDrag?.active || document.hidden) return;
   const user = cloudUser, generation = accountGeneration, contents = payload();
   cloudRefreshing = true;
   try {
@@ -888,32 +880,82 @@ function moveRelative(id, direction) {
   if (direction > 0 && index < group.length - 1) applyMove(id, parent, group[index + 2]?.id);
 }
 function toggleFolder(id) { if (expandedFolders.has(id)) expandedFolders.delete(id); else expandedFolders.add(id); renderTabs(); }
+function folderIcon(open) {
+  return `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${open ? '<path d="M3 10V6a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v1"/><path d="M3 10h19l-3 10H4L2 12a1.6 1.6 0 0 1 1-2Z"/>' : '<path d="M3 7V6a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/>'}</svg>`;
+}
 function bindItemDrag(element, entry) {
-  let timer, dragging = false, destination = null, blockClick = false;
-  const clear = () => { clearTimeout(timer); dragging = false; destination = null; element.classList.remove('dragging'); document.querySelectorAll('.drop-target').forEach(node => node.classList.remove('drop-target')); };
-  element.addEventListener('click', event => { if (blockClick) { event.preventDefault(); event.stopImmediatePropagation(); } }, true);
-  element.onpointerdown = event => {
-    if (event.pointerType !== 'pen' || event.button !== 0 || event.target.closest('.edit-tab,.folder-toggle')) return;
-    element.setPointerCapture(event.pointerId); timer = setTimeout(() => { dragging = true; element.classList.add('dragging'); }, 250);
-  };
-  function moveAt(clientX, clientY) {
-    if (!dragging) return;
-    document.querySelectorAll('.drop-target').forEach(node => node.classList.remove('drop-target'));
-    const row = document.elementFromPoint(clientX, clientY)?.closest('[data-entry]'); if (!row || row.dataset.entry === entry.id) { destination = null; return; }
-    const target = features.treeEntries(workspaceValue(), expandedFolders).find(item => item.id === row.dataset.entry); if (!target) return;
-    row.classList.add('drop-target'); const box = row.getBoundingClientRect(), ratio = (clientY - box.top) / box.height;
-    const siblings = features.entries(workspaceValue(), target.parentId);
-    destination = target.kind === 'folder' && ratio > .25 && ratio < .75 ? { parent: target.id } : { parent: target.parentId, before: ratio < .5 ? target.id : siblings[siblings.findIndex(item => item.id === target.id) + 1]?.id };
-    const strip = $('tabs').getBoundingClientRect(); if (clientY < strip.top + 30) $('tabs').scrollTop -= 12; if (clientY > strip.bottom - 30) $('tabs').scrollTop += 12;
-  };
-  element.onpointermove = event => { if (dragging) { event.preventDefault(); moveAt(event.clientX, event.clientY); } };
-  const finish = () => { const target = dragging && destination; blockClick = dragging; clear(); if (target) applyMove(entry.id, target.parent, target.before); setTimeout(() => { blockClick = false; }, 150); };
-  element.onpointerup = finish; element.onpointercancel = clear;
-  element.oncontextmenu = event => { if (dragging) event.preventDefault(); };
-  let startX = 0, startY = 0;
-  element.addEventListener('touchstart', event => { if (event.target.closest('.edit-tab,.folder-toggle')) return; startX = event.touches[0].clientX; startY = event.touches[0].clientY; timer = setTimeout(() => { dragging = true; element.classList.add('dragging'); }, 250); }, { passive: true });
-  element.addEventListener('touchmove', event => { const touch = event.touches[0]; if (dragging) { event.preventDefault(); moveAt(touch.clientX, touch.clientY); } else if (Math.hypot(touch.clientX - startX, touch.clientY - startY) > 8) clearTimeout(timer); }, { passive: false });
-  element.addEventListener('touchend', event => { if (dragging) event.preventDefault(); finish(); }, { passive: false });
-  element.addEventListener('touchcancel', clear);
+  function pending(clientX, clientY, touch) {
+    if (libraryDrag) return;
+    libraryDrag = { entry, element, startX: clientX, startY: clientY, touch, active: false };
+    if (touch) libraryDrag.timer = setTimeout(beginLibraryDrag, 250);
+  }
+  element.onpointerdown = event => { if (event.pointerType === 'touch' || event.button !== 0 || event.target.closest('.edit-tab,.folder-toggle')) return; pending(event.clientX, event.clientY, false); };
+  element.addEventListener('touchstart', event => { if (event.target.closest('.edit-tab,.folder-toggle')) return; const touch = event.touches[0]; pending(touch.clientX, touch.clientY, true); }, { passive: true });
+  element.oncontextmenu = event => { if (libraryDrag?.active) event.preventDefault(); };
   element.onkeydown = event => { if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) { event.preventDefault(); moveRelative(entry.id, event.key === 'ArrowUp' ? -1 : 1); } };
 }
+function beginLibraryDrag() {
+  const drag = libraryDrag; if (!drag || !drag.element.isConnected) return;
+  clearTimeout(drag.timer); drag.active = true; drag.list = $('tabs'); drag.hidden = [];
+  // Move an expanded folder as one compact item; restore its contents on release.
+  let sibling = drag.element.nextElementSibling;
+  while (drag.entry.kind === 'folder' && sibling?.dataset.entry) {
+    const entry = features.treeEntries(workspaceValue(), expandedFolders).find(item => item.id === sibling.dataset.entry);
+    if (!entry || entry.depth <= drag.entry.depth) break;
+    drag.hidden.push([sibling, sibling.style.display]); sibling.style.display = 'none'; sibling = sibling.nextElementSibling;
+  }
+  const box = drag.element.getBoundingClientRect(), listBox = drag.list.getBoundingClientRect();
+  drag.height = box.height; drag.startScroll = drag.list.scrollTop; drag.style = drag.element.getAttribute('style');
+  drag.source = { id: drag.entry.id, top: box.top, height: box.height };
+  drag.slots = [...drag.list.querySelectorAll('[data-entry]')].filter(row => row.offsetHeight).map(row => { const box = row.getBoundingClientRect(); return { id: row.dataset.entry, top: box.top, height: box.height, element: row }; });
+  drag.gap = parseFloat(getComputedStyle(drag.list).rowGap) || 5;
+  drag.placeholder = document.createElement('div'); drag.placeholder.className = 'library-placeholder'; drag.placeholder.style.height = `${box.height}px`;
+  drag.element.before(drag.placeholder);
+  Object.assign(drag.element.style, { position: 'absolute', left: `${box.left - listBox.left}px`, top: `${box.top - listBox.top + drag.startScroll}px`, marginLeft: '0', width: `${box.width}px`, pointerEvents: 'none' });
+  drag.element.classList.add('is-lifted'); document.body.classList.add('library-dragging');
+}
+function moveLibraryDrag(clientY) {
+  const drag = libraryDrag; if (!drag?.active) return;
+  const listBox = drag.list.getBoundingClientRect(), scrollDelta = drag.list.scrollTop - drag.startScroll;
+  const source = { ...drag.source, top: drag.source.top - scrollDelta }, slots = drag.slots.map(slot => ({ ...slot, top: slot.top - scrollDelta }));
+  const projection = features.projectVerticalDrag(source, clientY - drag.startY + scrollDelta, { top: listBox.top + 2, bottom: listBox.bottom - 2 }, slots, drag.gap);
+  drag.element.style.transform = `translate3d(0,${projection.delta}px,0)`;
+  const center = projection.top + source.height / 2;
+  const overFolder = slots.find(slot => { const entry = folders.find(item => item.id === slot.id); return clientY > listBox.top + 12 && clientY < listBox.bottom - 12 && entry && slot.id !== drag.entry.id && center > slot.top + slot.height * .25 && center < slot.top + slot.height * .75 && features.canMove(workspaceValue(), drag.entry.id, slot.id); });
+  drag.slots.forEach(slot => { if (slot.id === drag.entry.id) return; slot.element.classList.toggle('drop-target', slot.id === overFolder?.id); slot.element.style.transform = `translateY(${overFolder ? 0 : projection.shifts[slot.id] || 0}px)`; });
+  if (overFolder) { drag.destination = { parent: overFolder.id }; drag.settle = Math.max(listBox.top + 2, Math.min(overFolder.top, listBox.bottom - 2 - source.height)) - source.top; }
+  else {
+    const entry = features.treeEntries(workspaceValue(), expandedFolders).find(item => item.id === projection.over);
+    if (entry) { const siblings = features.entries(workspaceValue(), entry.parentId), index = siblings.findIndex(item => item.id === entry.id); drag.destination = { parent: entry.parentId, before: projection.direction > 0 ? siblings[index + 1]?.id : entry.id }; }
+    else drag.destination = null;
+    drag.settle = Math.max(listBox.top + 2, Math.min(projection.settleTop, listBox.bottom - 2 - source.height)) - source.top;
+  }
+  if (clientY < listBox.top + 24) drag.list.scrollTop -= 8;
+  if (clientY > listBox.bottom - 24) drag.list.scrollTop += 8;
+}
+function finishLibraryDrag(commit) {
+  const drag = libraryDrag; if (!drag) return; clearTimeout(drag.timer);
+  if (!drag.active) { libraryDrag = null; return; }
+  if (drag.finishing) { if (!commit) cleanup(false); return; }
+  drag.finishing = true; libraryDragEndedAt = Date.now();
+  function cleanup(save) {
+    libraryDrag = null;
+    drag.placeholder?.remove(); drag.element.classList.remove('is-lifted');
+    if (drag.style === null) drag.element.removeAttribute('style'); else drag.element.setAttribute('style', drag.style);
+    drag.slots.forEach(slot => { if (slot.id !== drag.entry.id) { slot.element.style.transform = ''; slot.element.classList.remove('drop-target'); } });
+    drag.hidden.forEach(([row, display]) => { row.style.display = display; }); document.body.classList.remove('library-dragging');
+    if (save && drag.destination) applyMove(drag.entry.id, drag.destination.parent, drag.destination.before);
+  }
+  if (commit && drag.destination && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    drag.element.style.transition = 'transform 120ms ease-out'; drag.element.style.transform = `translate3d(0,${drag.settle || 0}px,0)`; setTimeout(() => { if (libraryDrag === drag) cleanup(true); }, 125);
+  } else cleanup(commit);
+}
+document.addEventListener('pointermove', event => { const drag = libraryDrag; if (!drag || drag.touch || drag.finishing) return; if (!drag.active && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 5) beginLibraryDrag(); if (drag.active) { event.preventDefault(); moveLibraryDrag(event.clientY); } }, { passive: false });
+document.addEventListener('pointerup', event => { if (!libraryDrag || libraryDrag.touch) return; if (libraryDrag.active) event.preventDefault(); finishLibraryDrag(true); });
+document.addEventListener('pointercancel', () => { if (!libraryDrag?.touch) finishLibraryDrag(false); });
+document.addEventListener('touchmove', event => { const drag = libraryDrag; if (!drag?.touch || drag.finishing) return; const touch = event.touches[0]; if (drag.active) { event.preventDefault(); moveLibraryDrag(touch.clientY); } else if (Math.hypot(touch.clientX - drag.startX, touch.clientY - drag.startY) > 8) finishLibraryDrag(false); }, { passive: false });
+document.addEventListener('touchend', event => { if (libraryDrag?.touch) { if (libraryDrag.active) event.preventDefault(); finishLibraryDrag(true); } }, { passive: false });
+document.addEventListener('touchcancel', () => finishLibraryDrag(false));
+document.addEventListener('click', event => { if ((libraryDrag?.active || Date.now() - libraryDragEndedAt < 50) && event.target.closest('#tabs')) { event.preventDefault(); event.stopImmediatePropagation(); } }, true);
+document.addEventListener('keydown', event => { if (event.key === 'Escape' && libraryDrag) { event.preventDefault(); finishLibraryDrag(false); } });
+window.addEventListener('blur', () => finishLibraryDrag(false));
