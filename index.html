@@ -24,6 +24,7 @@
   <script src="/settings.js" defer></script>
   <script src="/auth.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js" defer></script>
+  <script src="/note-features.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -108,12 +109,14 @@
       <p class="sync-hint">Backups contain all your notes as JSON. Keep them until you've checked the recovered notes on both devices.</p>
     </dialog>
     <dialog id="trash-dialog" aria-labelledby="trash-title"><div class="dialog-heading"><h2 id="trash-title">Trash</h2><button id="close-trash" type="button" aria-label="Close Trash">×</button></div><p>Notes stay here until you restore or permanently delete them.</p><div id="trash-list"></div></dialog>
+    <dialog id="note-password-dialog"><form id="note-password-form"><h2 id="note-password-title">Note password</h2><p id="note-password-help"></p><label>Password<input id="note-password" type="password" autocomplete="off" required></label><label id="note-password-confirm-label">Confirm password<input id="note-password-confirm" type="password" autocomplete="off"></label><p id="note-password-error" role="alert"></p><button type="submit">Continue</button><button id="note-password-cancel" type="button">Cancel</button></form></dialog>
+    <dialog id="move-dialog"><h2>Move to folder</h2><select id="move-folder" aria-label="Destination folder"></select><button id="confirm-move" type="button">Move</button><button id="cancel-move" type="button">Cancel</button></dialog>
     <div class="app-workspace">
       <aside id="notes-sidebar" class="notes-sidebar" aria-label="Your notes">
         <div class="sidebar-heading"><h2>All notes <span id="note-total">0</span></h2><button id="close-notes" class="icon-button mobile-only" type="button" aria-label="Close notes"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
         <button id="add-tab" class="new-note-button" type="button"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>New note</span><kbd>Ctrl Alt N</kbd></button>
         <label class="note-search"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><span class="sr-only">Search notes</span><input id="note-search" type="search" placeholder="Search your notes" autocomplete="off"></label>
-        <div class="list-caption">YOUR NOTES</div>
+        <div class="folder-nav"><button id="folder-up" type="button">All notes</button><button id="new-folder" type="button">+ Folder</button></div><div class="list-caption">YOUR NOTES</div>
         <div id="tabs" role="tablist" aria-label="Notes" aria-orientation="vertical"></div>
         <p id="search-empty" hidden>No notes found. Try another search.</p>
         <button id="open-trash" class="trash-button" type="button">Trash (0)</button>
@@ -124,12 +127,12 @@
         <div class="note-heading">
           <div class="note-heading-copy"><h1 id="note-title">Untitled</h1></div>
           <div class="note-actions" role="group" aria-label="Note actions">
-            <button id="rename-current" class="icon-button" type="button" aria-label="Rename note" title="Rename note"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z"/></svg></button>
+            <button id="password-note" type="button">Protect note</button><button id="lock-note" type="button" hidden>Lock now</button><button id="rename-current" class="icon-button" type="button" aria-label="Rename note" title="Rename note"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z"/></svg></button>
             <button id="download-current" class="icon-button" type="button" aria-label="Download note" title="Download note"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 16v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/></svg></button>
             <button id="share-current" class="icon-button" type="button" aria-label="Share note" title="Share note"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V3m-4 4 4-4 4 4M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg></button>
           </div>
         </div>
-        <div class="writing-area">
+        <div class="writing-area"><div id="locked-note" hidden><h2>Locked note</h2><p>Enter this note’s password to read or edit it.</p><button id="unlock-note" type="button">Unlock note</button></div>
           <div id="rich-editor" class="rich-host" hidden></div>
           <label class="sr-only" for="editor">Note text</label>
           <textarea id="editor" spellcheck="true" autocapitalize="sentences" wrap="soft" placeholder="Start writing… Type /insert to add a heading, date, or time." aria-describedby="save-status"></textarea>

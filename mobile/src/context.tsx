@@ -1,14 +1,14 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { AppState, useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { randomUUID } from 'expo-crypto';
+import { randomUUID, getRandomBytes } from 'expo-crypto';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, remote } from './supabase';
 import { WorkspaceStore } from './workspace';
 import { initialAppearance, palette, restoreAppearance, type Appearance } from './appearance';
 function useBestpadValue() {
   const systemMode = useColorScheme() === 'light' ? 'light' : 'dark';
-  const store = useMemo(() => new WorkspaceStore(AsyncStorage, remote, randomUUID), []);
+  const store = useMemo(() => new WorkspaceStore(AsyncStorage, remote, randomUUID, getRandomBytes), []);
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const [session, setSession] = useState<Session | null>(null), [authReady, setAuthReady] = useState(false);
   const [appearance, setAppearance] = useState<Appearance>(() => initialAppearance(systemMode));
@@ -33,7 +33,7 @@ function useBestpadValue() {
     if (AppState.currentState === 'active') supabase.auth.startAutoRefresh();
     const listener = AppState.addEventListener('change', state => {
       if (state === 'active') { supabase.auth.startAutoRefresh(); void store.retry(); }
-      else { supabase.auth.stopAutoRefresh(); void store.flush(); }
+      else { store.lockAll(); supabase.auth.stopAutoRefresh(); void store.flush(); }
     });
     return () => { alive = false; subscription.unsubscribe(); listener.remove(); supabase.auth.stopAutoRefresh(); };
   }, [store]);

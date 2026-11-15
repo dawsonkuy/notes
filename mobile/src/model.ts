@@ -1,14 +1,15 @@
 export type ListStyle = 'checked' | 'unchecked' | 'bullet' | 'ordered';
 export type Op = { insert: string | { divider: true }; attributes?: { header?: 1 | 2 | 3; list?: ListStyle } };
-export type Note = { id: string; text: string; filename: string; customName?: string | null; deletedAt?: string; content?: Op[]; [key: string]: unknown };
-export type Workspace = { tabs: Note[]; activeId: string };
+export type Folder = { id: string; name: string; parentId?: string | null; order?: number };
+export type Note = { folderId?: string | null; order?: number; pinned?: boolean; sealed?: import('./security').Sealed; id: string; text: string; filename: string; customName?: string | null; deletedAt?: string; content?: Op[]; [key: string]: unknown };
+export type Workspace = { folders?: Folder[]; tabs: Note[]; activeId: string };
 export type Block = { id: string; text: string; heading?: 1 | 2 | 3; list?: ListStyle; divider?: boolean };
 export const noteName = (note: Note) => (typeof note.customName === 'string' && note.customName) || note.text.split(/\r?\n/, 1)[0].trim().slice(0, 80) || 'Untitled';
 export const isTrashed = (note: Note) => typeof note.deletedAt === 'string' && note.deletedAt.length > 0;
 export const newNote = (id: string): Note => ({ id, text: '', filename: 'Untitled', customName: null });
 export function validWorkspace(value: unknown): value is Workspace {
   const v = value as Workspace | null;
-  return Boolean(v && Array.isArray(v.tabs) && v.tabs.length && v.tabs.every(note => note && typeof note.id === 'string' && typeof note.text === 'string' && typeof note.filename === 'string') && new Set(v.tabs.map(note => note.id)).size === v.tabs.length && typeof v.activeId === 'string');
+  return Boolean(v && Array.isArray(v.tabs) && v.tabs.length && v.tabs.every(note => note && typeof note.id === 'string' && typeof note.text === 'string' && typeof note.filename === 'string') && new Set(v.tabs.map(note => note.id)).size === v.tabs.length && typeof v.activeId === 'string' && (v.folders === undefined || (Array.isArray(v.folders) && v.folders.every(folder => folder && typeof folder.id === 'string' && typeof folder.name === 'string' && (folder.parentId == null || typeof folder.parentId === 'string')) && new Set(v.folders.map(folder => folder.id)).size === v.folders.length)));
 }
 export function safeOps(note: Note): Op[] | null {
   if (!Array.isArray(note.content)) return null;

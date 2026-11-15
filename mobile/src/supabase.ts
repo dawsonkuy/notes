@@ -15,12 +15,12 @@ export const remote: Remote = {
     let result; try { result = await supabase.from('note_workspaces').select('*').eq('user_id', user).abortSignal(controller.signal).maybeSingle(); } finally { clearTimeout(timer); }
     const { data, error } = result;
     if (error) throw error; if (!data) return null;
-    const workspace = { tabs: data.tabs, activeId: data.active_id };
+    const workspace = { folders: data.folders || [], tabs: data.tabs, activeId: data.active_id };
     if (!validWorkspace(workspace) || !Number.isInteger(data.revision)) throw new Error('Invalid cloud workspace');
     return { workspace, revision: data.revision };
   },
   async write(user, workspace, revision) {
-    const row = { user_id: user, tabs: workspace.tabs, active_id: workspace.activeId, revision: (revision ?? 0) + 1, updated_at: new Date().toISOString() };
+    const row = { user_id: user, folders: workspace.folders || [], tabs: workspace.tabs, active_id: workspace.activeId, revision: (revision ?? 0) + 1, updated_at: new Date().toISOString() };
     const query = revision === null ? supabase.from('note_workspaces').insert(row) : supabase.from('note_workspaces').update(row).eq('user_id', user).eq('revision', revision);
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 12000);
     let result; try { result = await query.select('revision').abortSignal(controller.signal); } finally { clearTimeout(timer); }

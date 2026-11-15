@@ -55,7 +55,7 @@ button svg { flex-shrink: 0; }
 .tab:has([aria-selected=true]) { background: var(--selected); border-color: var(--soft-border); }
 .tab:hover { background: color-mix(in srgb, var(--selected) 60%, transparent); }
 .tab:has([aria-selected=true])::before { content: ''; position: absolute; left: -1px; top: 17px; bottom: 17px; width: 3px; background: var(--accent); border-radius: 4px; }
-.tab [role=tab] { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; min-height: 76px; text-align: left; border: 0; background: transparent; padding: 15px 6px 15px 15px; cursor: grab; border-radius: 9px; }
+.tab .library-open { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; min-height: 76px; text-align: left; border: 0; background: transparent; padding: 15px 6px 15px 15px; cursor: grab; border-radius: 9px; }
 .note-list-title, .note-list-preview { display: block; width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .note-list-title { font-size: 13px; font-weight: 600; }
 .note-list-preview { color: var(--muted); font-size: 11px; line-height: 1.4; }
@@ -164,7 +164,7 @@ dialog::backdrop { background: #10172270; backdrop-filter: blur(5px); }
   #position { padding: 0; border: 0; }
   .note-search input { font-size: 16px; }
   .new-note-button kbd { display: none; }
-  .tab [role=tab] { cursor: pointer; }
+  .tab .library-open { cursor: pointer; }
   .edit-tab { width: 40px; height: 44px; }
   dialog { padding: 22px; border-radius: 18px; }
   .font-choice span { font-size: 12px; }
@@ -212,3 +212,7 @@ img.small-brand-mark { display: block; object-fit: contain; padding: 3px; }
 
 /* Leave breathing room when the browser scrolls the typing caret into view. */
 #editor, .ql-editor { scroll-padding-block: 24px 96px; }
+
+.folder-nav { display:flex; gap:8px; padding:10px 16px; }.folder-nav button { min-height:44px; border-radius:10px; background:var(--panel); color:var(--text); border:1px solid var(--border); padding:8px 12px; }.folder-nav button:first-child { flex:1; text-align:left; }.tab.drop-target { outline:2px solid var(--text); }.tab.dragging { opacity:.45; }#locked-note { margin:auto; padding:32px; text-align:center; }#locked-note[hidden] { display:none; }#note-password-form { display:grid; gap:14px; }#note-password-form label { display:grid; gap:6px; }#note-password-form input { min-height:44px; padding:12px; color:var(--text); background:var(--canvas); border:1px solid var(--border); border-radius:10px; }.note-actions #password-note,.note-actions #lock-note { color:var(--text); background:var(--panel); padding:8px; border:1px solid var(--border); border-radius:8px; min-height:40px; }
+
+.drag-handle { width:32px; flex-shrink:0; min-height:44px; touch-action:none; color:var(--muted); background:transparent; border:0; cursor:grab; font-size:20px; }.tab .library-open { display:flex; flex-direction:column; flex:1; min-width:0; text-align:left; }

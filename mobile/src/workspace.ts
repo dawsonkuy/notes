@@ -1,3 +1,5 @@
+import { protectNote, unlockNote, encryptNote, decryptNote, type Random } from './security';
+import { moveEntry, removeFolder } from './organization';
 import { isTrashed, newNote, validWorkspace, type Note, type Workspace } from './model';
 export type Status = 'loading' | 'local' | 'pending' | 'saving' | 'saved' | 'offline' | 'conflict' | 'cache-error';
 export interface Storage { getItem(key: string): Promise<string | null>; setItem(key: string, value: string): Promise<unknown> }
@@ -10,7 +12,9 @@ export class WorkspaceStore {
   private refreshing = false; private generation = 0; private revision: number | null = null; private dirty = false; private ready = false; private writing = false; private conflict = false;
   private timer: ReturnType<typeof setTimeout> | undefined; private cacheQueue = Promise.resolve(); private connected = false; private version = 0;
   private snapshot: Snapshot;
-  constructor(private storage: Storage, private remote: Remote, private id: () => string) { const note = newNote(id()); this.snapshot = { workspace: { tabs: [note], activeId: note.id }, loading: true, status: 'loading', user: null }; }
+  private keyEpoch = 0;
+  private keys = new Map<string, Uint8Array>();
+  constructor(private storage: Storage, private remote: Remote, private id: () => string, private random?: Random) { const note = newNote(id()); this.snapshot = { workspace: { tabs: [note], activeId: note.id }, loading: true, status: 'loading', user: null }; }
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   getSnapshot = () => this.snapshot;
   private emit(patch: Partial<Snapshot>) { this.snapshot = { ...this.snapshot, ...patch }; this.listeners.forEach(listener => listener()); }
@@ -25,7 +29,7 @@ export class WorkspaceStore {
   async connect(user: string | null, force = false) {
     if (this.connected && user === this.snapshot.user && !force) return;
     if (this.connected && !this.snapshot.loading) await this.cache();
-    this.connected = true; const generation = ++this.generation; clearTimeout(this.timer);
+    this.lockAll(); this.connected = true; const generation = ++this.generation; clearTimeout(this.timer);
     this.ready = false; this.conflict = false; this.dirty = false; this.revision = null;
     this.emit({ loading: true, status: 'loading', user });
     await this.cacheQueue;
@@ -33,7 +37,7 @@ export class WorkspaceStore {
     try { const raw = JSON.parse(await this.storage.getItem(this.key()) || 'null'); if (validWorkspace(raw)) cached = raw as Cache; } catch { /* Recover with cloud contents or an empty local workspace. */ }
     if (generation !== this.generation) return;
     const note = newNote(this.id());
-    let workspace = cached ? { tabs: cached.tabs, activeId: cached.tabs.some(n => n.id === cached!.activeId) ? cached.activeId : cached.tabs[0].id } : { tabs: [note], activeId: note.id };
+    let workspace = cached ? { tabs: cached.tabs, folders: cached.folders || [], activeId: cached.tabs.some(n => n.id === cached!.activeId) ? cached.activeId : cached.tabs[0].id } : { tabs: [note], activeId: note.id };
     this.revision = Number.isInteger(cached?.revision) ? cached!.revision : null; this.dirty = Boolean(cached?.dirty && user);
     if (!user) { this.emit({ workspace, loading: false, status: 'local' }); return; }
     try {
@@ -54,21 +58,28 @@ export class WorkspaceStore {
     this.emit({ workspace, status: !this.snapshot.user ? 'local' : this.conflict ? 'conflict' : !this.ready ? 'offline' : 'pending' });
     void this.cache(); this.schedule();
   }
-  updateNote(note: Note) { this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(n => n.id === note.id ? note : n) }); }
-  add() { const note = newNote(this.id()); this.update({ tabs: [...this.snapshot.workspace.tabs, note], activeId: note.id }); return note.id; }
+  updateNote(note: Note) {
+    const original = this.snapshot.workspace.tabs.find(item => item.id === note.id);
+    if (original?.sealed) {
+      const key = this.keys.get(note.id); if (!key) return;
+      note = encryptNote({ ...original, text: note.text, content: note.content, filename: note.filename, customName: note.customName }, key, original.sealed, this.random);
+    }
+    this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(n => n.id === note.id ? note : n) }); }
+  add(folderId: string | null = null) { const note = { ...newNote(this.id()), folderId: this.snapshot.workspace.folders?.some(folder => folder.id === folderId) ? folderId : null, order: Date.now() }; this.update({ ...this.snapshot.workspace, tabs: [...this.snapshot.workspace.tabs, note], activeId: note.id }); return note.id; }
   rename(id: string, name: string | null) {
     const current = this.snapshot.workspace.tabs.find(note => note.id === id && !isTrashed(note));
-    if (!current) return;
+    if (!current || current.sealed) return;
     const customName = name?.trim().slice(0, 80) || null;
     if ((current.customName || null) === customName) return;
     this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(note => note.id === id ? { ...note, customName } : note) });
   }
   activate(id: string) { if (this.snapshot.workspace.tabs.some(n => n.id === id && !isTrashed(n))) { this.emit({ workspace: { ...this.snapshot.workspace, activeId: id } }); void this.cache(); } }
   remove(id: string) {
+    this.keys.get(id)?.fill(0); this.keys.delete(id);
     const tabs = this.snapshot.workspace.tabs.map(note => note.id === id && !isTrashed(note) ? { ...note, deletedAt: new Date().toISOString() } : note);
     if (!tabs.some(note => !isTrashed(note))) tabs.push(newNote(this.id()));
     const activeId = tabs.some(note => note.id === this.snapshot.workspace.activeId && !isTrashed(note)) ? this.snapshot.workspace.activeId : tabs.find(note => !isTrashed(note))!.id;
-    this.update({ tabs, activeId });
+    this.update({ ...this.snapshot.workspace, tabs, activeId });
   }
   restore(id: string) {
     this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(note => { if (note.id !== id || !isTrashed(note)) return note; const restored = { ...note }; delete restored.deletedAt; return restored; }) });
@@ -76,6 +87,36 @@ export class WorkspaceStore {
   deletePermanently(id: string) {
     this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.filter(note => note.id !== id || !isTrashed(note)) });
   }
+  visibleNote(id: string) {
+    const note = this.snapshot.workspace.tabs.find(item => item.id === id); if (!note?.sealed) return note;
+    const key = this.keys.get(id); if (!key) return note;
+    try { return decryptNote(note, key); } catch { return note; }
+  }
+  lock(id: string) { this.keyEpoch++; this.keys.get(id)?.fill(0); this.keys.delete(id); this.emit({}); }
+  lockAll() { this.keyEpoch++; this.keys.forEach(key => key.fill(0)); this.keys.clear(); this.emit({}); }
+  async unlock(id: string, password: string) {
+    const original = this.snapshot.workspace.tabs.find(item => item.id === id); if (!original?.sealed) return;
+    const user = this.snapshot.user, epoch = this.keyEpoch, result = await unlockNote(original, password);
+    if (epoch !== this.keyEpoch || user !== this.snapshot.user || this.snapshot.workspace.tabs.find(item => item.id === id)?.sealed !== original.sealed) { result.key.fill(0); throw new Error('Note changed. Try unlocking again.'); }
+    this.keys.get(id)?.fill(0); this.keys.set(id, result.key); this.emit({});
+  }
+  async protect(id: string, password: string) {
+    const original = this.snapshot.workspace.tabs.find(item => item.id === id); if (!original || original.sealed) return;
+    const user = this.snapshot.user, epoch = this.keyEpoch, result = await protectNote(original, password, this.random);
+    if (epoch !== this.keyEpoch || user !== this.snapshot.user || this.snapshot.workspace.tabs.find(item => item.id === id) !== original) { result.key.fill(0); throw new Error('Note changed. Please try again.'); }
+    this.keys.get(id)?.fill(0); this.keys.set(id, result.key);
+    this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(note => note.id === id ? result.note : note) }); await this.cacheQueue;
+  }
+  unprotect(id: string) {
+    const plain = this.visibleNote(id); if (!plain || plain.sealed) return;
+    this.keys.get(id)?.fill(0); this.keys.delete(id);
+    this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(note => note.id === id ? plain : note) });
+  }
+  pin(id: string) { this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(note => note.id === id ? { ...note, pinned: !note.pinned } : note) }); }
+  addFolder(name: string, parentId: string | null = null) { const id = this.id(); this.update({ ...this.snapshot.workspace, folders: [...(this.snapshot.workspace.folders || []), { id, name: name.trim().slice(0, 80) || 'New folder', parentId, order: Date.now() }] }); return id; }
+  renameFolder(id: string, name: string) { if (name.trim()) this.update({ ...this.snapshot.workspace, folders: (this.snapshot.workspace.folders || []).map(folder => folder.id === id ? { ...folder, name: name.trim().slice(0, 80) } : folder) }); }
+  removeFolder(id: string) { this.update(removeFolder(this.snapshot.workspace, id)); }
+  move(id: string, parentId: string | null, beforeId?: string) { this.update(moveEntry(this.snapshot.workspace, id, parentId, beforeId)); }
   async flush() {
     clearTimeout(this.timer);
     if (!this.snapshot.user || !this.ready || !this.dirty || this.conflict || this.writing) return;

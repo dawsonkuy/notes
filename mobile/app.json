@@ -10,9 +10,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "app.bestpad.mobile",
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
+      "infoPlist": {}
     },
     "android": {
       "package": "app.bestpad.mobile",

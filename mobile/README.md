@@ -113,3 +113,17 @@ The app uses standard HTTPS to connect to Supabase; the iOS export-compliance fi
 Use `npm run typecheck`, `npm run lint`, `npm test` and `npx expo-doctor@latest` before building. Test the password reset email end-to-end and the backup's saved JSON file on a physical iPhone. Supabase's leaked-password-protection Auth toggle still requires a user with project admin access; enabling it changes Auth configuration, not note contents.
 
 The public App Store Support URL is `https://bestpad.app/support.html`. Its support issue tracker is public, so do not ask users to post passwords, notes, or account identifiers. Before App Store submission, establish a private support contact for sensitive inquiries.
+
+## Folders, pins, and note passwords
+
+Create folders from Notes and open a folder to add notes inside it. Long-press a drag handle, then drag to reorder; dropping in the middle of a folder moves the item inside. Drop on the back/breadcrumb area to move to the parent folder. The Options menu also has Move, Move up/down, Rename, and Pin/Unpin. Pinned notes appear first within each folder; drag order is preserved within pinned and unpinned groups. Folders can contain subfolders; cycles are rejected. Deleting a folder moves its contents to its parent. Trash remains available across folders.
+
+In the editor, use the lock icon to protect a note with an 8+ character password. Titles and contents are encrypted before local or cloud saving using AES-256-GCM, unique random IVs, and PBKDF2-SHA256 with 600,000 iterations and random salts. Unlocking keeps a key only in memory. Lock manually or background the app/tab to clear access. Protected notes remain encrypted in workspace backups. Forgotten passwords cannot be recovered, and earlier exports or copies are not retroactively protected. Folder names, membership, pins, and order are not encrypted.
+
+Update both the app and website before using these features. Older clients do not understand protected notes or folders. The Supabase workspace now has a `folders` JSONB column. For TestFlight, complete Apple’s encryption/export questions: the app no longer predeclares its encryption exempt.
+
+The browser crypto/organization bundle is generated from the same native source. Regenerate after changes with:
+
+```bash
+./mobile/node_modules/.bin/esbuild mobile/src/web-features.ts --bundle --platform=browser --format=iife --global-name=BestpadFeatures --target=es2020 --outfile=note-features.js
+```

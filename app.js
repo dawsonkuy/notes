@@ -1,5 +1,11 @@
 const $ = (id) => document.getElementById(id);
 let tabs = [];
+let folders = [];
+let currentFolder = null;
+const unlockedNotes = new Map();
+let noteKeyEpoch = 0;
+const features = window.BestpadFeatures;
+const workspaceValue = () => ({ tabs, folders, activeId });
 let activeId;
 let richEditor = null;
 let renderingNote = false;
@@ -16,12 +22,12 @@ let cloudWriting = false;
 let accountGeneration = 0;
 let savedPayload = '';
 let savedNotesPayload = '';
-const notesPayload = () => JSON.stringify(tabs);
+const notesPayload = () => JSON.stringify({ tabs, folders });
 let cloudChannel = null;
 let cloudRefreshing = false;
-const payload = () => JSON.stringify({ tabs, activeId });
+const payload = () => JSON.stringify({ tabs, folders, activeId });
 function cacheNotes() {
-  localStorage.setItem(storageKey, JSON.stringify({ tabs, activeId, revision: cloudRevision, dirty: cloudDirty }));
+  localStorage.setItem(storageKey, JSON.stringify({ tabs, folders, activeId, revision: cloudRevision, dirty: cloudDirty }));
 }
 function queueCloudSave() {
   clearTimeout(cloudTimer);
@@ -30,7 +36,8 @@ function queueCloudSave() {
 
 const isTrashed = note => typeof note.deletedAt === 'string' && note.deletedAt.length > 0;
 const liveTabs = () => tabs.filter(note => !isTrashed(note));
-const active = () => tabs.find(tab => tab.id === activeId);
+const storedActive = () => tabs.find(tab => tab.id === activeId);
+const active = () => unlockedNotes.get(activeId)?.note || storedActive();
 const makeTab = (text = '', filename = 'Untitled') => ({ id: crypto.randomUUID(), text, filename, customName: filename !== 'Untitled' ? filename : null });
 const noteName = tab => tab.customName || tab.text.split(/\r?\n/, 1)[0].trim().slice(0, 80) || 'Untitled';
 const tabMenu = document.createElement('div');
@@ -51,6 +58,7 @@ const closeMenus = () => {
 };
 function renameTab(tab) {
   closeMenus();
+  if (tab.sealed) { alert('Remove password protection before renaming this note.'); return; }
   const name = prompt('Rename note (leave blank to use its first line):', noteName(tab));
   if (name === null) return;
   tab.customName = name.trim().slice(0, 80) || null;
@@ -58,7 +66,8 @@ function renameTab(tab) {
 }
 function deleteTab(tab) {
   closeMenus(); save();
-  tab.deletedAt = new Date().toISOString();
+  tabs = tabs.map(note => note.id === tab.id ? { ...note, deletedAt: new Date().toISOString() } : note);
+  unlockedNotes.get(tab.id)?.key.fill(0); unlockedNotes.delete(tab.id);
   if (!liveTabs().length) tabs.push(makeTab());
   if (activeId === tab.id) activeId = liveTabs()[0].id;
   showTab(); save();
@@ -80,6 +89,7 @@ function renderTrash() {
 }
 function downloadTab(tab) {
   closeMenus(); save();
+  if (tab.sealed) { const session = unlockedNotes.get(tab.id); if (!session) { alert('Unlock this note before downloading it.'); return; } tab = session.note; }
   const url = URL.createObjectURL(new Blob([tab.text], { type: 'text/plain;charset=utf-8' }));
   const link = document.createElement('a');
   const name = noteName(tab).replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/[. ]+$/, '') || 'Untitled';
@@ -88,6 +98,7 @@ function downloadTab(tab) {
 }
 async function shareTab(tab) {
   closeMenus(); save();
+  if (tab.sealed) { const session = unlockedNotes.get(tab.id); if (!session) { alert('Unlock this note before sharing it.'); return; } tab = session.note; }
   const data = { title: noteName(tab), text: tab.text };
   try {
     if (navigator.share) {
@@ -103,7 +114,7 @@ async function shareTab(tab) {
 }
 function openTabMenu(tab, anchor) {
   closeMenus(); tabMenu.replaceChildren();
-  [['✎', 'Rename', () => renameTab(tab)], ['↓', 'Save as…', () => downloadTab(tab)], ['↗', 'Share', () => shareTab(tab)], ['⌫', 'Move to Trash', () => deleteTab(tab)]].forEach(([icon, label, action]) => {
+  [['✎', 'Rename', () => renameTab(tab)], ['↓', 'Save as…', () => downloadTab(tab)], ['↗', 'Share', () => shareTab(tab)], ['↑', 'Move up', () => moveRelative(tab.id, -1)], ['↓', 'Move down', () => moveRelative(tab.id, 1)], ['⌖', tab.pinned ? 'Unpin note' : 'Pin note', () => togglePin(tab.id)], ['↪', 'Move to folder…', () => chooseMove(tab.id)], ['🔒', tab.sealed ? 'Open protected note' : 'Password protect…', () => { switchTab(tab.id); void passwordAction(); }], ['⌫', 'Move to Trash', () => deleteTab(tab)]].forEach(([icon, label, action]) => {
     const button = document.createElement('button'); button.setAttribute('role', 'menuitem');
     const glyph = document.createElement('span'); glyph.textContent = icon; glyph.setAttribute('aria-hidden', 'true');
     button.append(glyph, document.createTextNode(label)); button.onclick = action; tabMenu.append(button);
@@ -131,12 +142,15 @@ function position() {
   $('count').textContent = `${text.length.toLocaleString()} characters`;
 }
 function save() {
+  if (storedActive()?.sealed && !unlockedNotes.has(activeId)) return;
   try {
     if (richEditor && !renderingNote) {
       $('editor').value = richEditor.getText().slice(0, -1);
       active().content = richEditor.getContents().ops;
     }
     active().text = $('editor').value;
+    const session = unlockedNotes.get(activeId);
+    if (storedActive()?.sealed && session) { const original = storedActive(); tabs = tabs.map(note => note.id === activeId ? features.encryptNote({ ...original, text: session.note.text, content: session.note.content, filename: session.note.filename, customName: session.note.customName }, session.key, original.sealed) : note); }
     refreshNames();
     const currentPayload = payload();
     if (currentPayload !== savedPayload) {
@@ -157,11 +171,12 @@ function setTitle() {
 }
 function refreshNames() {
   const tab = active(), name = noteName(tab);
+  const label = `${storedActive()?.pinned ? '📌 ' : ''}${storedActive()?.sealed ? '🔒 ' : ''}${name}`;
   if ($('note-title').textContent !== name) setTitle();
   const button = document.getElementById(`tab-${tab.id}`);
   if (!button) return;
   const title = button.querySelector('.note-list-title'), preview = button.querySelector('.note-list-preview'), text = notePreview(tab);
-  if (title && title.textContent !== name) title.textContent = name;
+  if (title && title.textContent !== label) title.textContent = label;
   if (preview && preview.textContent !== text) preview.textContent = text;
   const options = button.parentElement.querySelector('.edit-tab');
   if (options?.getAttribute('aria-label') !== `Options for ${name}`) options?.setAttribute('aria-label', `Options for ${name}`);
@@ -169,64 +184,32 @@ function refreshNames() {
 $('editor').addEventListener('input', save);
 ['click', 'keyup', 'select'].forEach(type => $('editor').addEventListener(type, position));
 function renderTabs() {
-  $('tabs').replaceChildren();
-  renderTrash();
-  $('note-total').textContent = liveTabs().length;
+  $('tabs').replaceChildren(); renderTrash(); $('note-total').textContent = liveTabs().length;
   const query = $('note-search').value.trim().toLocaleLowerCase();
-  const visibleTabs = liveTabs().filter(tab => !query || `${noteName(tab)} ${tab.text}`.toLocaleLowerCase().includes(query));
-  $('search-empty').hidden = visibleTabs.length > 0;
-  visibleTabs.forEach(tab => {
-    const item = document.createElement('div'); item.className = 'tab';
-    const button = document.createElement('button');
-    button.id = `tab-${tab.id}`; button.setAttribute('role', 'tab');
-    button.setAttribute('aria-selected', String(tab.id === activeId));
-    button.setAttribute('aria-controls', richEditor ? 'rich-editor' : 'editor');
-    button.tabIndex = tab.id === activeId ? 0 : -1;
-    const title = document.createElement('span'); title.className = 'note-list-title'; title.textContent = noteName(tab);
-    const preview = document.createElement('span'); preview.className = 'note-list-preview'; preview.textContent = notePreview(tab);
-    button.append(title, preview);
-    button.title = `${noteName(tab)} — drag to reorder; right-click to rename`;
-    button.oncontextmenu = event => { event.preventDefault(); renameTab(tab); };
-    button.draggable = !window.matchMedia('(pointer: coarse)').matches;
-    button.ondragstart = event => {
-      draggedId = tab.id; closeMenus();
-      event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', tab.id);
-      item.classList.add('dragging');
-    };
-    button.ondragend = () => {
-      draggedId = null;
-      document.querySelectorAll('.tab').forEach(el => el.classList.remove('dragging', 'drop-before', 'drop-after'));
-    };
-    item.ondragover = event => {
-      if (!draggedId || draggedId === tab.id) return;
-      event.preventDefault(); event.dataTransfer.dropEffect = 'move';
-      const after = event.clientY > item.getBoundingClientRect().top + item.offsetHeight / 2;
-      item.classList.toggle('drop-after', after); item.classList.toggle('drop-before', !after);
-      const strip = $('tabs').getBoundingClientRect();
-      if (event.clientY < strip.top + 35) $('tabs').scrollTop -= 20;
-      if (event.clientY > strip.bottom - 35) $('tabs').scrollTop += 20;
-    };
-    item.ondragleave = () => item.classList.remove('drop-before', 'drop-after');
+  const items = features.entries(workspaceValue(), currentFolder).filter(item => !query || item.name.toLocaleLowerCase().includes(query) || (tabs.find(note => note.id === item.id)?.text || '').toLocaleLowerCase().includes(query));
+  $('search-empty').hidden = items.length > 0;
+  $('folder-up').textContent = currentFolder ? `‹ ${folders.find(folder => folder.id === currentFolder)?.name || 'All notes'}` : 'All notes';
+  items.forEach(entry => {
+    const item = document.createElement('div'); item.className = 'tab'; item.dataset.entry = entry.id;
+    const button = document.createElement('button'); button.type = 'button'; button.draggable = true; button.className = 'library-open';
+    const note = tabs.find(note => note.id === entry.id);
+    if (note) { button.id = `tab-${note.id}`; button.setAttribute('role', 'tab'); button.setAttribute('aria-selected', String(note.id === activeId)); }
+    const title = document.createElement('span'); title.className = 'note-list-title'; title.textContent = `${entry.kind === 'folder' ? '▸ ' : entry.pinned ? '📌 ' : ''}${note?.sealed ? '🔒 ' : ''}${entry.name}`;
+    const preview = document.createElement('span'); preview.className = 'note-list-preview'; preview.textContent = note ? note.sealed ? 'Password protected' : notePreview(note) : 'Folder'; button.append(title, preview);
+    button.onclick = () => { if (entry.kind === 'folder') { currentFolder = entry.id; renderTabs(); } else switchTab(entry.id); };
+    button.ondragstart = event => { draggedId = entry.id; event.dataTransfer.setData('text/plain', entry.id); event.dataTransfer.effectAllowed = 'move'; item.classList.add('dragging'); };
+    button.ondragend = () => { draggedId = null; document.querySelectorAll('.drop-target,.dragging').forEach(node => node.classList.remove('drop-target', 'dragging')); };
+    item.ondragover = event => { event.preventDefault(); item.classList.add('drop-target'); };
+    item.ondragleave = () => item.classList.remove('drop-target');
     item.ondrop = event => {
-      if (!draggedId) return;
-      event.preventDefault();
-      reorderTab(draggedId, tab.id, event.clientY > item.getBoundingClientRect().top + item.offsetHeight / 2);
-      draggedId = null;
+      event.preventDefault(); const id = draggedId; draggedId = null; item.classList.remove('drop-target'); if (!id || id === entry.id) return;
+      const box = item.getBoundingClientRect(), ratio = (event.clientY - box.top) / box.height;
+      if (entry.kind === 'folder' && ratio > .25 && ratio < .75) applyMove(id, entry.id);
+      else { const before = ratio < .5 ? entry.id : items[items.findIndex(value => value.id === entry.id) + 1]?.id; applyMove(id, currentFolder, before); }
     };
-    button.onclick = () => switchTab(tab.id);
-    button.onkeydown = event => {
-      if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
-      event.preventDefault();
-      const index = visibleTabs.findIndex(t => t.id === tab.id);
-      const next = event.key === 'Home' ? 0 : event.key === 'End' ? visibleTabs.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + visibleTabs.length) % visibleTabs.length;
-      switchTab(visibleTabs[next].id, true); document.getElementById(`tab-${activeId}`).focus();
-    };
-    const edit = document.createElement('button'); edit.className = 'edit-tab';
-    edit.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>';
-    edit.setAttribute('aria-label', `Options for ${noteName(tab)}`);
-    edit.setAttribute('aria-haspopup', 'menu'); edit.title = 'Note options';
-    edit.onclick = () => openTabMenu(tab, edit);
-    item.append(button, edit); $('tabs').append(item);
+    const options = document.createElement('button'); options.type = 'button'; options.className = 'edit-tab'; options.textContent = '⋯'; options.setAttribute('aria-label', `Options for ${entry.name}`);
+    options.onclick = () => { if (note) openTabMenu(note, options); else openFolderMenu(entry, options); };
+    item.append(button, makeDragHandle(entry), options); $('tabs').append(item);
   });
 }
 function rememberEditorPosition() {
@@ -247,11 +230,12 @@ function showTab() {
   $('editor').value = active().text;
   if (richEditor) renderRichNote();
   setTitle(); renderTabs(); position();
-  if (!window.matchMedia('(pointer: coarse)').matches || document.activeElement === $('editor') || (richEditor && richEditor.root.contains(document.activeElement))) {
+  if (!document.hidden && !isLocked() && (!window.matchMedia('(pointer: coarse)').matches || document.activeElement === $('editor') || (richEditor && richEditor.root.contains(document.activeElement)))) {
     if (richEditor) richEditor.focus({ preventScroll: true });
     else $('editor').focus({ preventScroll: true });
   }
-  restoreEditorPosition(); renderedNoteId = activeId; position();
+  renderLockState();
+  if (!isLocked()) restoreEditorPosition(); renderedNoteId = activeId; position();
   const selected = document.getElementById(`tab-${activeId}`)?.parentElement;
   if (selected) {
     const strip = $('tabs');
@@ -263,7 +247,7 @@ function switchTab(id, keepSidebar = false) { if (!tabs.some(note => note.id ===
 function addTab(text = '', filename = 'Untitled') {
   if ($('add-tab').disabled) return;
   $('note-search').value = '';
-  save(); const tab = makeTab(text, filename); tabs.push(tab); activeId = tab.id;
+  save(); const tab = { ...makeTab(text, filename), folderId: currentFolder, order: Date.now() }; tabs.push(tab); activeId = tab.id;
   showTab(); save(); closeMenus(); setNotesDrawer(false);
 }
 $('add-tab').onclick = () => addTab();
@@ -281,7 +265,7 @@ document.addEventListener('keydown', event => {
 try {
   const stored = JSON.parse(localStorage.getItem('notepad:tabs') || 'null');
   if (stored?.tabs?.length && stored.tabs.every(tab => typeof tab.id === 'string' && typeof tab.text === 'string' && typeof tab.filename === 'string')) {
-    tabs = stored.tabs;
+    tabs = stored.tabs; folders = stored.folders || [];
     tabs.forEach(tab => { if (!Object.hasOwn(tab, 'customName')) tab.customName = tab.filename !== 'Untitled' ? tab.filename : null; });
     activeId = tabs.some(tab => tab.id === stored.activeId) ? stored.activeId : tabs[0].id;
   } else {
@@ -301,7 +285,8 @@ function validWorkspace(value) {
   return value && Array.isArray(value.tabs) && value.tabs.length > 0 && value.tabs.every(tab => typeof tab.id === 'string' && typeof tab.text === 'string' && typeof tab.filename === 'string');
 }
 function useWorkspace(value, preserveEditor = false) {
-  tabs = value.tabs;
+  tabs = value.tabs; folders = Array.isArray(value.folders) ? value.folders : [];
+  if (currentFolder && !folders.some(folder => folder.id === currentFolder)) currentFolder = null;
   if (!liveTabs().length) tabs.push(makeTab());
   activeId = liveTabs().some(tab => tab.id === value.activeId) ? value.activeId : liveTabs()[0].id;
   savedPayload = payload();
@@ -315,7 +300,7 @@ async function flushCloud() {
   $('save-status').textContent = 'Saving to cloud…';
   try {
     const snapshot = JSON.parse(contents);
-    const row = { user_id: userId, tabs: snapshot.tabs, active_id: snapshot.activeId, revision: (revision || 0) + 1, updated_at: new Date().toISOString() };
+    const row = { user_id: userId, tabs: snapshot.tabs, folders: snapshot.folders || [], active_id: snapshot.activeId, revision: (revision || 0) + 1, updated_at: new Date().toISOString() };
     const query = revision === null
       ? window.notesClient.from('note_workspaces').insert(row)
       : window.notesClient.from('note_workspaces').update(row).eq('user_id', userId).eq('revision', revision);
@@ -340,7 +325,7 @@ async function flushCloud() {
 }
 
 function downloadWorkspaceBackup(kind, workspace, revision) {
-  const backup = { app: 'Bestpad', source: kind, savedAt: new Date().toISOString(), revision, tabs: workspace.tabs, activeId: workspace.activeId };
+  const backup = { app: 'Bestpad', source: kind, savedAt: new Date().toISOString(), revision, folders: workspace.folders || [], tabs: workspace.tabs, activeId: workspace.activeId };
   const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }));
   const link = document.createElement('a');
   link.href = url;
@@ -384,7 +369,7 @@ async function resolveCloudConflict(choice) {
     if (generation !== accountGeneration || !cloudConflict) return;
     if (choice === 'backup') {
       downloadWorkspaceBackup('local', local, localRevision);
-      if (remote) downloadWorkspaceBackup('cloud', { tabs: remote.tabs, activeId: remote.active_id }, remote.revision);
+      if (remote) downloadWorkspaceBackup('cloud', { tabs: remote.tabs, folders: remote.folders || [], activeId: remote.active_id }, remote.revision);
       $('sync-message').textContent = remote ? 'Both backups requested. Check your Downloads folder before proceeding.' : 'Local backup requested. No cloud workspace was found.';
       return;
     }
@@ -394,16 +379,16 @@ async function resolveCloudConflict(choice) {
       cloudRevision = remote.revision;
       cloudDirty = false;
       cloudConflict = false;
-      useWorkspace({ tabs: remote.tabs, activeId: remote.active_id });
+      useWorkspace({ tabs: remote.tabs, folders: remote.folders || [], activeId: remote.active_id });
       cacheNotes();
       $('save-status').textContent = 'Saved to cloud';
       $('sync-dialog').close();
       return;
     }
     if (choice === 'local') {
-      if (remote) downloadWorkspaceBackup('cloud', { tabs: remote.tabs, activeId: remote.active_id }, remote.revision);
+      if (remote) downloadWorkspaceBackup('cloud', { tabs: remote.tabs, folders: remote.folders || [], activeId: remote.active_id }, remote.revision);
       const revision = remote?.revision ?? null;
-      const row = { user_id: user, tabs: local.tabs, active_id: local.activeId, revision: (revision ?? 0) + 1, updated_at: new Date().toISOString() };
+      const row = { user_id: user, folders: local.folders || [], tabs: local.tabs, active_id: local.activeId, revision: (revision ?? 0) + 1, updated_at: new Date().toISOString() };
       const query = revision === null
         ? window.notesClient.from('note_workspaces').insert(row)
         : window.notesClient.from('note_workspaces').update(row).eq('user_id', user).eq('revision', revision);
@@ -440,10 +425,11 @@ async function refreshCloud() {
     if (error || !data || generation !== accountGeneration || cloudDirty || cloudWriting || slashComposing || contents !== payload() || data.revision === cloudRevision || !validWorkspace({ tabs: data.tabs })) return;
     const selection = richEditor?.getSelection(), scroll = richEditor?.root.scrollTop, focused = document.activeElement;
     const selected = activeId;
+    unlockedNotes.forEach((session, id) => { const old = tabs.find(note => note.id === id), next = data.tabs.find(note => note.id === id); if (JSON.stringify(old?.sealed) !== JSON.stringify(next?.sealed)) { session.key.fill(0); unlockedNotes.delete(id); } });
     cloudRevision = data.revision;
     const incoming = data.tabs.find(note => note.id === selected && !isTrashed(note));
     const sameBody = incoming && incoming.text === active().text && JSON.stringify(incoming.content) === JSON.stringify(active().content);
-    useWorkspace({ tabs: data.tabs, activeId: data.tabs.some(note => note.id === selected) ? selected : data.active_id }, Boolean(sameBody));
+    useWorkspace({ tabs: data.tabs, folders: data.folders || [], activeId: data.tabs.some(note => note.id === selected) ? selected : data.active_id }, Boolean(sameBody));
     if (richEditor && selection) { const index = Math.min(selection.index, richEditor.getLength() - 1); richEditor.setSelection(index, Math.min(selection.length, richEditor.getLength() - 1 - index), 'silent'); richEditor.root.scrollTop = scroll; }
     if (focused instanceof HTMLElement && focused !== $('editor') && !richEditor?.root.contains(focused)) focused.focus({ preventScroll: true });
     cacheNotes(); $('save-status').textContent = 'Saved to cloud';
@@ -455,7 +441,7 @@ async function loadAccount(userId) {
   save();
   clearTimeout(cloudTimer);
   if ($('sync-dialog').open) $('sync-dialog').close();
-  editorPositions.clear(); renderedNoteId = null;
+  clearNoteKeys(); currentFolder = null; editorPositions.clear(); renderedNoteId = null;
   const generation = ++accountGeneration;
   if (cloudChannel) { void window.notesClient.removeChannel(cloudChannel); cloudChannel = null; }
   cloudUser = userId;
@@ -482,7 +468,7 @@ async function loadAccount(userId) {
       if (cloudConflict) cloudRevision = cached.revision ?? null;
     } else if (data) {
       if (!validWorkspace({ tabs: data.tabs })) throw new Error('Invalid saved notes');
-      useWorkspace({ tabs: data.tabs, activeId: data.active_id });
+      useWorkspace({ tabs: data.tabs, folders: data.folders || [], activeId: data.active_id });
     } else {
       // Import this browser's original notes only into the first account used here.
       const owner = localStorage.getItem('notepad:import-owner');
@@ -838,3 +824,88 @@ window.forgetDeletedAccount = async userId => {
   if (localStorage.getItem('notepad:import-owner') === userId) localStorage.removeItem('notepad:import-owner');
   $('trash-dialog').close();
 };
+
+function applyMove(id, parent, before) { save(); const next = features.moveEntry(workspaceValue(), id, parent, before); tabs = next.tabs; folders = next.folders; renderTabs(); save(); }
+function togglePin(id) { save(); tabs = tabs.map(note => note.id === id ? { ...note, pinned: !note.pinned } : note); renderTabs(); save(); }
+function chooseMove(id) {
+  closeMenus(); const select = $('move-folder'); select.replaceChildren();
+  const root = document.createElement('option'); root.value = ''; root.textContent = 'All notes'; select.append(root);
+  folders.filter(folder => features.canMove(workspaceValue(), id, folder.id)).forEach(folder => { const option = document.createElement('option'); option.value = folder.id; option.textContent = folder.name; select.append(option); });
+  $('move-dialog').showModal(); $('confirm-move').onclick = () => { applyMove(id, select.value || null); $('move-dialog').close(); };
+}
+$('cancel-move').onclick = () => $('move-dialog').close();
+$('new-folder').onclick = () => { const name = prompt('Folder name:'); if (!name?.trim()) return; save(); folders.push({ id: crypto.randomUUID(), name: name.trim().slice(0, 80), parentId: currentFolder, order: Date.now() }); renderTabs(); save(); };
+$('folder-up').onclick = () => { currentFolder = folders.find(folder => folder.id === currentFolder)?.parentId || null; renderTabs(); };
+$('folder-up').ondragover = event => event.preventDefault();
+$('folder-up').ondrop = event => { event.preventDefault(); if (draggedId) applyMove(draggedId, folders.find(folder => folder.id === currentFolder)?.parentId || null); draggedId = null; };
+function openFolderMenu(entry, anchor) {
+  closeMenus(); tabMenu.replaceChildren();
+  [['Move up', () => moveRelative(entry.id, -1)], ['Move down', () => moveRelative(entry.id, 1)], ['Rename folder', () => { const name = prompt('Folder name:', entry.name); if (name?.trim()) { folders = folders.map(folder => folder.id === entry.id ? { ...folder, name: name.trim().slice(0, 80) } : folder); renderTabs(); save(); } }], ['Move to folder…', () => chooseMove(entry.id)], ['Delete folder', () => { if (!confirm('Delete this folder? Its notes and subfolders will move to the parent folder.')) return; const next = features.removeFolder(workspaceValue(), entry.id); folders = next.folders; tabs = next.tabs; renderTabs(); save(); }]].forEach(([label, action]) => { const button = document.createElement('button'); button.type = 'button'; button.setAttribute('role', 'menuitem'); button.textContent = label; button.onclick = () => { closeMenus(); action(); }; tabMenu.append(button); });
+  tabMenu.hidden = false; const box = anchor.getBoundingClientRect(); tabMenu.style.left = `${box.left}px`; tabMenu.style.top = `${box.bottom}px`;
+}
+function isLocked() { return Boolean(storedActive()?.sealed && !unlockedNotes.has(activeId)); }
+function clearNoteKeys() { noteKeyEpoch++; unlockedNotes.forEach(session => session.key.fill(0)); unlockedNotes.clear(); }
+function renderLockState() {
+  const locked = isLocked(); $('locked-note').hidden = !locked; $('rich-editor').hidden = locked || !richEditor; $('editor').hidden = locked || Boolean(richEditor);
+  setEditorEnabled(!locked); ['rename-current','download-current','share-current'].forEach(id => { $(id).disabled = locked || (id === 'rename-current' && Boolean(storedActive()?.sealed)); });
+  $('password-note').textContent = storedActive()?.sealed ? locked ? 'Unlock note' : 'Remove password' : 'Protect note'; $('lock-note').hidden = !storedActive()?.sealed || locked;
+}
+function askNotePassword(protect) {
+  return new Promise(resolve => {
+    const dialog = $('note-password-dialog'), password = $('note-password'), confirm = $('note-password-confirm'); password.value = ''; confirm.value = ''; $('note-password-error').textContent = '';
+    $('note-password-title').textContent = protect ? 'Protect note' : 'Unlock note'; $('note-password-help').textContent = protect ? 'The title and contents will be encrypted. Forgotten note passwords cannot be recovered. Use at least 8 characters.' : 'Enter this note’s password. It may differ from your account password.'; $('note-password-confirm-label').hidden = !protect;
+    const finish = value => { dialog.oncancel = null; $('note-password-form').onsubmit = null; dialog.close(); password.value = ''; confirm.value = ''; resolve(value); };
+    $('note-password-form').onsubmit = event => { event.preventDefault(); if (protect && (password.value.length < 8 || password.value !== confirm.value)) { $('note-password-error').textContent = 'Use at least 8 characters and matching passwords.'; return; } finish(password.value); };
+    $('note-password-cancel').onclick = () => finish(null); dialog.oncancel = event => { event.preventDefault(); finish(null); }; dialog.showModal(); password.focus();
+  });
+}
+async function passwordAction() {
+  const id = activeId, original = storedActive();
+  if (original.sealed && unlockedNotes.has(id)) {
+    if (!confirm('Remove password protection? This note will be saved without encryption.')) return;
+    const session = unlockedNotes.get(id); const plain = { ...original, text: session.note.text, content: session.note.content, filename: session.note.filename, customName: session.note.customName }; delete plain.sealed; tabs = tabs.map(note => note.id === id ? plain : note); session.key.fill(0); unlockedNotes.delete(id); showTab(); save(); return;
+  }
+  save(); const password = await askNotePassword(!original.sealed); if (password === null) return;
+  const keyEpoch = noteKeyEpoch;
+  $('password-note').disabled = true; $('save-status').textContent = original.sealed ? 'Unlocking note…' : 'Encrypting note…';
+  try {
+    const result = original.sealed ? await features.unlockNote(original, password) : await features.protectNote(original, password);
+    if (keyEpoch !== noteKeyEpoch || document.hidden || activeId !== id || storedActive() !== original) { result.key.fill(0); throw new Error('Note changed. Please try again.'); }
+    if (original.sealed) unlockedNotes.set(id, { key: result.key, note: result.note });
+    else { unlockedNotes.set(id, { key: result.key, note: { ...original } }); tabs = tabs.map(note => note.id === id ? result.note : note); }
+    showTab(); save();
+  } catch (error) { alert(error.message || 'Could not open note.'); renderLockState(); }
+  finally { $('password-note').disabled = false; }
+}
+$('password-note').onclick = () => { void passwordAction(); };
+$('unlock-note').onclick = () => { void passwordAction(); };
+$('lock-note').onclick = () => { save(); unlockedNotes.get(activeId)?.key.fill(0); unlockedNotes.delete(activeId); showTab(); };
+document.addEventListener('visibilitychange', () => { if (document.hidden) { clearNoteKeys(); showTab(); } });
+
+function moveRelative(id, direction) {
+  const all = features.entries(workspaceValue(), currentFolder), entry = all.find(item => item.id === id); if (!entry) return;
+  const group = all.filter(item => item.pinned === entry.pinned), index = group.findIndex(item => item.id === id);
+  if (direction < 0 && index > 0) applyMove(id, currentFolder, group[index - 1].id);
+  if (direction > 0 && index < group.length - 1) applyMove(id, currentFolder, group[index + 2]?.id);
+}
+function makeDragHandle(entry) {
+  const handle = document.createElement('button'); handle.type = 'button'; handle.className = 'drag-handle'; handle.textContent = '⠿'; handle.setAttribute('aria-label', `Drag ${entry.name}`); handle.title = 'Hold to drag. Arrow keys move up or down.';
+  let timer, dragging = false, destination = null;
+  const clear = () => { clearTimeout(timer); dragging = false; destination = null; document.querySelectorAll('.drop-target').forEach(node => node.classList.remove('drop-target')); };
+  handle.onpointerdown = event => { if (event.button !== 0) return; handle.setPointerCapture(event.pointerId); timer = setTimeout(() => { dragging = true; }, 250); };
+  handle.onpointermove = event => {
+    if (!dragging) return; event.preventDefault();
+    document.querySelectorAll('.drop-target').forEach(node => node.classList.remove('drop-target'));
+    const element = document.elementFromPoint(event.clientX, event.clientY);
+    if (element?.closest('#folder-up')) { destination = { parent: folders.find(folder => folder.id === currentFolder)?.parentId || null }; return; }
+    const row = element?.closest('[data-entry]'); if (!row || row.dataset.entry === entry.id) { destination = null; return; }
+    const items = features.entries(workspaceValue(), currentFolder), target = items.find(item => item.id === row.dataset.entry); if (!target) return;
+    row.classList.add('drop-target'); const box = row.getBoundingClientRect(), ratio = (event.clientY - box.top) / box.height;
+    destination = target.kind === 'folder' && ratio > .25 && ratio < .75 ? { parent: target.id } : { parent: currentFolder, before: ratio < .5 ? target.id : items[items.findIndex(item => item.id === target.id) + 1]?.id };
+    const strip = $('tabs').getBoundingClientRect(); if (event.clientY < strip.top + 30) $('tabs').scrollTop -= 12; if (event.clientY > strip.bottom - 30) $('tabs').scrollTop += 12;
+  };
+  handle.onpointerup = () => { const target = dragging && destination; clear(); if (target) applyMove(entry.id, target.parent, target.before); };
+  handle.onpointercancel = clear;
+  handle.onkeydown = event => { if (['ArrowUp', 'ArrowDown'].includes(event.key)) { event.preventDefault(); moveRelative(entry.id, event.key === 'ArrowUp' ? -1 : 1); } };
+  return handle;
+}

@@ -17,7 +17,7 @@ test('iOS EAS configuration, non-transparent icon, and real file backups are ava
   const eas = JSON.parse(file('mobile/eas.json'));
   assert.equal(app.ios.bundleIdentifier, 'app.bestpad.mobile');
   assert.equal(app.ios.supportsTablet, false);
-  assert.equal(app.ios.infoPlist.ITSAppUsesNonExemptEncryption, false);
+  assert.notEqual(app.ios.infoPlist.ITSAppUsesNonExemptEncryption, false);
   assert.equal(eas.cli.appVersionSource, 'remote');
   assert.equal(eas.build.production.autoIncrement, true);
   assert.match(JSON.stringify(app.plugins), /expo-file-system/);
