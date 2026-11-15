@@ -62,3 +62,12 @@ test('folder membership, pins and ordering survive cloud reload and further edit
     second.add(folder); await second.flush(); await first.refresh(); assert.equal(first.getSnapshot().workspace.folders?.[0].id, folder); assert.equal(first.getSnapshot().workspace.tabs.length, 2);
   } finally { first.dispose(); second.dispose(); }
 });
+
+test('folder tree expands children in place and collapse leaves siblings visible', async () => {
+  const { treeEntries } = await import('../src/organization');
+  const workspace: Workspace = { tabs: [{ ...newNote('root-note'), order: 1 }, { ...newNote('inside'), folderId: 'folder' }, { ...newNote('nested-note'), folderId: 'nested' }], activeId: 'root-note', folders: [{ id: 'folder', name: 'Folder' }, { id: 'nested', name: 'Nested', parentId: 'folder', order: 1 }] };
+  assert.deepEqual(treeEntries(workspace, new Set()).map(item => item.id), ['folder', 'root-note']);
+  const expanded = treeEntries(workspace, new Set(['folder', 'nested']));
+  assert.deepEqual(expanded.map(item => [item.id, item.depth]), [['folder', 0], ['inside', 1], ['nested', 1], ['nested-note', 2], ['root-note', 0]]);
+  assert.deepEqual(treeEntries(workspace, new Set(['nested'])).map(item => item.id), ['folder', 'root-note']);
+});

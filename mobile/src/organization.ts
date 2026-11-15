@@ -29,3 +29,16 @@ export function removeFolder(workspace: Workspace, id: string): Workspace {
   return { ...workspace, folders: workspace.folders!.filter(item => item.id !== id).map(item => item.parentId === id ? { ...item, parentId: folder.parentId || null } : item), tabs: workspace.tabs.map(note => note.folderId === id ? { ...note, folderId: folder.parentId || null } : note) };
 }
 export type { Note, Folder };
+
+export type TreeEntry = Entry & { depth: number; parentId: string | null };
+export function treeEntries(workspace: Workspace, expanded: ReadonlySet<string>): TreeEntry[] {
+  const result: TreeEntry[] = [], visited = new Set<string>();
+  function walk(parentId: string | null, depth: number) {
+    for (const item of entries(workspace, parentId)) {
+      if (visited.has(item.id)) continue;
+      visited.add(item.id); result.push({ ...item, depth, parentId });
+      if (item.kind === 'folder' && expanded.has(item.id)) walk(item.id, depth + 1);
+    }
+  }
+  walk(null, 0); return result;
+}

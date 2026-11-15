@@ -2,6 +2,7 @@ const $ = (id) => document.getElementById(id);
 let tabs = [];
 let folders = [];
 let currentFolder = null;
+const expandedFolders = new Set();
 const unlockedNotes = new Map();
 let noteKeyEpoch = 0;
 const features = window.BestpadFeatures;
@@ -186,17 +187,16 @@ $('editor').addEventListener('input', save);
 function renderTabs() {
   $('tabs').replaceChildren(); renderTrash(); $('note-total').textContent = liveTabs().length;
   const query = $('note-search').value.trim().toLocaleLowerCase();
-  const items = features.entries(workspaceValue(), currentFolder).filter(item => !query || item.name.toLocaleLowerCase().includes(query) || (tabs.find(note => note.id === item.id)?.text || '').toLocaleLowerCase().includes(query));
+  const items = features.treeEntries(workspaceValue(), expandedFolders).filter(item => !query || item.name.toLocaleLowerCase().includes(query) || (tabs.find(note => note.id === item.id)?.text || '').toLocaleLowerCase().includes(query));
   $('search-empty').hidden = items.length > 0;
-  $('folder-up').textContent = currentFolder ? `‹ ${folders.find(folder => folder.id === currentFolder)?.name || 'All notes'}` : 'All notes';
   items.forEach(entry => {
-    const item = document.createElement('div'); item.className = 'tab'; item.dataset.entry = entry.id;
+    const item = document.createElement('div'); item.className = 'tab'; item.dataset.entry = entry.id; item.style.marginLeft = `${entry.depth * 18}px`; item.style.width = `calc(100% - ${entry.depth * 18}px)`; item.draggable = true;
     const button = document.createElement('button'); button.type = 'button'; button.draggable = true; button.className = 'library-open';
     const note = tabs.find(note => note.id === entry.id);
     if (note) { button.id = `tab-${note.id}`; button.setAttribute('role', 'tab'); button.setAttribute('aria-selected', String(note.id === activeId)); }
-    const title = document.createElement('span'); title.className = 'note-list-title'; title.textContent = `${entry.kind === 'folder' ? '▸ ' : entry.pinned ? '📌 ' : ''}${note?.sealed ? '🔒 ' : ''}${entry.name}`;
+    const title = document.createElement('span'); title.className = 'note-list-title'; title.textContent = `${entry.pinned ? '📌 ' : ''}${note?.sealed ? '🔒 ' : ''}${entry.name}`;
     const preview = document.createElement('span'); preview.className = 'note-list-preview'; preview.textContent = note ? note.sealed ? 'Password protected' : notePreview(note) : 'Folder'; button.append(title, preview);
-    button.onclick = () => { if (entry.kind === 'folder') { currentFolder = entry.id; renderTabs(); } else switchTab(entry.id); };
+    button.onclick = () => { if (entry.kind === 'folder') { toggleFolder(entry.id); } else switchTab(entry.id); };
     button.ondragstart = event => { draggedId = entry.id; event.dataTransfer.setData('text/plain', entry.id); event.dataTransfer.effectAllowed = 'move'; item.classList.add('dragging'); };
     button.ondragend = () => { draggedId = null; document.querySelectorAll('.drop-target,.dragging').forEach(node => node.classList.remove('drop-target', 'dragging')); };
     item.ondragover = event => { event.preventDefault(); item.classList.add('drop-target'); };
@@ -205,11 +205,12 @@ function renderTabs() {
       event.preventDefault(); const id = draggedId; draggedId = null; item.classList.remove('drop-target'); if (!id || id === entry.id) return;
       const box = item.getBoundingClientRect(), ratio = (event.clientY - box.top) / box.height;
       if (entry.kind === 'folder' && ratio > .25 && ratio < .75) applyMove(id, entry.id);
-      else { const before = ratio < .5 ? entry.id : items[items.findIndex(value => value.id === entry.id) + 1]?.id; applyMove(id, currentFolder, before); }
+      else { const siblings = features.entries(workspaceValue(), entry.parentId); const before = ratio < .5 ? entry.id : siblings[siblings.findIndex(value => value.id === entry.id) + 1]?.id; applyMove(id, entry.parentId, before); }
     };
     const options = document.createElement('button'); options.type = 'button'; options.className = 'edit-tab'; options.textContent = '⋯'; options.setAttribute('aria-label', `Options for ${entry.name}`);
     options.onclick = () => { if (note) openTabMenu(note, options); else openFolderMenu(entry, options); };
-    item.append(button, makeDragHandle(entry), options); $('tabs').append(item);
+    if (entry.kind === 'folder') { const arrow = document.createElement('button'); arrow.type = 'button'; arrow.className = 'folder-toggle'; arrow.textContent = expandedFolders.has(entry.id) ? '⌄' : '›'; arrow.setAttribute('aria-label', `${expandedFolders.has(entry.id) ? 'Collapse' : 'Expand'} folder ${entry.name}`); arrow.setAttribute('aria-expanded', String(expandedFolders.has(entry.id))); arrow.onclick = () => toggleFolder(entry.id); item.append(arrow); }
+    item.append(button, options); item.ondragstart = button.ondragstart; item.ondragend = button.ondragend; bindItemDrag(item, entry); $('tabs').append(item);
   });
 }
 function rememberEditorPosition() {
@@ -825,7 +826,7 @@ window.forgetDeletedAccount = async userId => {
   $('trash-dialog').close();
 };
 
-function applyMove(id, parent, before) { save(); const next = features.moveEntry(workspaceValue(), id, parent, before); tabs = next.tabs; folders = next.folders; renderTabs(); save(); }
+function applyMove(id, parent, before) { if (parent) expandedFolders.add(parent); save(); const next = features.moveEntry(workspaceValue(), id, parent, before); tabs = next.tabs; folders = next.folders; renderTabs(); save(); }
 function togglePin(id) { save(); tabs = tabs.map(note => note.id === id ? { ...note, pinned: !note.pinned } : note); renderTabs(); save(); }
 function chooseMove(id) {
   closeMenus(); const select = $('move-folder'); select.replaceChildren();
@@ -835,9 +836,6 @@ function chooseMove(id) {
 }
 $('cancel-move').onclick = () => $('move-dialog').close();
 $('new-folder').onclick = () => { const name = prompt('Folder name:'); if (!name?.trim()) return; save(); folders.push({ id: crypto.randomUUID(), name: name.trim().slice(0, 80), parentId: currentFolder, order: Date.now() }); renderTabs(); save(); };
-$('folder-up').onclick = () => { currentFolder = folders.find(folder => folder.id === currentFolder)?.parentId || null; renderTabs(); };
-$('folder-up').ondragover = event => event.preventDefault();
-$('folder-up').ondrop = event => { event.preventDefault(); if (draggedId) applyMove(draggedId, folders.find(folder => folder.id === currentFolder)?.parentId || null); draggedId = null; };
 function openFolderMenu(entry, anchor) {
   closeMenus(); tabMenu.replaceChildren();
   [['Move up', () => moveRelative(entry.id, -1)], ['Move down', () => moveRelative(entry.id, 1)], ['Rename folder', () => { const name = prompt('Folder name:', entry.name); if (name?.trim()) { folders = folders.map(folder => folder.id === entry.id ? { ...folder, name: name.trim().slice(0, 80) } : folder); renderTabs(); save(); } }], ['Move to folder…', () => chooseMove(entry.id)], ['Delete folder', () => { if (!confirm('Delete this folder? Its notes and subfolders will move to the parent folder.')) return; const next = features.removeFolder(workspaceValue(), entry.id); folders = next.folders; tabs = next.tabs; renderTabs(); save(); }]].forEach(([label, action]) => { const button = document.createElement('button'); button.type = 'button'; button.setAttribute('role', 'menuitem'); button.textContent = label; button.onclick = () => { closeMenus(); action(); }; tabMenu.append(button); });
@@ -883,29 +881,39 @@ $('lock-note').onclick = () => { save(); unlockedNotes.get(activeId)?.key.fill(0
 document.addEventListener('visibilitychange', () => { if (document.hidden) { clearNoteKeys(); showTab(); } });
 
 function moveRelative(id, direction) {
-  const all = features.entries(workspaceValue(), currentFolder), entry = all.find(item => item.id === id); if (!entry) return;
+  const parent = folders.find(item => item.id === id)?.parentId || tabs.find(item => item.id === id)?.folderId || null;
+  const all = features.entries(workspaceValue(), parent), entry = all.find(item => item.id === id); if (!entry) return;
   const group = all.filter(item => item.pinned === entry.pinned), index = group.findIndex(item => item.id === id);
-  if (direction < 0 && index > 0) applyMove(id, currentFolder, group[index - 1].id);
-  if (direction > 0 && index < group.length - 1) applyMove(id, currentFolder, group[index + 2]?.id);
+  if (direction < 0 && index > 0) applyMove(id, parent, group[index - 1].id);
+  if (direction > 0 && index < group.length - 1) applyMove(id, parent, group[index + 2]?.id);
 }
-function makeDragHandle(entry) {
-  const handle = document.createElement('button'); handle.type = 'button'; handle.className = 'drag-handle'; handle.textContent = '⠿'; handle.setAttribute('aria-label', `Drag ${entry.name}`); handle.title = 'Hold to drag. Arrow keys move up or down.';
-  let timer, dragging = false, destination = null;
-  const clear = () => { clearTimeout(timer); dragging = false; destination = null; document.querySelectorAll('.drop-target').forEach(node => node.classList.remove('drop-target')); };
-  handle.onpointerdown = event => { if (event.button !== 0) return; handle.setPointerCapture(event.pointerId); timer = setTimeout(() => { dragging = true; }, 250); };
-  handle.onpointermove = event => {
-    if (!dragging) return; event.preventDefault();
-    document.querySelectorAll('.drop-target').forEach(node => node.classList.remove('drop-target'));
-    const element = document.elementFromPoint(event.clientX, event.clientY);
-    if (element?.closest('#folder-up')) { destination = { parent: folders.find(folder => folder.id === currentFolder)?.parentId || null }; return; }
-    const row = element?.closest('[data-entry]'); if (!row || row.dataset.entry === entry.id) { destination = null; return; }
-    const items = features.entries(workspaceValue(), currentFolder), target = items.find(item => item.id === row.dataset.entry); if (!target) return;
-    row.classList.add('drop-target'); const box = row.getBoundingClientRect(), ratio = (event.clientY - box.top) / box.height;
-    destination = target.kind === 'folder' && ratio > .25 && ratio < .75 ? { parent: target.id } : { parent: currentFolder, before: ratio < .5 ? target.id : items[items.findIndex(item => item.id === target.id) + 1]?.id };
-    const strip = $('tabs').getBoundingClientRect(); if (event.clientY < strip.top + 30) $('tabs').scrollTop -= 12; if (event.clientY > strip.bottom - 30) $('tabs').scrollTop += 12;
+function toggleFolder(id) { if (expandedFolders.has(id)) expandedFolders.delete(id); else expandedFolders.add(id); renderTabs(); }
+function bindItemDrag(element, entry) {
+  let timer, dragging = false, destination = null, blockClick = false;
+  const clear = () => { clearTimeout(timer); dragging = false; destination = null; element.classList.remove('dragging'); document.querySelectorAll('.drop-target').forEach(node => node.classList.remove('drop-target')); };
+  element.addEventListener('click', event => { if (blockClick) { event.preventDefault(); event.stopImmediatePropagation(); } }, true);
+  element.onpointerdown = event => {
+    if (event.pointerType !== 'pen' || event.button !== 0 || event.target.closest('.edit-tab,.folder-toggle')) return;
+    element.setPointerCapture(event.pointerId); timer = setTimeout(() => { dragging = true; element.classList.add('dragging'); }, 250);
   };
-  handle.onpointerup = () => { const target = dragging && destination; clear(); if (target) applyMove(entry.id, target.parent, target.before); };
-  handle.onpointercancel = clear;
-  handle.onkeydown = event => { if (['ArrowUp', 'ArrowDown'].includes(event.key)) { event.preventDefault(); moveRelative(entry.id, event.key === 'ArrowUp' ? -1 : 1); } };
-  return handle;
+  function moveAt(clientX, clientY) {
+    if (!dragging) return;
+    document.querySelectorAll('.drop-target').forEach(node => node.classList.remove('drop-target'));
+    const row = document.elementFromPoint(clientX, clientY)?.closest('[data-entry]'); if (!row || row.dataset.entry === entry.id) { destination = null; return; }
+    const target = features.treeEntries(workspaceValue(), expandedFolders).find(item => item.id === row.dataset.entry); if (!target) return;
+    row.classList.add('drop-target'); const box = row.getBoundingClientRect(), ratio = (clientY - box.top) / box.height;
+    const siblings = features.entries(workspaceValue(), target.parentId);
+    destination = target.kind === 'folder' && ratio > .25 && ratio < .75 ? { parent: target.id } : { parent: target.parentId, before: ratio < .5 ? target.id : siblings[siblings.findIndex(item => item.id === target.id) + 1]?.id };
+    const strip = $('tabs').getBoundingClientRect(); if (clientY < strip.top + 30) $('tabs').scrollTop -= 12; if (clientY > strip.bottom - 30) $('tabs').scrollTop += 12;
+  };
+  element.onpointermove = event => { if (dragging) { event.preventDefault(); moveAt(event.clientX, event.clientY); } };
+  const finish = () => { const target = dragging && destination; blockClick = dragging; clear(); if (target) applyMove(entry.id, target.parent, target.before); setTimeout(() => { blockClick = false; }, 150); };
+  element.onpointerup = finish; element.onpointercancel = clear;
+  element.oncontextmenu = event => { if (dragging) event.preventDefault(); };
+  let startX = 0, startY = 0;
+  element.addEventListener('touchstart', event => { if (event.target.closest('.edit-tab,.folder-toggle')) return; startX = event.touches[0].clientX; startY = event.touches[0].clientY; timer = setTimeout(() => { dragging = true; element.classList.add('dragging'); }, 250); }, { passive: true });
+  element.addEventListener('touchmove', event => { const touch = event.touches[0]; if (dragging) { event.preventDefault(); moveAt(touch.clientX, touch.clientY); } else if (Math.hypot(touch.clientX - startX, touch.clientY - startY) > 8) clearTimeout(timer); }, { passive: false });
+  element.addEventListener('touchend', event => { if (dragging) event.preventDefault(); finish(); }, { passive: false });
+  element.addEventListener('touchcancel', clear);
+  element.onkeydown = event => { if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) { event.preventDefault(); moveRelative(entry.id, event.key === 'ArrowUp' ? -1 : 1); } };
 }

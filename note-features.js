@@ -157,6 +157,7 @@ var BestpadFeatures = (() => {
     moveEntry: () => moveEntry,
     protectNote: () => protectNote,
     removeFolder: () => removeFolder,
+    treeEntries: () => treeEntries,
     unlockNote: () => unlockNote
   });
 
@@ -1408,6 +1409,19 @@ var BestpadFeatures = (() => {
     const folder = workspace.folders?.find((item) => item.id === id);
     if (!folder) return workspace;
     return { ...workspace, folders: workspace.folders.filter((item) => item.id !== id).map((item) => item.parentId === id ? { ...item, parentId: folder.parentId || null } : item), tabs: workspace.tabs.map((note) => note.folderId === id ? { ...note, folderId: folder.parentId || null } : note) };
+  }
+  function treeEntries(workspace, expanded) {
+    const result = [], visited = /* @__PURE__ */ new Set();
+    function walk(parentId, depth) {
+      for (const item of entries(workspace, parentId)) {
+        if (visited.has(item.id)) continue;
+        visited.add(item.id);
+        result.push({ ...item, depth, parentId });
+        if (item.kind === "folder" && expanded.has(item.id)) walk(item.id, depth + 1);
+      }
+    }
+    walk(null, 0);
+    return result;
   }
   return __toCommonJS(web_features_exports);
 })();
