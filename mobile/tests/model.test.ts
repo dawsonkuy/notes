@@ -116,3 +116,38 @@ test('multiline paste normalizes Windows line endings and keeps the caret before
   assert.equal(result.focus?.id, result.blocks[1].id); assert.equal(result.focus?.start, 3);
   assert.equal(fromBlocks(newNote('paste'), result.blocks).text, 'Hello one\ntwo world\nAfter');
 });
+
+test('bold and italic from web round-trip through mobile without losing inline spans', async () => {
+  const { applyInlineStyle, replaceParagraphText } = await import('../src/model');
+  const note = { ...newNote('formatted'), text: 'One bold italic end', content: [
+    { insert: 'One ' }, { insert: 'bold', attributes: { bold: true } },
+    { insert: ' ' }, { insert: 'italic', attributes: { italic: true } },
+    { insert: ' end\n' },
+  ] };
+  const original = toBlocks(note, id);
+  assert.deepEqual(original[0].runs?.map(run => [run.text, Boolean(run.bold), Boolean(run.italic)]), [
+    ['One ', false, false], ['bold', true, false], [' ', false, false],
+    ['italic', false, true], [' end', false, false],
+  ]);
+  const edited = applyInlineStyle(original, original[0].id, { start: 4, end: 8 }, 'italic')!;
+  assert.ok(edited.enabled);
+  const saved = fromBlocks(note, edited.blocks);
+  assert.ok(safeOps(saved));
+  assert.equal(saved.text, note.text);
+  assert.deepEqual(toBlocks(saved, id)[0].runs?.find(run => run.text === 'bold'), { text: 'bold', bold: true, italic: true });
+  const next = replaceParagraphText(edited.blocks, edited.blocks[0].id, 'One bold! italic end', id, { start: 8, end: 8 })!;
+  const persisted = fromBlocks(note, next.blocks);
+  assert.equal(persisted.text, 'One bold! italic end');
+  assert.ok(persisted.content?.some(op => op.insert === 'bold!' && op.attributes?.bold && op.attributes?.italic));
+});
+test('splitting and rejoining formatted paragraphs preserves exact inline text', async () => {
+  const { applyInlineStyle, joinBackward } = await import('../src/model');
+  const start = [{ id: 'a', text: 'Hello world' }];
+  const marked = applyInlineStyle(start, 'a', { start: 6, end: 11 }, 'bold')!.blocks;
+  const split = breakParagraph(marked, 'a', { start: 6, end: 6 }, id)!;
+  assert.equal(split.blocks[1].runs?.[0].text, 'world');
+  const joined = joinBackward(split.blocks, split.blocks[1].id, { start: 0, end: 0 })!;
+  const saved = fromBlocks(newNote('note'), joined.blocks);
+  assert.equal(saved.text, 'Hello world');
+  assert.deepEqual(toBlocks(saved, id)[0].runs?.find(run => run.bold), { text: 'world', bold: true });
+});
