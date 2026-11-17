@@ -8,9 +8,12 @@ const mobile = read('mobile/src/app/editor/[id].tsx');
 const model = read('mobile/src/model.ts');
 test('web Add menu keeps lists while heading controls live in the format bar', () => {
   assert.match(html, />Add <svg/);
+  const addMenu = html.match(/<div id="add-menu"[\s\S]*?<\/div>/)?.[0];
+  assert.ok(addMenu, 'web Add menu exists');
   for (const kind of ['bold', 'italic']) {
     assert.ok(html.includes('data-inline-format="' + kind + '"'), kind);
     assert.ok(js.includes("'"+kind+"'"), kind);
+    assert.ok(!addMenu.includes('data-inline-format="' + kind + '"'), kind + ' must not be in Add');
   }
   for (const level of [1, 2, 3]) assert.ok(html.includes('data-heading="' + level + '"'), 'heading ' + level + ' in persistent formatting toolbar');
   for (const level of [1, 2, 3]) assert.ok(!html.includes('data-insert="heading-' + level + '"'), 'heading ' + level + ' should not appear in Add');
@@ -26,6 +29,11 @@ test('mobile Add sheet keeps lists while all headings are in the formatting bar'
   }
   for (const level of [1, 2, 3]) assert.ok(mobile.includes('<ToolbarAction label="H' + level + '"'), 'heading ' + level + ' should be in format bar');
   for (const level of [1, 2, 3]) assert.ok(!mobile.includes("{ kind: 'heading-" + level + "'"), 'heading ' + level + ' should not appear in Add sheet');
+  // Bold/Italic should only be available as the persistent B/I buttons.
+  const addSheet = mobile.slice(mobile.indexOf('<Modal visible={insertOpen}'));
+  assert.doesNotMatch(addSheet, /<Button label="Bold"/);
+  assert.doesNotMatch(addSheet, /<Button label="Italic"/);
+  for (const label of ['B', 'I']) assert.ok(mobile.includes('<ToolbarAction label="' + label + '"'), label + ' stays in the toolbar');
   assert.match(mobile, /orderedNumber\(blocks, index\)/);
   assert.match(mobile, /onSubmitEditing=\{\(\) => returnFromParagraph\(block\)\}/);
 });
