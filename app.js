@@ -633,7 +633,7 @@ if (window.Quill) {
     static value() { return true; }
   }
   window.Quill.register(Divider);
-  richEditor = new window.Quill('#rich-editor', { formats: ['header', 'list', 'divider', 'bold', 'italic'], modules: { toolbar: false }, placeholder: 'Start writing… Type /add for formatting, headings, lists, date, or time.' });
+  richEditor = new window.Quill('#rich-editor', { formats: ['header', 'list', 'divider', 'bold', 'italic'], modules: { toolbar: false }, placeholder: 'Start writing… Type /add for lists, date, or time.' });
   richEditor.root.setAttribute('role', 'textbox');
   richEditor.root.setAttribute('aria-label', 'Note text');
   richEditor.root.setAttribute('aria-multiline', 'true');
