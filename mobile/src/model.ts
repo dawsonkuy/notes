@@ -21,7 +21,7 @@ export function styledRuns(text: string, styles: InlineStyle[]): InlineRun[] | u
   for (let i = 0; i < text.length; i++) {
     const attrs = styles[i] || {}, last = runs[runs.length - 1];
     if (last && Boolean(last.bold) === Boolean(attrs.bold) && Boolean(last.italic) === Boolean(attrs.italic)) last.text += text[i];
-    else runs.push({ text: text[i], ...(attrs.bold ? { bold: true } : {}), ...(attrs.italic ? { italic: true } : {}) });
+    else runs.push({ text: text[i], ...(attrs.bold ? { bold: true as const } : {}), ...(attrs.italic ? { italic: true as const } : {}) });
   }
   return runs;
 }
@@ -34,7 +34,7 @@ export function applyInlineStyle(blocks: Block[], id: string, selection: { start
   const start = Math.max(0, Math.min(block.text.length, selection.start)), end = Math.max(start, Math.min(block.text.length, selection.end));
   if (start === end) return null;
   const styles = inlineStyles(block), enabled = !styles.slice(start, end).every(style => style[kind]);
-  for (let i = start; i < end; i++) styles[i] = { ...styles[i], [kind]: enabled ? true : undefined };
+  for (let i = start; i < end; i++) styles[i] = { ...styles[i], [kind]: enabled ? (true as const) : undefined };
   return { blocks: blocks.map(item => item.id === id ? { ...item, runs: styledRuns(item.text, styles) } : item), enabled };
 }
 export const noteName = (note: Note) => (typeof note.customName === 'string' && note.customName) || note.text.split(/\r?\n/, 1)[0].trim().slice(0, 80) || 'Untitled';
