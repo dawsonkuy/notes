@@ -22,6 +22,7 @@ export function OrganizedLibrary(props: Props) {
   const startOffset = useRef(0), previousShifts = useRef(''), restoreExpanded = useRef<string | null>(null);
   const claimed = useRef(false);
   const drag = useRef<string | null>(null), target = useRef<{ parent: string | null; before?: string } | null>(null);
+  const lastPassedItem = useRef<string | null>(null), lastPassFeedbackAt = useRef(0);
   const rows = useRef<Record<string, React.ComponentRef<typeof View> | null>>({});
   const measured = useRef<Record<string, { y: number; height: number }>>({});
   const list = useRef<React.ComponentRef<typeof FlatList<TreeEntry>>>(null), offset = useRef(0);
@@ -30,7 +31,7 @@ export function OrganizedLibrary(props: Props) {
   function measure() { Object.entries(rows.current).forEach(([id, row]) => row?.measureInWindow((_x, y, _w, height) => { measured.current[id] = { y, height }; })); }
   const finishDrag = useCallback((commit: boolean) => {
     const id = drag.current, destination = target.current, restore = restoreExpanded.current;
-    drag.current = null; target.current = null; restoreExpanded.current = null;
+    drag.current = null; target.current = null; restoreExpanded.current = null; lastPassedItem.current = null;
     if (commit && id && destination) { latest.current.store.move(id, destination.parent, destination.before); if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => undefined); }
     setExpanded(current => { const next = new Set(current); if (restore) next.add(restore); if (commit && destination?.parent) next.add(destination.parent); return next; });
     dragY.stopAnimation(); dragY.setValue(0); setShifts({}); previousShifts.current = ''; setDragId(null); setHover(null);
@@ -57,6 +58,16 @@ export function OrganizedLibrary(props: Props) {
         if (entry) { const parent = entry.parentId, siblings = entries(latest.current.store.getSnapshot().workspace, parent), index = siblings.findIndex(item => item.id === entry.id); target.current = { parent, before: projection.direction > 0 ? siblings[index + 1]?.id : entry.id }; }
         else target.current = null;
       }
+      // Tick once per newly crossed row or folder, rather than on every drag frame.
+      const crossedItem = folder ? `folder:${folder.id}` : projection.over ? `row:${projection.over}` : null;
+      if (crossedItem !== lastPassedItem.current) {
+        lastPassedItem.current = crossedItem;
+        const now = Date.now();
+        if (crossedItem && now - lastPassFeedbackAt.current >= 75 && Platform.OS !== 'web') {
+          lastPassFeedbackAt.current = now;
+          void Haptics.selectionAsync().catch(() => undefined);
+        }
+      }
       const signature = JSON.stringify(nextShifts); if (signature !== previousShifts.current) { previousShifts.current = signature; setShifts(nextShifts); }
       if (gesture.moveY < bounds.current.top + 28 || gesture.moveY > bounds.current.bottom - 28) { offset.current = Math.max(0, offset.current + (gesture.moveY < bounds.current.top + 28 ? -10 : 10)); list.current?.scrollToOffset({ offset: offset.current, animated: false }); }
     },
@@ -67,6 +78,7 @@ export function OrganizedLibrary(props: Props) {
   function startDrag(id: string, fingerY: number) {
     if (props.trash || drag.current) return; claimed.current = false; startFingerY.current = fingerY; startOffset.current = offset.current; dragY.setValue(0);
     if (expanded.has(id)) { restoreExpanded.current = id; setExpanded(current => { const next = new Set(current); next.delete(id); return next; }); }
+    lastPassedItem.current = null; lastPassFeedbackAt.current = Date.now();
     drag.current = id; setDragId(id);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     root.current?.measureInWindow((_x, y, _width, height) => { bounds.current = { top: y + 12, bottom: y + height - 12 }; });
