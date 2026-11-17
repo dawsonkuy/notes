@@ -32,3 +32,11 @@ test('both platforms preserve numbered, bullet and checklist styles in existing 
   }
   assert.match(model, /block\.list === 'checked' \? 'unchecked'/);
 });
+
+test('iOS bottom formatting bar and native inline serialization exist', () => {
+  for (const label of ["label: 'Add'", "label: 'H1'", "label: 'H2'", "label: 'B'", "label: 'I'"]) assert.ok(mobile.includes(label), label);
+  assert.match(mobile, /applyInlineStyle\(/);
+  assert.match(mobile, /block\.runs\.map\(/);
+  assert.match(model, /styledRuns\(/);
+  assert.match(js, /formats: \['header', 'list', 'divider', 'bold', 'italic'\]/);
+});
