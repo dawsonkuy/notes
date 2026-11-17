@@ -227,3 +227,7 @@ img.small-brand-mark { display: block; object-fit: contain; padding: 3px; }
 .folder-toggle { font-size:inherit; }.folder-toggle svg { display:block; width:26px; height:26px; margin:auto; }
 .tab { transition:transform 170ms cubic-bezier(.2,.7,.2,1); will-change:transform; }.tab.is-lifted { z-index:100; opacity:1; background:var(--panel); border:1px solid var(--border); box-shadow:0 8px 24px #0003; transition:none; cursor:grabbing; }.library-placeholder { flex-shrink:0; pointer-events:none; }.library-dragging,.library-dragging * { cursor:grabbing!important; user-select:none!important; }
 @media(prefers-reduced-motion:reduce) { .tab { transition:none; } }
+
+/* Sharing feedback is independent from note sync state. */
+#action-status:empty{display:none}
+#action-status{font-size:11px;color:var(--muted);max-width:220px;overflow-wrap:anywhere}
