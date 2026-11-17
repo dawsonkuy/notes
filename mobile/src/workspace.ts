@@ -1,5 +1,6 @@
 import { protectNote, unlockNote, encryptNote, decryptNote, type Random } from './security';
 import { moveEntry, removeFolder } from './organization';
+import { mergeWorkspaceNotes, type ImportResult } from './backupData';
 import { isTrashed, newNote, validWorkspace, type Note, type Workspace } from './model';
 export type Status = 'loading' | 'local' | 'pending' | 'saving' | 'saved' | 'offline' | 'conflict' | 'cache-error';
 export interface Storage { getItem(key: string): Promise<string | null>; setItem(key: string, value: string): Promise<unknown> }
@@ -207,6 +208,23 @@ export class WorkspaceStore {
     if (generation !== this.generation) return;
     this.revision = row.revision; this.dirty = false; this.conflict = false; this.ready = true; this.version++;
     this.emit({ workspace: row.workspace, status: 'saved' }); await this.cache();
+  }
+  importWorkspace(imported: Workspace): ImportResult {
+    if (this.snapshot.loading || this.conflict) throw new Error('Wait for notes to finish loading or resolve the cloud conflict before importing.');
+    const result = mergeWorkspaceNotes(this.snapshot.workspace, imported, this.id);
+    if (result.added || result.foldersAdded) this.update(result.workspace);
+    return result;
+  }
+  async importGuestNotes(): Promise<ImportResult> {
+    if (!this.snapshot.user) throw new Error('Sign in to an account before importing guest notes.');
+    const user = this.snapshot.user, version = this.version, generation = this.generation;
+    const raw = await withDeadline(this.storage.getItem('bestpad:mobile:workspace:guest'), 7000);
+    if (!raw) throw new Error('There are no saved guest notes on this device.');
+    let guest: unknown;
+    try { guest = JSON.parse(raw); } catch { throw new Error('Guest notes could not be read.'); }
+    if (!validWorkspace(guest)) throw new Error('No valid guest notes were found on this device.');
+    if (generation !== this.generation || version !== this.version || user !== this.snapshot.user) throw new Error('Your notes changed while importing. Try again.');
+    return this.importWorkspace(guest);
   }
   retry = () => this.snapshot.loading ? Promise.resolve() : !this.ready ? this.recoverConnection() : this.conflict ? Promise.resolve() : this.dirty ? this.flush() : this.refresh();
   dispose() { clearTimeout(this.timer); this.listeners.clear(); }
