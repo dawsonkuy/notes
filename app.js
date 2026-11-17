@@ -70,6 +70,9 @@ const isTrashed = note => typeof note.deletedAt === 'string' && note.deletedAt.l
 const liveTabs = () => tabs.filter(note => !isTrashed(note));
 const storedActive = () => tabs.find(tab => tab.id === activeId);
 const active = () => unlockedNotes.get(activeId)?.note || storedActive();
+const protectedPlainPayload = note => JSON.stringify({
+  text: note.text, content: note.content, filename: note.filename, customName: note.customName,
+});
 const makeTab = (text = '', filename = 'Untitled') => ({ id: crypto.randomUUID(), text, filename, customName: filename !== 'Untitled' ? filename : null });
 const noteName = tab => tab.customName || tab.text.split(/\r?\n/, 1)[0].trim().slice(0, 80) || 'Untitled';
 const tabMenu = document.createElement('div');
@@ -183,7 +186,19 @@ function save() {
     }
     active().text = $('editor').value;
     const session = unlockedNotes.get(activeId);
-    if (storedActive()?.sealed && session) { const original = storedActive(); tabs = tabs.map(note => note.id === activeId ? features.encryptNote({ ...original, text: session.note.text, content: session.note.content, filename: session.note.filename, customName: session.note.customName }, session.key, original.sealed) : note); }
+    if (storedActive()?.sealed && session) {
+      const plainPayload = protectedPlainPayload(session.note);
+      // AES-GCM uses a fresh random IV. Re-encrypting unchanged plaintext on
+      // every blur, navigation, or save would mark the note dirty and could
+      // produce a continuous stream of unnecessary cloud writes.
+      if (plainPayload !== session.lastPlainPayload) {
+        const original = storedActive();
+        tabs = tabs.map(note => note.id === activeId
+          ? features.encryptNote({ ...original, text: session.note.text, content: session.note.content, filename: session.note.filename, customName: session.note.customName }, session.key, original.sealed)
+          : note);
+        session.lastPlainPayload = plainPayload;
+      }
+    }
     refreshNames();
     const currentPayload = payload();
     if (currentPayload !== savedPayload) {
@@ -986,8 +1001,8 @@ async function passwordAction() {
   try {
     const result = original.sealed ? await features.unlockNote(original, password) : await features.protectNote(original, password);
     if (keyEpoch !== noteKeyEpoch || document.hidden || activeId !== id || storedActive() !== original) { result.key.fill(0); throw new Error('Note changed. Please try again.'); }
-    if (original.sealed) unlockedNotes.set(id, { key: result.key, note: result.note });
-    else { unlockedNotes.set(id, { key: result.key, note: { ...original } }); tabs = tabs.map(note => note.id === id ? result.note : note); }
+    if (original.sealed) unlockedNotes.set(id, { key: result.key, note: result.note, lastPlainPayload: protectedPlainPayload(result.note) });
+    else { unlockedNotes.set(id, { key: result.key, note: { ...original }, lastPlainPayload: protectedPlainPayload(original) }); tabs = tabs.map(note => note.id === id ? result.note : note); }
     showTab(); save();
   } catch (error) { alert(error.message || 'Could not open note.'); renderLockState(); }
   finally { $('password-note').disabled = false; }
