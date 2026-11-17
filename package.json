@@ -9,6 +9,7 @@
     "build": "node build.mjs",
     "test:legal": "node --test tests/legal-pages.test.mjs",
     "test:formatting": "node --test tests/formatting-insert.test.mjs",
-    "test:release": "node --test tests/release-readiness.test.mjs"
+    "test:release": "node --test tests/release-readiness.test.mjs",
+    "test:save": "node --test tests/web-save-reliability.test.mjs"
   }
 }
