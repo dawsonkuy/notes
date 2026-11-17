@@ -242,3 +242,46 @@ test('successful mobile cloud save reaches green saved state and does not keep r
     assert.equal(f.store.getSnapshot().status, 'saved');
   } finally { f.store.dispose(); }
 });
+
+test('pinning folders sorts within their parent and syncs without changing contained notes', async () => {
+  const { entries, treeEntries } = await import('../src/organization');
+  const f = fixture();
+  try {
+    const initial: Workspace = {
+      folders: [
+        { id: 'folder-a', name: 'Folder A', parentId: null, order: 1 },
+        { id: 'folder-b', name: 'Folder B', parentId: null, order: 2 },
+        { id: 'child', name: 'Child folder', parentId: 'folder-a', order: 0 }
+      ],
+      tabs: [
+        { ...newNote('root'), text: 'Root note', order: 3 },
+        { ...newNote('inside'), text: 'Nested note', folderId: 'folder-a', order: 0 },
+      ],
+      activeId: 'root'
+    };
+    f.rows.set('alice', { workspace: initial, revision: 1 });
+    await f.store.connect('alice');
+    f.store.pin('folder-b');
+    let current = f.store.getSnapshot().workspace;
+    assert.equal(current.folders?.find(folder => folder.id === 'folder-b')?.pinned, true);
+    assert.equal(entries(current, null)[0].id, 'folder-b');
+    assert.equal(current.tabs.find(note => note.id === 'inside')?.folderId, 'folder-a');
+    assert.equal(treeEntries(current, new Set(['folder-a', 'folder-b']))[0].id, 'folder-b');
+    f.store.pin('child');
+    current = f.store.getSnapshot().workspace;
+    assert.equal(current.folders?.find(folder => folder.id === 'child')?.pinned, true);
+    assert.equal(entries(current, 'folder-a')[0].id, 'child');
+    assert.equal(entries(current, null)[0].id, 'folder-b', 'pinning nested folder should not move it to root');
+    await f.store.flush();
+    assert.equal(f.rows.get('alice')?.workspace.folders?.find(folder => folder.id === 'folder-b')?.pinned, true);
+    const other = new WorkspaceStore({ getItem: async () => null, setItem: async () => {} }, f.remote, () => 'another');
+    try {
+      await other.connect('alice');
+      assert.equal(entries(other.getSnapshot().workspace, null)[0].id, 'folder-b');
+    } finally { other.dispose(); }
+    f.store.pin('folder-b');
+    await f.store.flush();
+    assert.equal(f.store.getSnapshot().workspace.folders?.find(folder => folder.id === 'folder-b')?.pinned, false);
+    assert.equal(f.rows.get('alice')?.workspace.folders?.find(folder => folder.id === 'child')?.pinned, true);
+  } finally { f.store.dispose(); }
+});
