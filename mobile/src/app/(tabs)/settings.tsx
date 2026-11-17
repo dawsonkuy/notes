@@ -123,7 +123,16 @@ export default function Settings() {
   }
   return <SafeAreaView edges={['top', 'left', 'right']} style={[ui.container, { backgroundColor: colors.primary }]}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ui.content}>
     <Text style={[ui.title, { color: colors.font, marginBottom: 8 }]}>Settings</Text>
-    <Section title="Account">{session ? <View style={{ gap: 12 }}><Text style={{ color: colors.font }}>{session.user.email}</Text><SaveStatus status={snapshot.status} /><Button label={busy ? 'Signing out…' : 'Sign out'} disabled={busy || deleting} onPress={() => { void signOut(); }} /></View> : <Button label="Login / Create account" icon="person-outline" onPress={() => router.push('/login')} />}<Text style={{ color: colors.muted, fontSize: 11, lineHeight: 18, marginTop: 10 }}>{session ? 'Notes sync with your Bestpad account.' : 'Notes stay on this device until you use an account. Guest and account workspaces are separate.'}</Text></Section>
+    <Section title="Account">{session ? <View style={{ gap: 12 }}><Text style={{ color: colors.font }}>{session.user.email}</Text><SaveStatus status={snapshot.status} /><Button label={busy ? 'Signing out…' : 'Sign out'} disabled={busy || deleting} onPress={() => { void signOut(); }} /></View> : <Button label="Login / Create account" icon="person-outline" onPress={() => router.push('/login')} />}<Text style={{ color: colors.muted, fontSize: 11, lineHeight: 18, marginTop: 10 }}>{session ? 'Notes sync with your Bestpad account.' : 'Notes stay on this device until you use an account. Guest and account workspaces are separate.'}</Text>
+      <Pressable accessibilityRole="link" accessibilityLabel="Open Bestpad on the web at bestpad.app" onPress={() => openLegalPage('https://bestpad.app')} style={({ pressed }) => ({ marginTop: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 13, backgroundColor: colors.secondary, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: pressed ? .7 : 1 })}>
+        <Icon name="globe-outline" size={20} color={colors.font} />
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={{ color: colors.font, fontSize: 14, fontWeight: '600' }}>Use Bestpad on any device</Text>
+          <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 17 }}>bestpad.app · Sign in to access your synced notes.</Text>
+        </View>
+        <Icon name="open-outline" size={17} color={colors.muted} />
+      </Pressable>
+    </Section>
     <Section title="Backups & recovery">
       <View style={{ gap: 10 }}>
         <Button label={exporting ? 'Exporting backup…' : 'Export JSON backup'} icon="download-outline" disabled={exporting || snapshot.loading} onPress={() => { void exportBackup(); }} />
