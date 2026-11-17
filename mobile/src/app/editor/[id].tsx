@@ -114,7 +114,7 @@ function NoteEditor({ note }: { note: Note }) {
       typingStyle.current = null;
     } else {
       const flags = typingStyle.current?.id === block.id ? typingStyle.current.flags : inlineStyles(block)[Math.max(0, selection.start - 1)] || {};
-      typingStyle.current = { id: block.id, flags: { ...flags, [kind]: flags[kind] ? undefined : true } };
+      typingStyle.current = { id: block.id, flags: { ...flags, [kind]: flags[kind] ? undefined : (true as const) } };
     }
     refreshToolbar(x => x + 1);
     setPendingFocus(selection);
