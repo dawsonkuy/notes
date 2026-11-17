@@ -1,0 +1,33 @@
+name: BestPad code checks
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check website syntax
+        run: npm run check
+      - name: Check release and legal tests
+        run: |
+          npm run test:release
+          npm run test:legal
+          npm run test:formatting
+      - name: Install iOS dependencies
+        run: cd mobile && npm ci --no-audit --no-fund
+      - name: Check iOS types
+        run: cd mobile && npm run typecheck
+      - name: Lint iOS code
+        run: cd mobile && npm run lint
+      - name: Run iOS unit tests
+        run: cd mobile && npm test
