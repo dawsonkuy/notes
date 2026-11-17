@@ -84,7 +84,7 @@ test('settings show Themes immediately beneath the website card and use standard
 test('drag tick fires on distinct crossed items, rather than every pointer movement', () => {
   const library = read('mobile/src/components/OrganizedLibrary.tsx');
   assert.match(library, /crossedItem !== lastPassedItem\.current/);
-  assert.match(library, /now - lastPassFeedbackAt\.current >= 75/);
+  assert.match(library, /Math\.abs\(gesture\.moveY - lastPassFeedbackY\.current\) >= 12/);
   assert.match(library, /Haptics\.selectionAsync\(\)/);
   assert.match(js, /crossedItem !== drag\.lastPassedItem/);
   assert.match(js, /navigator\.vibrate\(6\)/);
