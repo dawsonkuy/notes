@@ -44,11 +44,6 @@ button svg { flex-shrink: 0; }
 .new-note-button { width: 100%; display: flex; align-items: center; gap: 9px; padding: 11px 14px; min-height: 44px; border: 1px solid #0001; border-radius: 10px; background: var(--text); color: var(--canvas); font-size: 13px; font-weight: 650; box-shadow: 0 2px 3px #00000008; }
 .new-note-button:hover { background: color-mix(in srgb, var(--text) 85%, var(--canvas)); }
 .new-note-button kbd { margin-left: auto; font: 11px var(--ui-font); opacity: .6; }
-.note-search { display: flex; align-items: center; gap: 9px; margin: 16px 0 24px; padding: 10px 12px; background: color-mix(in srgb, var(--canvas) 75%, var(--panel)); border: 1px solid var(--soft-border); border-radius: 9px; color: var(--muted); }
-.note-search:focus-within { border-color: var(--text); }
-.note-search svg { width: 15px; height: 15px; flex-shrink: 0; }
-.note-search input { width: 100%; min-width: 0; outline: none; border: 0; background: transparent; font-size: 12px; padding: 0; }
-.note-search input::placeholder { color: var(--muted); opacity: .8; }
 .list-caption { padding: 0 9px 10px; color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: 1.3px; }
 #tabs { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: auto; gap: 5px; padding-bottom: 12px; overscroll-behavior: contain; scrollbar-width: thin; }
 .tab { position: relative; display: flex; align-items: stretch; flex-shrink: 0; width: 100%; border: 1px solid transparent; border-radius: 10px; }
@@ -64,7 +59,6 @@ button svg { flex-shrink: 0; }
 
 .tab.drop-before { box-shadow: 0 -3px var(--text); }
 .tab.drop-after { box-shadow: 0 3px var(--text); }
-#search-empty { padding: 14px 9px; margin: 0; font-size: 13px; color: var(--muted); }
 .sidebar-foot { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--soft-border); margin-top: auto; padding: 18px 8px max(18px, env(safe-area-inset-bottom)); font-size: 11px; color: var(--muted); }
 .small-brand-mark { display: grid; place-items: center; width: 27px; height: 27px; border: 1px solid var(--soft-border); border-radius: 7px; font-weight: 700; font-size: 20px; color: var(--text); }
 .editor-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--canvas); }
@@ -130,7 +124,8 @@ dialog::backdrop { background: #10172270; backdrop-filter: blur(5px); }
 #auth-form, #account-session { display: grid; gap: 14px; }
 #auth-form label { display: grid; gap: 7px; font-size: 12px; font-weight: 500; }
 #auth-form input { width: 100%; font-size: 16px; padding: 12px; background: var(--control); border: 1px solid var(--soft-border); border-radius: 9px; }
-#auth-form button, #sign-out { min-height: 44px; padding: 10px; border-radius: 9px; border: 1px solid var(--soft-border); background: var(--control); }
+#auth-form button, #sign-out, #signed-in-forgot-password { min-height: 44px; padding: 10px; border-radius: 9px; border: 1px solid var(--soft-border); background: var(--control); }
+#signed-in-forgot-password { color: var(--text); font-size: 12px; cursor: pointer; }
 #auth-form #sign-in { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
 #account-email { overflow-wrap: anywhere; }
 #auth-status { font-size: 12px; line-height: 1.6; color: var(--muted); margin: 18px 0 0; }
@@ -162,7 +157,6 @@ dialog::backdrop { background: #10172270; backdrop-filter: blur(5px); }
   footer { padding: 11px 20px max(11px, env(safe-area-inset-bottom)); gap: 8px; font-size: 10px; }
   #count { display: none; }
   #position { padding: 0; border: 0; }
-  .note-search input { font-size: 16px; }
   .new-note-button kbd { display: none; }
   .tab .library-open { cursor: pointer; }
   .edit-tab { width: 40px; height: 44px; }
@@ -192,6 +186,13 @@ img.small-brand-mark { display: block; object-fit: contain; padding: 3px; }
 .legal-settings-links { display: grid; gap: 7px; }
 .legal-settings-links a, .legal-settings-links button { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 14px; min-height: 44px; width: 100%; border: 1px solid var(--soft-border); border-radius: 10px; background: var(--control); color: var(--text); font: inherit; font-size: 13px; text-align: left; text-decoration: none; cursor: pointer; }
 .legal-settings-links a:hover, .legal-settings-links button:hover, .legal-settings-links a:focus-visible, .legal-settings-links button:focus-visible { background: var(--selected); }
+.account-deletion-settings { margin-top: 26px; padding-top: 24px; border-top: 1px solid var(--soft-border); }
+.account-deletion-settings h3 { margin: 0 0 12px; font-size: 14px; }
+.account-deletion-settings p { font-size: 12px; line-height: 1.6; color: var(--muted); margin: 0 0 12px; }
+#delete-account { display: block; width: 100%; min-height: 44px; padding: 12px 14px; border: 1px solid var(--soft-border); border-radius: 10px; background: var(--control); color: #d75353; font: inherit; font-size: 13px; cursor: pointer; }
+#delete-account:hover, #delete-account:focus-visible { background: var(--selected); }
+#delete-account[hidden], #delete-account-signed-out[hidden] { display: none; }
+#delete-account-status:empty { display: none; }
 
 /* Keep the insert palette reachable on small screens and with the keyboard. */
 #add-menu { max-height: min(66dvh, 510px); overflow-y: auto; overscroll-behavior: contain; }

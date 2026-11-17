@@ -79,8 +79,14 @@
           <a href="/terms.html">Terms of Service <span aria-hidden="true">↗</span></a>
           <a href="/delete-account.html">Account Deletion <span aria-hidden="true">↗</span></a>
           <a href="/support.html">Help &amp; Support <span aria-hidden="true">↗</span></a>
-          <button id="open-account-settings" type="button">Manage account / Delete account <span aria-hidden="true">→</span></button>
         </div>
+      </section>
+      <section class="account-deletion-settings" aria-labelledby="account-deletion-title">
+        <h3 id="account-deletion-title">Account deletion</h3>
+        <p>Permanently delete your account and cloud notes, including Trash. Export anything you want to keep first.</p>
+        <button id="delete-account" class="danger-button" type="button" hidden>Delete account</button>
+        <p id="delete-account-signed-out">Sign in to delete your account.</p>
+        <p id="delete-account-status" role="status" aria-live="polite"></p>
       </section>
     </dialog>
     <dialog id="login-dialog" aria-labelledby="login-title">
@@ -98,7 +104,7 @@
         <label>Confirm new password<input id="recovery-confirm" type="password" autocomplete="new-password" minlength="8" required></label>
         <button id="save-recovery-password" type="submit">Update password</button>
       </form>
-      <div id="account-session" hidden><span id="account-email"></span><button id="sign-out" type="button">Sign out</button><button id="delete-account" class="danger-button" type="button">Delete account</button></div>
+      <div id="account-session" hidden><span id="account-email"></span><button id="sign-out" type="button">Sign out</button><button id="signed-in-forgot-password" type="button">Forgot password?</button></div>
       <p id="auth-status" role="status" aria-live="polite">Connecting to your account…</p>
     </dialog>
     <dialog id="sync-dialog" aria-labelledby="sync-title">
@@ -116,10 +122,8 @@
         <div class="sidebar-heading"><h2>All notes <span id="note-total">0</span></h2><button id="close-notes" class="icon-button mobile-only" type="button" aria-label="Close notes"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
         <button id="add-tab" class="new-note-button" type="button"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>New note</span><kbd>Ctrl Alt N</kbd></button>
         <button id="new-folder" class="new-folder-button" type="button">+ New folder</button>
-        <label class="note-search"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><span class="sr-only">Search notes</span><input id="note-search" type="search" placeholder="Search your notes" autocomplete="off"></label>
         <div class="list-caption">YOUR NOTES</div>
         <div id="tabs" role="tablist" aria-label="Notes" aria-orientation="vertical"></div>
-        <p id="search-empty" hidden>No notes found. Try another search.</p>
         <button id="open-trash" class="trash-button" type="button">Trash (0)</button>
         <div class="sidebar-foot"><img class="small-brand-mark" src="/favicon.png" alt="" width="27" height="27"><span>Bestpad</span></div>
       </aside>

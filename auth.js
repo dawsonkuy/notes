@@ -9,8 +9,11 @@
   const recoveryPassword = document.getElementById('recovery-password');
   const recoveryConfirm = document.getElementById('recovery-confirm');
   const forgotPassword = document.getElementById('forgot-password');
+  const signedInForgotPassword = document.getElementById('signed-in-forgot-password');
+  const deleteAccountButton = document.getElementById('delete-account');
+  const deleteStatus = document.getElementById('delete-account-status');
   let recoveryMode = false;
-  const controls = [...form.querySelectorAll('button'), ...recoveryForm.querySelectorAll('button'), document.getElementById('sign-out'), document.getElementById('delete-account')];
+  const controls = [...form.querySelectorAll('button'), ...recoveryForm.querySelectorAll('button'), document.getElementById('sign-out'), signedInForgotPassword, deleteAccountButton];
   const dialog = document.getElementById('login-dialog');
   const loginButton = document.getElementById('open-login');
   loginButton.addEventListener('click', () => {
@@ -25,9 +28,12 @@
   });
   let client;
   const message = text => { status.textContent = text; };
+  const deletionMessage = text => { deleteStatus.textContent = text; };
   const busy = value => { controls.forEach(button => { button.disabled = value; }); };
   const renderSession = session => {
     loginButton.textContent = session ? 'Account' : 'Login';
+    deleteAccountButton.hidden = !session;
+    document.getElementById('delete-account-signed-out').hidden = Boolean(session);
     if (recoveryMode) return;
     recoveryForm.hidden = true;
     form.hidden = Boolean(session);
@@ -97,11 +103,10 @@
       message(error.message || 'Unable to sign in. Please try again.');
     } finally { busy(false); }
   });
-  forgotPassword.addEventListener('click', async () => {
-    const email = document.getElementById('auth-email').value.trim();
+  const requestPasswordReset = async email => {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       message('Enter your account email address first.');
-      document.getElementById('auth-email').focus();
+      if (!form.hidden) document.getElementById('auth-email').focus();
       return;
     }
     busy(true); message('Requesting reset email…');
@@ -113,7 +118,9 @@
       message('If the address has an account, a password reset email will arrive. Open the link to set a new password.');
     } catch (error) { message(error.message || 'Could not request a reset. Try again.'); }
     finally { busy(false); }
-  });
+  };
+  forgotPassword.addEventListener('click', () => { void requestPasswordReset(document.getElementById('auth-email').value.trim()); });
+  signedInForgotPassword.addEventListener('click', () => { void requestPasswordReset(document.getElementById('account-email').textContent.trim()); });
   recoveryForm.addEventListener('submit', async event => {
     event.preventDefault();
     if (!recoveryMode) return;
@@ -145,9 +152,9 @@
     } catch (error) { message(error.message || 'Unable to sign out. Please try again.'); }
     finally { busy(false); }
   });
-  document.getElementById('delete-account').addEventListener('click', async () => {
+  deleteAccountButton.addEventListener('click', async () => {
     if (!confirm('Permanently delete your Bestpad account and all cloud notes, including Trash? This cannot be undone. Guest notes and appearance settings in this browser are kept.')) return;
-    busy(true); message('Deleting account…');
+    busy(true); deletionMessage('Deleting account…');
     let deleted = false;
     try {
       const { data: sessionData, error: sessionError } = await client.auth.getSession();
@@ -158,10 +165,10 @@
       deleted = true;
       await window.forgetDeletedAccount(userId);
       await client.auth.signOut({ scope: 'local' });
-      renderSession(null); message('Your account and cloud notes have been permanently deleted.');
+      renderSession(null); deletionMessage('Your account and cloud notes have been permanently deleted.');
     } catch (error) {
-      if (deleted) { await client.auth.signOut({ scope: 'local' }).catch(() => undefined); renderSession(null); message('Account deleted. A local recovery copy could not be removed from this browser.'); }
-      else message(error.message || 'Account deletion failed. Please try again.');
+      if (deleted) { await client.auth.signOut({ scope: 'local' }).catch(() => undefined); renderSession(null); deletionMessage('Account deleted. A local recovery copy could not be removed from this browser.'); }
+      else deletionMessage(error.message || 'Account deletion failed. Please try again.');
     } finally { busy(false); }
   });
 })();
