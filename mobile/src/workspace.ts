@@ -178,7 +178,9 @@ export class WorkspaceStore {
     const user = this.snapshot.user;
     if (!user || this.snapshot.loading || this.refreshing || this.writing || this.conflict) return;
     if (!this.ready) { await this.recoverConnection(); return; }
-    if (this.dirty) return;
+    // Foreground polling also serves as a watchdog for debounced saves whose
+    // timer was suspended when iOS backgrounded the app.
+    if (this.dirty) { await this.flush(); return; }
     const generation = this.generation, version = this.version;
     this.refreshing = true;
     try {
