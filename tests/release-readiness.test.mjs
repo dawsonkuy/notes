@@ -53,3 +53,14 @@ test('web note search is removed without affecting the note library', () => {
   assert.doesNotMatch(script, /note-search|search-empty/);
   assert.match(script, /features\.treeEntries\(workspaceValue\(\), expandedFolders\)/);
 });
+
+test('tapping the iOS BestPad logo restores the main notes library', () => {
+  const home = file('mobile/src/app/(tabs)/index.tsx');
+  assert.match(home, /accessibilityLabel="BestPad home"/);
+  assert.match(home, /onPress=\{showAllNotes\}/);
+  const action = home.match(/function showAllNotes\(\) \{([\s\S]*?)\n  \}/)?.[1];
+  assert.ok(action, 'Home action must exist');
+  assert.match(action, /setShowTrash\(false\)/);
+  assert.match(action, /setHomeRevision\(version => version \+ 1\)/);
+  assert.match(home, /<OrganizedLibrary key=\{\`home-\$\{homeRevision\}/);
+});
