@@ -125,3 +125,120 @@ test('renaming an unknown or trashed note never creates a new record', async () 
     assert.notEqual(f.store.getSnapshot().workspace.tabs.find(n => n.id === id)?.customName, 'Deleted');
   } finally { f.store.dispose(); }
 });
+
+test('retrying after an offline edit keeps the current workspace visible and later saves it', async () => {
+  const f = fixture();
+  try {
+    f.rows.set('alice', { workspace: f.workspace('Cloud before outage'), revision: 4 });
+    f.data.set('bestpad:mobile:workspace:alice', JSON.stringify({ ...f.workspace('Cloud before outage'), revision: 4, dirty: false }));
+    f.setOffline(true);
+    await f.store.connect('alice');
+    assert.equal(f.store.getSnapshot().status, 'offline');
+    f.store.updateNote({ ...f.store.getSnapshot().workspace.tabs[0], text: 'Unsaved offline text' });
+    f.setOffline(false);
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const originalRead = f.remote.read;
+    f.remote.read = async user => { await gate; return originalRead(user); };
+    const retry = f.store.retry();
+    assert.equal(f.store.getSnapshot().loading, false, 'retry must not unmount editor');
+    assert.equal(f.store.getSnapshot().workspace.tabs[0].text, 'Unsaved offline text');
+    release();
+    await retry;
+    assert.equal(f.store.getSnapshot().status, 'pending');
+    await f.store.flush();
+    assert.equal(f.store.getSnapshot().status, 'saved');
+    assert.equal(f.rows.get('alice')?.workspace.tabs[0].text, 'Unsaved offline text');
+  } finally { f.store.dispose(); }
+});
+
+test('reconnect detects a newer cloud revision without overwriting offline edits', async () => {
+  const f = fixture();
+  try {
+    f.rows.set('alice', { workspace: f.workspace('Old cloud'), revision: 1 });
+    f.data.set('bestpad:mobile:workspace:alice', JSON.stringify({ ...f.workspace('Old cloud'), revision: 1, dirty: false }));
+    f.setOffline(true);
+    await f.store.connect('alice');
+    f.store.updateNote({ ...f.store.getSnapshot().workspace.tabs[0], text: 'Offline local' });
+    f.rows.set('alice', { workspace: f.workspace('Updated elsewhere'), revision: 2 });
+    f.setOffline(false);
+    await f.store.retry();
+    assert.equal(f.store.getSnapshot().status, 'conflict');
+    assert.equal(f.store.getSnapshot().workspace.tabs[0].text, 'Offline local');
+    await f.store.flush();
+    assert.equal(f.rows.get('alice')?.workspace.tabs[0].text, 'Updated elsewhere');
+  } finally { f.store.dispose(); }
+});
+
+test('deadline rejects a stalled remote operation without accepting a late result', async () => {
+  const { withDeadline } = await import('../src/workspace');
+  let complete!: (value: number) => void;
+  const slow = new Promise<number>(resolve => { complete = resolve; });
+  await assert.rejects(withDeadline(slow, 5), /timed out/);
+  complete(42);
+});
+
+test('importing an exported backup adds unique notes without replacing existing ones', async () => {
+  const { mergeWorkspaceNotes, parseWorkspaceBackup, serializeWorkspaceBackup } = await import('../src/backupData');
+  const current = { tabs: [{ ...newNote('existing'), text: 'Current account note' }], activeId: 'existing' };
+  const imported = { folders: [{ id: 'folder-1', name: 'Archive', parentId: null }], tabs: [
+    { ...newNote('existing'), text: 'Old backup version' },
+    { ...newNote('other'), text: 'Recovered', folderId: 'folder-1' },
+  ], activeId: 'existing' };
+  const payload = parseWorkspaceBackup(serializeWorkspaceBackup(imported));
+  const merged = mergeWorkspaceNotes(current, payload, () => 'unused');
+  assert.equal(merged.added, 1);
+  assert.equal(merged.skipped, 1);
+  assert.equal(merged.workspace.tabs.find(note => note.id === 'existing')?.text, 'Current account note');
+  assert.equal(merged.workspace.tabs.find(note => note.id === 'other')?.text, 'Recovered');
+  assert.equal(merged.workspace.tabs.find(note => note.id === 'other')?.folderId, 'folder-1');
+  assert.equal(merged.workspace.activeId, 'existing');
+  assert.throws(() => parseWorkspaceBackup('{"format":"wrong"}'), /valid BestPad JSON/);
+});
+
+test('guest notes are imported by ID and remain accessible as guest notes', async () => {
+  const f = fixture();
+  try {
+    await f.store.connect(null);
+    const guest = f.store.getSnapshot().workspace.tabs[0];
+    f.store.updateNote({ ...guest, text: 'Guest original' });
+    await tick();
+    f.rows.set('alice', { workspace: f.workspace('Existing account'), revision: 2 });
+    await f.store.connect('alice');
+    const result = await f.store.importGuestNotes();
+    assert.equal(result.added, 1);
+    assert.ok(f.store.getSnapshot().workspace.tabs.some(note => note.text === 'Guest original'));
+    await f.store.flush();
+    assert.ok(f.rows.get('alice')?.workspace.tabs.some(note => note.text === 'Guest original'));
+    await f.store.connect(null);
+    assert.ok(f.store.getSnapshot().workspace.tabs.some(note => note.text === 'Guest original'));
+  } finally { f.store.dispose(); }
+});
+
+test('watchdog resumes pending changes if the original save timer was suspended', async () => {
+  const f = fixture();
+  try {
+    f.rows.set('alice', { workspace: f.workspace('Before'), revision: 2 });
+    await f.store.connect('alice');
+    f.store.updateNote({ ...f.store.getSnapshot().workspace.tabs[0], text: 'Pending edit' });
+    await f.store.refresh();
+    assert.equal(f.rows.get('alice')?.workspace.tabs[0].text, 'Pending edit');
+    assert.equal(f.store.getSnapshot().status, 'saved');
+  } finally { f.store.dispose(); }
+});
+
+test('successful mobile cloud save reaches green saved state and does not keep reuploading', async () => {
+  const f = fixture();
+  try {
+    f.rows.set('alice', { workspace: f.workspace('Before'), revision: 1 });
+    await f.store.connect('alice');
+    f.store.updateNote({ ...f.store.getSnapshot().workspace.tabs[0], text: 'Finished typing' });
+    assert.equal(f.store.getSnapshot().status, 'pending');
+    await f.store.flush();
+    assert.equal(f.store.getSnapshot().status, 'saved');
+    const writes = f.writeCount();
+    await new Promise(resolve => setTimeout(resolve, 800));
+    assert.equal(f.writeCount(), writes, 'a completed save should not be uploaded again without new edits');
+    assert.equal(f.store.getSnapshot().status, 'saved');
+  } finally { f.store.dispose(); }
+});

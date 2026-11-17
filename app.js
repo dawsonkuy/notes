@@ -302,7 +302,10 @@ async function flushCloud() {
     }
     if (error) throw error;
     cloudRevision = data[0].revision;
-    cloudDirty = notesPayload() !== JSON.stringify(snapshot.tabs);
+    // Compare the same notes-and-folders shape used to mark edits dirty.
+    // Comparing that object to snapshot.tabs alone can never be equal and
+    // causes infinite cloud uploads and a permanently yellow save indicator.
+    cloudDirty = notesPayload() !== JSON.stringify({ tabs: snapshot.tabs, folders: snapshot.folders || [] });
     cacheNotes();
     $('save-status').textContent = cloudDirty ? 'Saved locally · waiting to sync…' : 'Saved to cloud';
   } catch {

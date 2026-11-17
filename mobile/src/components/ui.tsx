@@ -11,6 +11,14 @@ export function Button({ label, onPress, icon, disabled, primary = false }: { la
 }
 export function IconButton({ label, name, onPress, disabled }: { label: string; name: IconName; onPress: () => void; disabled?: boolean }) { const { colors } = useBestpad(); return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: Boolean(disabled) }} onPress={onPress} disabled={disabled} style={({ pressed }) => [ui.iconButton, { backgroundColor: pressed ? colors.selected : 'transparent', opacity: disabled ? .4 : 1 }]}><Icon name={name} /></Pressable>; }
 const messages: Record<Status, string> = { loading: 'Loading notes…', local: 'Saved on this device', pending: 'Waiting to sync…', saving: 'Saving to cloud…', saved: 'Saved to cloud', offline: 'Offline · local copy kept', conflict: 'Cloud conflict · local copy kept', 'cache-error': 'Local save failed · share a backup' };
-export function SaveStatus({ status }: { status: Status }) { const { colors } = useBestpad(); const error = ['offline', 'conflict', 'cache-error'].includes(status); return <View style={ui.status}><View style={[ui.dot, { backgroundColor: error ? '#d38c67' : ['pending', 'saving'].includes(status) ? '#c8aa61' : '#80b494' }]} /><Text accessibilityLiveRegion="polite" style={{ color: colors.muted, fontSize: 11, flexShrink: 1 }}>{messages[status]}</Text></View>; }
+export function SaveStatus({ status }: { status: Status }) {
+  const { colors } = useBestpad();
+  // Green means fully saved; yellow means a load/write is still in progress;
+  // orange means the app could not confirm the save and kept its local copy.
+  const error = ['offline', 'conflict', 'cache-error'].includes(status);
+  const waiting = ['loading', 'pending', 'saving'].includes(status);
+  const dotColor = error ? '#d38c67' : waiting ? '#c8aa61' : '#80b494';
+  return <View style={ui.status}><View style={[ui.dot, { backgroundColor: dotColor }]} /><Text accessibilityLiveRegion="polite" style={{ color: colors.muted, fontSize: 11, flexShrink: 1 }}>{messages[status]}</Text></View>;
+}
 export function Section({ title, children }: { title: string; children: React.ReactNode }) { const { colors } = useBestpad(); return <View style={{ marginBottom: 24 }}><Text style={{ color: colors.muted, fontSize: 11, fontWeight: '600', letterSpacing: 1, marginBottom: 12 }}>{title.toUpperCase()}</Text>{children}</View>; }
 export const ui = StyleSheet.create({ button: { minHeight: 46, borderRadius: 13, paddingHorizontal: 16, paddingVertical: 12, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, iconButton: { minWidth: 44, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, row: { flexDirection: 'row', alignItems: 'center', gap: 10 }, status: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1, minWidth: 0 }, dot: { width: 5, height: 5, borderRadius: 3 }, title: { fontSize: 34, letterSpacing: -1, fontWeight: '700' }, input: { minHeight: 48, borderRadius: 12, borderWidth: 1, padding: 13, fontSize: 16 }, container: { flex: 1 }, content: { padding: 24, paddingBottom: 40, gap: 18 } });

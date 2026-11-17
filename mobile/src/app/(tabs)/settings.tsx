@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Alert, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { randomUUID } from 'expo-crypto';
+import { File } from 'expo-file-system';
+import { parseWorkspaceBackup } from '../../backupData';
 import { router } from 'expo-router';
 import { defaults, saveTheme, type Colors } from '../../appearance';
 import { useBestpad } from '../../context';
@@ -10,7 +12,7 @@ import { ColorEditor } from '../../components/ColorEditor';
 import { Button, Icon, IconButton, SaveStatus, Section, ui } from '../../components/ui';
 export default function Settings() {
   const { appearance, appearanceReady, appearanceError, setAppearance, colors, session, snapshot, store } = useBestpad();
-  const [part, setPart] = useState<keyof Colors | null>(null), [name, setName] = useState(''), [busy, setBusy] = useState(false), [deleting, setDeleting] = useState(false);
+  const [part, setPart] = useState<keyof Colors | null>(null), [name, setName] = useState(''), [busy, setBusy] = useState(false), [deleting, setDeleting] = useState(false), [importing, setImporting] = useState(false);
   const names = { font: 'Font', primary: 'Primary', secondary: 'Secondary' };
   const legalLinks = [
     { title: 'Privacy Policy', description: 'How your notes and account data are handled', url: 'https://bestpad.app/privacy.html' },
@@ -20,6 +22,37 @@ export default function Settings() {
   ] as const;
   function openLegalPage(url: string) {
     void Linking.openURL(url).catch(() => Alert.alert('Unable to open page', 'Check your internet connection and try again.'));
+  }
+  async function importFromBackup() {
+    if (importing || snapshot.loading) return;
+    setImporting(true);
+    try {
+      const selected = await File.pickFileAsync({ mimeTypes: ['application/json', 'text/plain'] });
+      if (selected.canceled) return;
+      const file = selected.result;
+      if (file.size > 12_000_000) throw new Error('Backup is too large.');
+      const imported = parseWorkspaceBackup(await file.text());
+      Alert.alert('Import BestPad backup?', 'This adds notes and folders from your backup. Existing notes are never overwritten, and notes with duplicate IDs are skipped. Save your current notes before importing.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Import notes', onPress: () => {
+          try {
+            const result = store.importWorkspace(imported);
+            Alert.alert('Import complete', `${result.added} notes added, ${result.skipped} skipped, and ${result.foldersAdded} folders added. Wait for Saved to cloud before switching devices.`);
+          } catch (error) { Alert.alert('Import failed', error instanceof Error ? error.message : 'Your existing notes were kept.'); }
+        } },
+      ]);
+    } catch (error) { Alert.alert('Could not open backup', error instanceof Error ? error.message : 'Select a BestPad JSON backup.'); }
+    finally { setImporting(false); }
+  }
+  function confirmGuestImport() {
+    Alert.alert('Import guest notes?', 'Add guest notes from this iPhone to your signed-in account? Existing account notes are kept, and the original guest notes remain on this device.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Import', onPress: () => {
+        void store.importGuestNotes().then(result => {
+          Alert.alert('Guest import complete', `${result.added} notes added and ${result.skipped} skipped. Wait for Saved to cloud before signing out.`);
+        }).catch(error => Alert.alert('Import failed', error instanceof Error ? error.message : 'Guest notes were not imported.'));
+      } },
+    ]);
   }
   async function signOut() { setBusy(true); try { await store.flush(); const { error } = await supabase.auth.signOut({ scope: 'local' }); if (error) throw error; } catch (error) { Alert.alert('Sign out failed', error instanceof Error ? error.message : 'Please try again.'); } finally { setBusy(false); } }
   function confirmDelete() {
@@ -46,6 +79,13 @@ export default function Settings() {
   return <SafeAreaView edges={['top', 'left', 'right']} style={[ui.container, { backgroundColor: colors.primary }]}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ui.content}>
     <Text style={[ui.title, { color: colors.font, marginBottom: 8 }]}>Settings</Text>
     <Section title="Account">{session ? <View style={{ gap: 12 }}><Text style={{ color: colors.font }}>{session.user.email}</Text><SaveStatus status={snapshot.status} /><Button label={busy ? 'Signing out…' : 'Sign out'} disabled={busy || deleting} onPress={() => { void signOut(); }} /></View> : <Button label="Login / Create account" icon="person-outline" onPress={() => router.push('/login')} />}<Text style={{ color: colors.muted, fontSize: 11, lineHeight: 18, marginTop: 10 }}>{session ? 'Notes sync with your Bestpad account.' : 'Notes stay on this device until you use an account. Guest and account workspaces are separate.'}</Text></Section>
+    <Section title="Backups & recovery">
+      <View style={{ gap: 10 }}>
+        <Button label={importing ? 'Opening backup…' : 'Import JSON backup'} icon="document-attach-outline" disabled={importing || snapshot.loading || snapshot.status === 'conflict'} onPress={() => { void importFromBackup(); }} />
+        {session && <Button label="Import guest notes into account" icon="person-add-outline" disabled={snapshot.loading || snapshot.status === 'conflict'} onPress={confirmGuestImport} />}
+      </View>
+      <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 18, marginTop: 8 }}>Imports add missing notes; they never replace existing notes. Protected notes keep their original IDs so passwords still work. Use Notes → Export all before major recovery operations.</Text>
+    </Section>
     <Section title="Mode"><View style={ui.row}>{(['light', 'dark'] as const).map(mode => <View key={mode} style={{ flex: 1 }}><Button disabled={!appearanceReady} label={mode === 'light' ? 'Light' : 'Dark'} primary={appearance.mode === mode} icon={mode === 'light' ? 'sunny-outline' : 'moon-outline'} onPress={() => { setAppearance(current => ({ ...current, mode, colors: { ...defaults[mode] }, selected: null })); setName(''); }} /></View>)}</View></Section>
     <Section title="Customize colors"><View style={ui.row}>{(['font', 'primary', 'secondary'] as const).map(key => <Pressable key={key} accessibilityRole="button" accessibilityLabel={`Edit ${names[key]} color`} accessibilityState={{ selected: part === key }} disabled={!appearanceReady} onPress={() => setPart(key)} style={{ flex: 1, padding: 12, minHeight: 95, borderRadius: 13, backgroundColor: colors.secondary, borderWidth: 1, borderColor: part === key ? colors.font : colors.border }}><View style={{ width: 24, height: 24, borderRadius: 7, backgroundColor: appearance.colors[key], borderWidth: 1, borderColor: colors.muted, marginBottom: 12 }} /><Text style={{ color: colors.font, fontSize: 12 }}>{names[key]}</Text></Pressable>)}</View>{part && <ColorEditor key={part} value={appearance.colors[part]} label={names[part]} onClose={() => setPart(null)} onChange={value => setAppearance(current => ({ ...current, colors: { ...current.colors, [part]: value } }))} />}</Section>
     <Section title={`Your themes · ${appearance.themes.length}/4`}><View style={{ gap: 9 }}>{appearance.themes.length === 0 && <Text style={{ color: colors.muted, fontSize: 12 }}>No saved themes.</Text>}{appearance.themes.map(theme => <View key={theme.id} style={ui.row}><Pressable accessibilityRole="button" accessibilityLabel={`Apply ${theme.name}`} accessibilityState={{ selected: appearance.selected === theme.id }} onPress={() => { setAppearance(current => ({ ...current, mode: theme.mode, colors: { ...theme.colors }, selected: theme.id })); setName(theme.name); }} style={{ flex: 1, minHeight: 48, borderRadius: 12, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.secondary, borderWidth: 1, borderColor: appearance.selected === theme.id ? colors.font : colors.border }}><View style={{ flexDirection: 'row' }}>{(['primary', 'secondary', 'font'] as const).map(key => <View key={key} style={{ width: 14, height: 22, backgroundColor: theme.colors[key], borderWidth: .5, borderColor: colors.border }} />)}</View><Text numberOfLines={1} style={{ color: colors.font, flex: 1, fontSize: 13 }}>{theme.name}</Text></Pressable><IconButton label={`Delete theme ${theme.name}`} name="close" onPress={() => setAppearance(current => ({ ...current, themes: current.themes.filter(t => t.id !== theme.id), selected: current.selected === theme.id ? null : current.selected }))} /></View>)}</View>

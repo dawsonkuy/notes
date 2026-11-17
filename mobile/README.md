@@ -37,7 +37,7 @@ Expo may prompt to install its tunnel package. This needs internet access and a 
 - Email/password sign-in and account creation against your existing Supabase project.
 - Local saving with a recovery copy, 250 ms debounced cloud saving, and five-second retries after failed writes while the app is active.
 - Existing note names, headings, checked/unchecked checklist items, and dividers are retained when editing website notes.
-- Insert Heading, Current time, or Current date. Typing `/insert` at the cursor also opens the Insert sheet.
+- Use Add for headings, lists, date/time, Bold, and Italic. Typing `/add` at the cursor also opens the Add sheet.
 - Native system sharing of a plain-text copy.
 - Light/Dark modes, color-wheel and hex editing for Font / Primary / Secondary, up to four named custom themes, four font choices, and three text sizes.
 
@@ -57,7 +57,7 @@ Trash, restore, and permanent deletion sync with the website using the existing 
 
 ## Delete an account
 
-In the app, open **Settings → Account → Delete account**. On the website, open **Account → Delete account**. Confirm the permanent deletion. This deletes the signed-in Auth user and all their cloud notes (including Trash), clears that account's recovery cache on this device, and signs out. Guest notes and appearance preferences are kept. A failed server request keeps the account signed in and shows an error.
+In the app, open **Settings → Account → Delete account**. On the website, open **Settings → Account deletion**. Confirm the permanent deletion. This deletes the signed-in Auth user and all their cloud notes (including Trash), clears that account's recovery cache on this device, and signs out. Guest notes and appearance preferences are kept. A failed server request keeps the account signed in and shows an error.
 
 The server endpoint is in `supabase/functions/delete-account/`. It verifies the access token with Supabase Auth and uses only that verified user ID. Its service-role key is a server environment secret, never an app setting. The existing `ON DELETE CASCADE` foreign key removes the user's `note_workspaces` row. The function performs its own authentication, so gateway JWT verification is disabled in `supabase/config.toml`.
 
@@ -96,7 +96,7 @@ npm run web
 A later TestFlight/App Store release can use EAS Build. No Apple Developer account is needed for testing in Expo Go.
 
 ## Headings and lists (App Store editor)
-The Insert sheet and `/insert` menu provide H1 (large), H2 (medium), H3 (small), bulleted lists, numbered lists, and checked/unchecked to-do lists, along with date and time. Pressing Return after a heading moves to normal text; pressing Return inside a list adds the next item, and pressing Return on an empty list item returns to plain text. Rich formatting persists in the existing `note_workspaces.tabs[].content` Quill Delta format without a database migration. Test editing the same note on mobile and on the website, including offline conflict recovery.
+The Add sheet and `/add` menu provide H1 (large), H2 (medium), H3 (small), bulleted lists, numbered lists, and checked/unchecked to-do lists, along with date and time. Pressing Return after a heading moves to normal text; pressing Return inside a list adds the next item, and pressing Return on an empty list item returns to plain text. Rich formatting persists in the existing `note_workspaces.tabs[].content` Quill Delta format without a database migration. Test editing the same note on mobile and on the website, including offline conflict recovery.
 
 ## App Store release preparation
 
@@ -127,3 +127,14 @@ The browser crypto/organization bundle is generated from the same native source.
 ```bash
 ./mobile/node_modules/.bin/esbuild mobile/src/web-features.ts --bundle --platform=browser --format=iife --global-name=BestpadFeatures --target=es2020 --outfile=note-features.js
 ```
+
+## Reliability and recovery improvements
+
+- Cloud reconnects now retry in place without unmounting the editor or replacing unsaved offline text. The existing workspace revision guard still blocks overwrites after concurrent cloud updates. Requests and local-cache waits have deadlines and show an offline/local-cache warning if they fail. Pending edits are retried by foreground polling if iOS suspends a debounce timer.
+- The native editor displays formatted bold/italic text when a paragraph is idle and uses a controlled plain text field while editing, avoiding the React Native nested-rich-TextInput duplication bug. Inline formatting is still stored in the shared Delta format; rich presentation resumes when editing ends.
+- In iOS **Settings → Backups & recovery**, **Import JSON backup** opens the Files picker and merges missing notes without overwriting existing note IDs. **Import guest notes into account** is shown for signed-in users; it copies locally saved guest notes into the account while leaving the guest workspace unchanged. Existing note IDs are skipped, and password-protected note IDs are never regenerated (their encryption metadata depends on those IDs).
+- The logo on the Notes screen returns to the top of the all-notes library; this was merged in PR #9.
+
+**Release testing:** Run `npm run typecheck`, `npm run lint`, `npm test` from `mobile/` and the root release tests before making a TestFlight build. On a physical iPhone, verify login/logout, cloud timeout recovery, offline typing, cross-device sync, account guest-note import, JSON backup import, and formatted text edits.
+
+**App Store support:** The public support page currently provides a public GitHub issue tracker only. Before submitting the App Store listing, configure and verify a real private incoming support address and add it to `support.html`; an outbound transactional-email SMTP sender does not by itself create a receiving inbox.
