@@ -48,7 +48,7 @@ export function starterNoteId(workspace: Workspace): string | null {
   if (notes.length !== 1) return null;
   const note = notes[0];
   if (note.text || note.customName || note.filename !== 'Untitled' || note.order != null || note.pinned || note.folderId || note.sealed) return null;
-  if (Array.isArray(note.content) && !note.content.every(op => op && typeof op.insert === 'string' && op.insert === '\n')) return null;
+  if (Array.isArray(note.content) && !note.content.every(op => op && typeof op.insert === 'string' && op.insert === '\n' && !op.attributes)) return null;
   return note.id;
 }
 export const newNote = (id: string): Note => ({ id, text: '', filename: 'Untitled', customName: null });
