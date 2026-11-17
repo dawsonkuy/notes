@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import Constants from 'expo-constants';
 import { useBestpad } from '../../context';
 import { saveWorkspaceBackup } from '../../backup';
 import { isTrashed, noteName } from '../../model';
@@ -41,20 +40,6 @@ export default function Notes() {
     store.rename(renameId, automatic ? null : renameDraft);
     setRenameId(null);
   }
-  async function exportNotes() {
-    if (snapshot.loading || exporting) return;
-    setExporting(true);
-    try {
-      await saveWorkspaceBackup(store.getSnapshot().workspace);
-      Alert.alert('Backup saved', Platform.OS === 'ios' && Constants.appOwnership !== 'expo'
-        ? 'A JSON copy of all notes, including Trash, was saved in Files → On My iPhone → Bestpad. Keep an external copy too.'
-        : 'A complete JSON backup was created. Save a separate copy with the share sheet so you can recover it outside this app.');
-    } catch (error) {
-      Alert.alert('Backup failed', error instanceof Error ? error.message : 'Could not save your notes. Try again before replacing anything.');
-    } finally {
-      setExporting(false);
-    }
-  }
   async function backupThenUseCloud() {
     if (snapshot.loading || exporting) return;
     setExporting(true);
@@ -85,22 +70,21 @@ export default function Notes() {
         <Image source={require('../../../assets/icon.png')} style={{ width: 26, height: 26, tintColor: colors.font }} />
         <Text style={{ color: colors.font, fontWeight: '700', fontSize: 18 }}>bestpad</Text>
       </Pressable>
-      <View style={[ui.row, { marginTop: 26, justifyContent: 'space-between' }]}>
-        <Text style={[ui.title, { color: colors.font }]}>{showTrash ? 'Trash' : 'Notes'}</Text>
-        <View style={{ gap: 8 }}><Pressable disabled={snapshot.loading} accessibilityRole="button" accessibilityLabel="New note" onPress={() => { setShowTrash(false); open(store.add()); }} style={({ pressed }) => [styles.new, { backgroundColor: colors.font, opacity: snapshot.loading ? .4 : pressed ? .7 : 1, transform: [{ scale: pressed ? .95 : 1 }] }]}>
-          <Icon name="add" size={20} color={colors.primary} /><Text style={{ color: colors.primary, fontWeight: '600' }}>New note</Text>
-        </Pressable><Button label="New folder" icon="folder-open-outline" disabled={snapshot.loading} onPress={() => { setFolderName(''); setNewFolder(true); }} /></View>
+      <View style={{ marginTop: 18, marginBottom: 8 }}>
+        <View style={[ui.row, { justifyContent: 'space-between' }]}>
+          <SaveStatus status={snapshot.status} />
+          <Text style={{ color: colors.muted, fontSize: 11 }}>{notes.length} {notes.length === 1 ? 'note' : 'notes'}</Text>
+        </View>
       </View>
-      <View style={[ui.row, { justifyContent: 'space-between', marginTop: 16 }]}>
-        <SaveStatus status={snapshot.status} />
-        <Text style={{ color: colors.muted, fontSize: 11 }}>{notes.length} {notes.length === 1 ? 'note' : 'notes'}</Text>
-      </View>
-      <View style={[ui.row, { justifyContent: 'space-between', marginTop: 16 }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={showTrash ? 'Back to notes' : 'Open Trash'} onPress={() => setShowTrash(value => !value)} style={({ pressed }) => [styles.utility, { backgroundColor: pressed ? colors.selected : colors.secondary }]}>
-          <Icon name={showTrash ? 'chevron-back' : 'trash-outline'} size={16} /><Text style={{ color: colors.font, fontSize: 13 }}>{showTrash ? 'Back to notes' : `Trash (${trashCount})`}</Text>
+      <View style={[ui.row, { gap: 6, marginTop: 8, marginBottom: 5 }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="New note" disabled={snapshot.loading} onPress={() => { setShowTrash(false); open(store.add()); }} style={({ pressed }) => [styles.action, { flex: 1, backgroundColor: colors.font, opacity: snapshot.loading ? .4 : pressed ? .7 : 1 }]}>
+          <Icon name="add" size={17} color={colors.primary} /><Text numberOfLines={1} style={{ color: colors.primary, fontSize: 12, fontWeight: '600' }}>New note</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Export all notes as JSON backup" disabled={snapshot.loading || exporting} onPress={() => { void exportNotes(); }} style={[ui.row, { minHeight: 44, opacity: snapshot.loading || exporting ? .5 : 1 }]}>
-          <Icon name="download-outline" size={18} /><Text style={{ color: colors.font, fontSize: 13 }}>{exporting ? 'Exporting…' : 'Export all'}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="New folder" disabled={snapshot.loading} onPress={() => { setShowTrash(false); setFolderName(''); setNewFolder(true); }} style={({ pressed }) => [styles.action, { flex: 1, backgroundColor: pressed ? colors.selected : colors.secondary, opacity: snapshot.loading ? .4 : 1 }]}>
+          <Icon name="folder-open-outline" size={16} /><Text numberOfLines={1} style={{ color: colors.font, fontSize: 12, fontWeight: '600' }}>New folder</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={showTrash ? 'Back to notes' : 'Open Trash'} onPress={() => setShowTrash(value => !value)} style={({ pressed }) => [styles.action, { flex: 1, backgroundColor: pressed ? colors.selected : colors.secondary }]}>
+          <Icon name={showTrash ? 'chevron-back' : 'trash-outline'} size={16} /><Text numberOfLines={1} style={{ color: colors.font, fontSize: 12, fontWeight: '600' }}>{showTrash ? 'Back' : `Trash (${trashCount})`}</Text>
         </Pressable>
       </View>
       {['pending', 'offline'].includes(snapshot.status) && <Pressable onPress={() => { void store.retry(); }} accessibilityRole="button" style={{ paddingVertical: 10, minHeight: 44, justifyContent: 'center' }}><Text style={{ color: colors.font, fontSize: 12 }}>Retry sync</Text></Pressable>}
@@ -127,9 +111,8 @@ export default function Notes() {
 }
 const styles = StyleSheet.create({
   header: { padding: 24, paddingBottom: 6 },
-  new: { width: 140, height: 46, borderRadius: 13, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  action: { minHeight: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 5, paddingHorizontal: 5 },
   card: { flexDirection: 'row', alignItems: 'flex-start', borderRadius: 18, borderWidth: 1, paddingRight: 5, paddingTop: 4 },
-  utility: { minHeight: 44, paddingHorizontal: 12, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 7 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 32 },
   undo: { position: 'absolute', bottom: 16, left: 24, right: 24, flexDirection: 'row', alignItems: 'center', borderRadius: 16, borderWidth: 1, paddingLeft: 16, paddingRight: 4, paddingVertical: 4, boxShadow: '0px 4px 18px rgba(0,0,0,0.12)' },
   modalBackdrop: { flex: 1, backgroundColor: '#0008', justifyContent: 'center', padding: 22 },
