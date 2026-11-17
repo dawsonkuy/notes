@@ -209,10 +209,6 @@ function NoteEditor({ note }: { note: Note }) {
       </ScrollView>
     </View>
     <Modal visible={insertOpen} transparent animationType="fade" onRequestClose={dismissInsert}><Pressable accessibilityRole="button" accessibilityLabel="Close Add menu" onPress={dismissInsert} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#0006' }}><Pressable accessibilityRole="none" onPress={() => undefined} style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 20), maxHeight: '78%', backgroundColor: colors.secondary, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}><Text style={{ color: colors.muted, marginBottom: 10 }}>Add</Text>
-      <View style={[ui.row, { marginBottom: 10 }]}>
-        <View style={{ flex: 1 }}><Button label="Bold" onPress={() => { dismissInsert(); toggleInline('bold'); }} /></View>
-        <View style={{ flex: 1 }}><Button label="Italic" onPress={() => { dismissInsert(); toggleInline('italic'); }} /></View>
-      </View>
       <ScrollView keyboardShouldPersistTaps="always">{([{ kind: 'bullet-list', label: 'Bulleted list', icon: 'list-outline' }, { kind: 'numbered-list', label: 'Numbered list', icon: 'list-outline' }, { kind: 'checklist', label: 'Checklist', icon: 'checkbox-outline' }, { kind: 'time', label: 'Current time', icon: 'time-outline' }, { kind: 'date', label: 'Current date', icon: 'calendar-outline' }] as const).map(item => <Pressable key={item.kind} accessibilityRole="button" accessibilityLabel={item.label} onPress={() => insert(item.kind)} style={[ui.row, { minHeight: 54 }]}><Icon name={item.icon} /><Text style={{ color: colors.font, fontSize: 16 }}>{item.label}</Text></Pressable>)}</ScrollView></Pressable></Pressable></Modal>
   </KeyboardAvoidingView></SafeAreaView>;
 }
