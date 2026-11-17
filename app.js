@@ -1037,7 +1037,7 @@ function bindItemDrag(element, entry) {
 }
 function beginLibraryDrag() {
   const drag = libraryDrag; if (!drag || !drag.element.isConnected) return;
-  clearTimeout(drag.timer); drag.active = true; drag.list = $('tabs'); drag.hidden = [];
+  clearTimeout(drag.timer); drag.active = true; drag.list = $('tabs'); drag.hidden = []; drag.lastPassedItem = null; drag.lastPassFeedbackAt = Date.now();
   // Move an expanded folder as one compact item; restore its contents on release.
   let sibling = drag.element.nextElementSibling;
   while (drag.entry.kind === 'folder' && sibling?.dataset.entry) {
@@ -1072,6 +1072,16 @@ function moveLibraryDrag(clientY) {
     if (entry) { const siblings = features.entries(workspaceValue(), entry.parentId), index = siblings.findIndex(item => item.id === entry.id); drag.destination = { parent: entry.parentId, before: projection.direction > 0 ? siblings[index + 1]?.id : entry.id }; }
     else drag.destination = null;
     drag.settle = Math.max(listBox.top + 2, Math.min(projection.settleTop, listBox.bottom - 2 - source.height)) - source.top;
+  }
+  // Vibrate lightly only when crossing into a new row/folder on supported browsers.
+  const crossedItem = overFolder ? `folder:${overFolder.id}` : projection.over ? `row:${projection.over}` : null;
+  if (crossedItem !== drag.lastPassedItem) {
+    drag.lastPassedItem = crossedItem;
+    const now = Date.now();
+    if (crossedItem && now - drag.lastPassFeedbackAt >= 75 && typeof navigator.vibrate === 'function') {
+      drag.lastPassFeedbackAt = now;
+      navigator.vibrate(6);
+    }
   }
   if (clientY < listBox.top + 24) drag.list.scrollTop -= 8;
   if (clientY > listBox.bottom - 24) drag.list.scrollTop += 8;
