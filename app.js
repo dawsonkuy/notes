@@ -188,9 +188,7 @@ $('editor').addEventListener('input', save);
 function renderTabs() {
   if (libraryDrag?.active) finishLibraryDrag(false);
   $('tabs').replaceChildren(); renderTrash(); $('note-total').textContent = liveTabs().length;
-  const query = $('note-search').value.trim().toLocaleLowerCase();
-  const items = features.treeEntries(workspaceValue(), expandedFolders).filter(item => !query || item.name.toLocaleLowerCase().includes(query) || (tabs.find(note => note.id === item.id)?.text || '').toLocaleLowerCase().includes(query));
-  $('search-empty').hidden = items.length > 0;
+  const items = features.treeEntries(workspaceValue(), expandedFolders);
   items.forEach(entry => {
     const item = document.createElement('div'); item.className = 'tab'; item.dataset.entry = entry.id; item.style.marginLeft = `${entry.depth * 18}px`; item.style.width = `calc(100% - ${entry.depth * 18}px)`; item.draggable = false;
     const button = document.createElement('button'); button.type = 'button'; button.draggable = false; button.className = 'library-open';
@@ -239,7 +237,6 @@ function showTab() {
 function switchTab(id, keepSidebar = false) { if (!tabs.some(note => note.id === id && !isTrashed(note))) return; save(); activeId = id; showTab(); save(); if (!keepSidebar) setNotesDrawer(false); }
 function addTab(text = '', filename = 'Untitled') {
   if ($('add-tab').disabled) return;
-  $('note-search').value = '';
   save(); const tab = { ...makeTab(text, filename), folderId: currentFolder, order: Date.now() }; tabs.push(tab); activeId = tab.id;
   showTab(); save(); closeMenus(); setNotesDrawer(false);
 }
@@ -444,7 +441,6 @@ async function loadAccount(userId) {
   let cached;
   try { cached = JSON.parse(localStorage.getItem(storageKey)); } catch { /* Keep recovery available through local storage. */ }
   const empty = () => { const tab = makeTab(); return { tabs: [tab], activeId: tab.id }; };
-  $('note-search').value = '';
   useWorkspace(validWorkspace(cached) ? cached : empty());
   if (!userId) { $('save-status').textContent = 'Saved locally'; return; }
   setEditorEnabled(false);
@@ -713,7 +709,6 @@ function setNotesDrawer(open, returnFocus = false) {
 $('toggle-notes').onclick = () => setNotesDrawer(!$('notepad').classList.contains('notes-open'));
 $('close-notes').onclick = () => setNotesDrawer(false, true);
 $('notes-backdrop').onclick = () => setNotesDrawer(false, true);
-$('note-search').addEventListener('input', renderTabs);
 $('rename-current').onclick = () => { if (!$('editor').disabled) renameTab(active()); };
 $('download-current').onclick = () => downloadTab(active());
 $('share-current').onclick = () => shareTab(active());
