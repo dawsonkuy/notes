@@ -125,3 +125,55 @@ test('renaming an unknown or trashed note never creates a new record', async () 
     assert.notEqual(f.store.getSnapshot().workspace.tabs.find(n => n.id === id)?.customName, 'Deleted');
   } finally { f.store.dispose(); }
 });
+
+test('retrying after an offline edit keeps the current workspace visible and later saves it', async () => {
+  const f = fixture();
+  try {
+    f.rows.set('alice', { workspace: f.workspace('Cloud before outage'), revision: 4 });
+    f.data.set('bestpad:mobile:workspace:alice', JSON.stringify({ ...f.workspace('Cloud before outage'), revision: 4, dirty: false }));
+    f.setOffline(true);
+    await f.store.connect('alice');
+    assert.equal(f.store.getSnapshot().status, 'offline');
+    f.store.updateNote({ ...f.store.getSnapshot().workspace.tabs[0], text: 'Unsaved offline text' });
+    f.setOffline(false);
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const originalRead = f.remote.read;
+    f.remote.read = async user => { await gate; return originalRead(user); };
+    const retry = f.store.retry();
+    assert.equal(f.store.getSnapshot().loading, false, 'retry must not unmount editor');
+    assert.equal(f.store.getSnapshot().workspace.tabs[0].text, 'Unsaved offline text');
+    release();
+    await retry;
+    assert.equal(f.store.getSnapshot().status, 'pending');
+    await f.store.flush();
+    assert.equal(f.store.getSnapshot().status, 'saved');
+    assert.equal(f.rows.get('alice')?.workspace.tabs[0].text, 'Unsaved offline text');
+  } finally { f.store.dispose(); }
+});
+
+test('reconnect detects a newer cloud revision without overwriting offline edits', async () => {
+  const f = fixture();
+  try {
+    f.rows.set('alice', { workspace: f.workspace('Old cloud'), revision: 1 });
+    f.data.set('bestpad:mobile:workspace:alice', JSON.stringify({ ...f.workspace('Old cloud'), revision: 1, dirty: false }));
+    f.setOffline(true);
+    await f.store.connect('alice');
+    f.store.updateNote({ ...f.store.getSnapshot().workspace.tabs[0], text: 'Offline local' });
+    f.rows.set('alice', { workspace: f.workspace('Updated elsewhere'), revision: 2 });
+    f.setOffline(false);
+    await f.store.retry();
+    assert.equal(f.store.getSnapshot().status, 'conflict');
+    assert.equal(f.store.getSnapshot().workspace.tabs[0].text, 'Offline local');
+    await f.store.flush();
+    assert.equal(f.rows.get('alice')?.workspace.tabs[0].text, 'Updated elsewhere');
+  } finally { f.store.dispose(); }
+});
+
+test('deadline rejects a stalled remote operation without accepting a late result', async () => {
+  const { withDeadline } = await import('../src/workspace');
+  let complete!: (value: number) => void;
+  const slow = new Promise<number>(resolve => { complete = resolve; });
+  await assert.rejects(withDeadline(slow, 5), /timed out/);
+  complete(42);
+});
