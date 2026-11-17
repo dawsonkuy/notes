@@ -57,13 +57,13 @@ Trash, restore, and permanent deletion sync with the website using the existing 
 
 ## Delete an account
 
-In the app, open **Settings → Account → Delete account**. On the website, open **Settings → Account deletion**. Confirm the permanent deletion. This deletes the signed-in Auth user and all their cloud notes (including Trash), clears that account's recovery cache on this device, and signs out. Guest notes and appearance preferences are kept. A failed server request keeps the account signed in and shows an error.
+In the app, open **Settings → Account deletion**. On the website, open **Settings → Account deletion**. Confirm the permanent deletion. This deletes the signed-in Auth user and all their cloud notes (including Trash), clears that account's recovery cache on this device, and signs out. Guest notes and appearance preferences are kept. A failed server request keeps the account signed in and shows an error.
 
 The server endpoint is in `supabase/functions/delete-account/`. It verifies the access token with Supabase Auth and uses only that verified user ID. Its service-role key is a server environment secret, never an app setting. The existing `ON DELETE CASCADE` foreign key removes the user's `note_workspaces` row. The function performs its own authentication, so gateway JWT verification is disabled in `supabase/config.toml`.
 
 ## Saving and conflicts
 
-Wait for **Saved to cloud** before switching devices. Both the app and website listen for Supabase Realtime updates and refresh every three seconds while active as a fallback. New notes and edits appear without reloading; each device keeps its own open-note selection. Incoming updates never replace pending local edits. If another device has saved a newer workspace revision, the app keeps local changes and stops automatic writes rather than replacing the newer cloud copy.
+Wait for **Saved to cloud** before switching devices. Both clients listen for Supabase Realtime updates; the iOS app polls every ten seconds while active as a fallback. New notes and edits appear without reloading; each device keeps its own open-note selection. Incoming updates never replace pending local edits. If another device has saved a newer workspace revision, the app keeps local changes and stops automatic writes rather than replacing the newer cloud copy.
 
 To resolve a conflict, share a backup of your local note from the editor, return to Notes, and choose **Use cloud copy…**. That action requires confirmation and replaces the local workspace with the current cloud version. **Retry sync** retries failed reads/writes and preserves pending local changes.
 
@@ -104,7 +104,7 @@ The Add sheet and `/add` menu provide H1 (large), H2 (medium), H3 (small), bulle
 
 **Backups:** Notes → Export all creates a timestamped JSON file containing the complete currently selected guest or account workspace, including Trash and rich formatting. On iOS, it is saved under Files → On My iPhone → Bestpad (enabled via the expo-file-system config plugin), and the app opens the share sheet. Store another copy outside the device. If local and cloud notes conflict, the native "Back up local notes, then use cloud copy" flow creates the backup before offering replacement.
 
-**Notes library:** Search filters the selected Notes/Trash view by note title or content. Rename sets a separate title without changing note text; choosing Automatic title returns to the first-line title behavior.
+**Notes library:** Rename sets a separate title without changing note text; choosing Automatic title returns to the first-line title behavior.
 
 **Release:** `eas.json` defines a production build with remote build-number increments. The iOS bundle identifier is `app.bestpad.mobile` and v1 targets iPhone only (`supportsTablet: false`). On a Windows machine, sign in to Expo/Apple and run `npx.cmd eas-cli@latest init` once in `mobile/` to attach an EAS project ID, then `npx.cmd eas-cli@latest build --platform ios --profile production`. A production build needs App Store Connect access and must be validated in TestFlight before public submission. Do not set or guess a project ID in the repository.
 
@@ -138,3 +138,10 @@ The browser crypto/organization bundle is generated from the same native source.
 **Release testing:** Run `npm run typecheck`, `npm run lint`, `npm test` from `mobile/` and the root release tests before making a TestFlight build. On a physical iPhone, verify login/logout, cloud timeout recovery, offline typing, cross-device sync, account guest-note import, JSON backup import, and formatted text edits.
 
 **App Store support:** The public support page currently provides a public GitHub issue tracker only. Before submitting the App Store listing, configure and verify a real private incoming support address and add it to `support.html`; an outbound transactional-email SMTP sender does not by itself create a receiving inbox.
+
+
+## Default themes and sign-out safety
+
+Settings shows Paper, Cloud, Midnight and Evergreen as built-in high-contrast themes. Up to four saved custom themes appear alongside the built-in choices, not inside the **Custom theme** dropdown. Expand Custom theme to edit font/background/card colors, switch the starting palette, or save/update a theme. Existing themes continue to load from on-device appearance preferences.
+
+When the signed-in workspace is pending, saving, offline, conflicted, or a local cache save failed, iOS warns before sign-out. Users can stay signed in to retry or explicitly choose **Sign out anyway**.
