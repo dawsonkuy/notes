@@ -43,6 +43,8 @@ async function cloudRequest(query, milliseconds = 12000) {
   finally { clearTimeout(timeout); }
 }
 const payload = () => JSON.stringify({ tabs, folders, activeId });
+// Auth can check save safety before signing out, without inspecting note content.
+window.bestpadHasUnsyncedChanges = () => Boolean(cloudUser && (cloudDirty || cloudWriting || cloudConflict));
 function cacheNotes() {
   localStorage.setItem(storageKey, JSON.stringify({ tabs, folders, activeId, revision: cloudRevision, dirty: cloudDirty }));
 }
