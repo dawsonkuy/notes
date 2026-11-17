@@ -130,9 +130,25 @@ test('iOS inline typing style and web formatting toolbar remain selectable while
   assert.match(mobile, /currentTypingFormat\(block, toolbarCursor, toolbarTypingStyle\)\.italic/);
   assert.match(mobile, /setHeading\(1\)/);
   assert.match(mobile, /setHeading\(2\)/);
+  assert.match(mobile, /setHeading\(3\)/);
   assert.match(html, /id="editor-format-toolbar"/);
-  for (const level of ['1','2']) assert.match(html, new RegExp('data-heading="' + level + '"'));
+  for (const level of ['1','2','3']) assert.match(html, new RegExp('data-heading="' + level + '"'));
   for (const format of ['bold','italic']) assert.match(html, new RegExp('data-inline-format="' + format + '"'));
   assert.match(web, /current === requested \? false : requested/);
   assert.match(web, /richEditor\.format\(kind, enabled, 'user'\)/);
+});
+
+test('folder pin controls and browser bundle support saved pinned folders', () => {
+  const native = file('mobile/src/components/OrganizedLibrary.tsx');
+  const store = file('mobile/src/workspace.ts');
+  const source = file('mobile/src/organization.ts');
+  const browser = file('app.js');
+  const bundle = file('note-features.js');
+  assert.match(native, /'Pin folder'/);
+  assert.match(native, /'Unpin folder'/);
+  assert.match(store, /folders: \(workspace\.folders \|\| \[\]\)\.map\(folder => folder\.id === id \? \{ \.\.\.folder, pinned: !folder\.pinned \}/);
+  assert.match(source, /pinned: Boolean\(folder\.pinned\)/);
+  assert.match(bundle, /pinned: Boolean\(folder\.pinned\)/);
+  assert.match(browser, /'Unpin folder' : 'Pin folder'/);
+  assert.match(browser, /folders = folders\.map\(folder => folder\.id === id \? \{ \.\.\.folder, pinned: !folder\.pinned \}/);
 });

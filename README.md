@@ -32,15 +32,15 @@ Use Body, H1, H2, or H3 above the editor to format the current paragraph or sele
 
 The rich editor uses Quill 2.0.3, loaded from jsDelivr. If it cannot load, the plain-text editor stays available. Only text, heading levels, checked/unchecked checklist items, and the app’s divider embeds are accepted when restoring formatted notes.
 
-The Add menu inserts headings, the current local time/date, interactive checklists, and dividers. Checklist states and dividers autosave inside the workspace alongside the rest of the note.
+H1, H2, and H3 are available together with Bold and Italic in the formatting toolbar above the editor. The Add menu is reserved for lists, the current local time/date, and other insertions. Checklist states and dividers autosave inside the workspace alongside the rest of the note.
 
 ## App interface
 
-The desktop layout has a structured notes sidebar and a focused editor with rename, download, and share controls. On phones, use the notes button beside the logo to open the notes drawer. Add stays in the header with Heading, Current time, and Current date. The app retains the existing local/cloud workspace format and autosave behavior.
+The desktop layout has a structured notes sidebar and a focused editor with rename, download, and share controls. On phones, use the notes button beside the logo to open the notes drawer. Add stays in the header with list and date/time insertions. Heading controls stay beside the editor. The app retains the existing local/cloud workspace format and autosave behavior.
 
 The sidebar supports vertical drag reordering on desktop, Up/Down/Home/End keyboard navigation, and Ctrl+Alt+N for a new note. All themes use solid backgrounds, and note fonts and text sizes remain adjustable in Settings.
 
-Type `/add` in a note to open Heading, Current time, and Current date at the cursor. Use Up/Down and Enter, or tap an option. Choosing an item replaces the command; Escape dismisses the menu and leaves the typed text intact. The same actions are available from Add in the header.
+Type `/add` in a note to open list, current time, and current date insertions at the cursor. Use Up/Down and Enter, or tap an option. Choosing an item replaces the command; Escape dismisses the menu and leaves the typed text intact. The same actions are available from Add in the header.
 
 ## Custom appearance
 
@@ -59,7 +59,7 @@ The public privacy policy is at `https://bestpad.app/privacy.html`, Terms of Ser
 Run `npm run test:legal` to verify that the legal pages, static deployment mapping, and mobile Settings links exist. Use the privacy-policy URL in App Store Connect's App Privacy settings. Before App Store release, provide a private, working developer support contact address; current general support links lead to the public GitHub issue tracker and must not be used to share sensitive note or account content. Review the legal drafts with qualified counsel for the countries you serve, and verify App Privacy disclosures against production provider behavior.
 
 ## Heading sizes and lists (web and mobile)
-Use Add or type `/add` for Large (H1), Medium (H2), Small (H3) headings; bulleted, numbered and checkbox lists; and date/time. The website uses Quill v2 list markers and the native app displays lists with native input rows. The existing Supabase `note_workspaces` JSON stores these styles as `header` and `list` attributes with no schema change. Deploy the web update and restart Expo Go to test both clients before an App Store build.
+Use the formatting toolbar for Large (H1), Medium (H2), and Small (H3) headings. Use Add or type `/add` for bulleted, numbered, and checkbox lists and date/time. The website uses Quill v2 list markers and the native app displays lists with native input rows. The existing Supabase `note_workspaces` JSON stores these styles as `header` and `list` attributes with no schema change. Deploy the web update and restart Expo Go to test both clients before an App Store build.
 
 To check editor menu support before publishing, run `npm run check`, `npm run test:formatting`, and `npm run test:legal` at the repository root. From `mobile/`, run `npm run typecheck`, `npm test`, and `npx expo install --check`. Verify headings and lists in Expo Go on a real device before submitting an iOS build.
 
@@ -73,3 +73,6 @@ The native app supports note renaming and Undo after moving a note to Trash, ful
 Paper, Cloud, Midnight and Evergreen are the four high-contrast built-in themes in website and iPhone Settings. Saved custom themes appear directly below them. Color editing, light/dark starting palettes, and saving/updating custom themes are inside the collapsible **Custom theme** section. Existing saved themes are preserved.
 
 Web cloud reads and writes have bounded waits and a safe reconnect path that keeps offline notes open. The share/copy confirmation no longer changes the cloud-save indicator. The iPhone app prompts before signing out while cloud changes are still unsynced.
+
+
+The folder options menu now supports **Pin folder** and **Unpin folder** on web and iOS. Pinned folders sort above unpinned items within their current parent, just like pinned notes. Their contained notes and nested folders are never moved when the pin state changes.

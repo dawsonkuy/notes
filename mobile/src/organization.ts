@@ -2,7 +2,7 @@ import { noteName, isTrashed, type Workspace, type Note, type Folder } from './m
 export type Entry = { id: string; kind: 'note' | 'folder'; name: string; order: number; pinned: boolean };
 export function entries(workspace: Workspace, parentId: string | null): Entry[] {
   return [
-    ...(workspace.folders || []).filter(folder => (folder.parentId || null) === parentId).map(folder => ({ id: folder.id, kind: 'folder' as const, name: folder.name, order: folder.order || 0, pinned: false })),
+    ...(workspace.folders || []).filter(folder => (folder.parentId || null) === parentId).map(folder => ({ id: folder.id, kind: 'folder' as const, name: folder.name, order: Number(folder.order) || 0, pinned: Boolean(folder.pinned) })),
     ...workspace.tabs.filter(note => !isTrashed(note) && (note.folderId || null) === parentId).map(note => ({ id: note.id, kind: 'note' as const, name: noteName(note), order: Number(note.order) || 0, pinned: Boolean(note.pinned) })),
   ].sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.order - b.order);
 }

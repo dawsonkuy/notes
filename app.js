@@ -633,7 +633,7 @@ if (window.Quill) {
     static value() { return true; }
   }
   window.Quill.register(Divider);
-  richEditor = new window.Quill('#rich-editor', { formats: ['header', 'list', 'divider', 'bold', 'italic'], modules: { toolbar: false }, placeholder: 'Start writing… Type /add for formatting, headings, lists, date, or time.' });
+  richEditor = new window.Quill('#rich-editor', { formats: ['header', 'list', 'divider', 'bold', 'italic'], modules: { toolbar: false }, placeholder: 'Start writing… Type /add for lists, date, or time.' });
   richEditor.root.setAttribute('role', 'textbox');
   richEditor.root.setAttribute('aria-label', 'Note text');
   richEditor.root.setAttribute('aria-multiline', 'true');
@@ -892,7 +892,13 @@ window.forgetDeletedAccount = async userId => {
 };
 
 function applyMove(id, parent, before) { if (parent) expandedFolders.add(parent); save(); const next = features.moveEntry(workspaceValue(), id, parent, before); tabs = next.tabs; folders = next.folders; renderTabs(); save(); }
-function togglePin(id) { save(); tabs = tabs.map(note => note.id === id ? { ...note, pinned: !note.pinned } : note); renderTabs(); save(); }
+function togglePin(id) {
+  if (!tabs.some(note => note.id === id) && !folders.some(folder => folder.id === id)) return;
+  save();
+  tabs = tabs.map(note => note.id === id ? { ...note, pinned: !note.pinned } : note);
+  folders = folders.map(folder => folder.id === id ? { ...folder, pinned: !folder.pinned } : folder);
+  renderTabs(); save();
+}
 function chooseMove(id) {
   closeMenus(); const select = $('move-folder'); select.replaceChildren();
   const root = document.createElement('option'); root.value = ''; root.textContent = 'All notes'; select.append(root);
@@ -903,7 +909,7 @@ $('cancel-move').onclick = () => $('move-dialog').close();
 $('new-folder').onclick = () => { const name = prompt('Folder name:'); if (!name?.trim()) return; save(); folders.push({ id: crypto.randomUUID(), name: name.trim().slice(0, 80), parentId: currentFolder, order: Date.now() }); renderTabs(); save(); };
 function openFolderMenu(entry, anchor) {
   closeMenus(); tabMenu.replaceChildren();
-  [['Move up', () => moveRelative(entry.id, -1)], ['Move down', () => moveRelative(entry.id, 1)], ['Rename folder', () => { const name = prompt('Folder name:', entry.name); if (name?.trim()) { folders = folders.map(folder => folder.id === entry.id ? { ...folder, name: name.trim().slice(0, 80) } : folder); renderTabs(); save(); } }], ['Move to folder…', () => chooseMove(entry.id)], ['Delete folder', () => { if (!confirm('Delete this folder? Its notes and subfolders will move to the parent folder.')) return; const next = features.removeFolder(workspaceValue(), entry.id); folders = next.folders; tabs = next.tabs; renderTabs(); save(); }]].forEach(([label, action]) => { const button = document.createElement('button'); button.type = 'button'; button.setAttribute('role', 'menuitem'); button.textContent = label; button.onclick = () => { closeMenus(); action(); }; tabMenu.append(button); });
+  [[entry.pinned ? 'Unpin folder' : 'Pin folder', () => togglePin(entry.id)], ['Move up', () => moveRelative(entry.id, -1)], ['Move down', () => moveRelative(entry.id, 1)], ['Rename folder', () => { const name = prompt('Folder name:', entry.name); if (name?.trim()) { folders = folders.map(folder => folder.id === entry.id ? { ...folder, name: name.trim().slice(0, 80) } : folder); renderTabs(); save(); } }], ['Move to folder…', () => chooseMove(entry.id)], ['Delete folder', () => { if (!confirm('Delete this folder? Its notes and subfolders will move to the parent folder.')) return; const next = features.removeFolder(workspaceValue(), entry.id); folders = next.folders; tabs = next.tabs; renderTabs(); save(); }]].forEach(([label, action]) => { const button = document.createElement('button'); button.type = 'button'; button.setAttribute('role', 'menuitem'); button.textContent = label; button.onclick = () => { closeMenus(); action(); }; tabMenu.append(button); });
   tabMenu.hidden = false; const box = anchor.getBoundingClientRect(); tabMenu.style.left = `${box.left}px`; tabMenu.style.top = `${box.bottom}px`;
 }
 function isLocked() { return Boolean(storedActive()?.sealed && !unlockedNotes.has(activeId)); }

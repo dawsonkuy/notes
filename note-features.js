@@ -1376,7 +1376,7 @@ var BestpadFeatures = (() => {
   // mobile/src/organization.ts
   function entries(workspace, parentId) {
     return [
-      ...(workspace.folders || []).filter((folder) => (folder.parentId || null) === parentId).map((folder) => ({ id: folder.id, kind: "folder", name: folder.name, order: folder.order || 0, pinned: false })),
+      ...(workspace.folders || []).filter((folder) => (folder.parentId || null) === parentId).map((folder) => ({ id: folder.id, kind: "folder", name: folder.name, order: Number(folder.order) || 0, pinned: Boolean(folder.pinned) })),
       ...workspace.tabs.filter((note) => !isTrashed(note) && (note.folderId || null) === parentId).map((note) => ({ id: note.id, kind: "note", name: noteName(note), order: Number(note.order) || 0, pinned: Boolean(note.pinned) }))
     ].sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.order - b.order);
   }

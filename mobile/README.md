@@ -37,7 +37,7 @@ Expo may prompt to install its tunnel package. This needs internet access and a 
 - Email/password sign-in and account creation against your existing Supabase project.
 - Local saving with a recovery copy, 250 ms debounced cloud saving, and five-second retries after failed writes while the app is active.
 - Existing note names, headings, checked/unchecked checklist items, and dividers are retained when editing website notes.
-- Use Add for headings, lists, date/time, Bold, and Italic. Typing `/add` at the cursor also opens the Add sheet.
+- Use the persistent editor toolbar for H1, H2, H3, Bold, and Italic. Add and `/add` contain lists and date/time insertions.
 - Native system sharing of a plain-text copy.
 - Light/Dark modes, color-wheel and hex editing for Font / Primary / Secondary, up to four named custom themes, four font choices, and three text sizes.
 
@@ -96,7 +96,7 @@ npm run web
 A later TestFlight/App Store release can use EAS Build. No Apple Developer account is needed for testing in Expo Go.
 
 ## Headings and lists (App Store editor)
-The Add sheet and `/add` menu provide H1 (large), H2 (medium), H3 (small), bulleted lists, numbered lists, and checked/unchecked to-do lists, along with date and time. Pressing Return after a heading moves to normal text; pressing Return inside a list adds the next item, and pressing Return on an empty list item returns to plain text. Rich formatting persists in the existing `note_workspaces.tabs[].content` Quill Delta format without a database migration. Test editing the same note on mobile and on the website, including offline conflict recovery.
+The editor toolbar provides H1 (large), H2 (medium), H3 (small), Bold, and Italic. The Add sheet and `/add` menu provide bulleted lists, numbered lists, checked/unchecked to-do lists, date, and time. Pressing Return after a heading moves to normal text; pressing Return inside a list adds the next item, and pressing Return on an empty list item returns to plain text. Rich formatting persists in the existing `note_workspaces.tabs[].content` Quill Delta format without a database migration. Test editing the same note on mobile and on the website, including offline conflict recovery.
 
 ## App Store release preparation
 
@@ -145,3 +145,6 @@ The browser crypto/organization bundle is generated from the same native source.
 Settings shows Paper, Cloud, Midnight and Evergreen as built-in high-contrast themes. Up to four saved custom themes appear alongside the built-in choices, not inside the **Custom theme** dropdown. Expand Custom theme to edit font/background/card colors, switch the starting palette, or save/update a theme. Existing themes continue to load from on-device appearance preferences.
 
 When the signed-in workspace is pending, saving, offline, conflicted, or a local cache save failed, iOS warns before sign-out. Users can stay signed in to retry or explicitly choose **Sign out anyway**.
+
+
+You can also pin and unpin **folders** from the folder's options menu. Pinned folders sort to the top of their current folder level, alongside pinned notes; their nested contents stay together. Pin state syncs across the website and iOS app.

@@ -124,7 +124,14 @@ export class WorkspaceStore {
     this.keys.get(id)?.fill(0); this.keys.delete(id);
     this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(note => note.id === id ? plain : note) });
   }
-  pin(id: string) { this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(note => note.id === id ? { ...note, pinned: !note.pinned } : note) }); }
+  pin(id: string) {
+    const workspace = this.snapshot.workspace;
+    if (!workspace.tabs.some(note => note.id === id) && !workspace.folders?.some(folder => folder.id === id)) return;
+    this.update({ ...workspace,
+      tabs: workspace.tabs.map(note => note.id === id ? { ...note, pinned: !note.pinned } : note),
+      folders: (workspace.folders || []).map(folder => folder.id === id ? { ...folder, pinned: !folder.pinned } : folder)
+    });
+  }
   addFolder(name: string, parentId: string | null = null) { const id = this.id(); this.update({ ...this.snapshot.workspace, folders: [...(this.snapshot.workspace.folders || []), { id, name: name.trim().slice(0, 80) || 'New folder', parentId, order: Date.now() }] }); return id; }
   renameFolder(id: string, name: string) { if (name.trim()) this.update({ ...this.snapshot.workspace, folders: (this.snapshot.workspace.folders || []).map(folder => folder.id === id ? { ...folder, name: name.trim().slice(0, 80) } : folder) }); }
   removeFolder(id: string) { this.update(removeFolder(this.snapshot.workspace, id)); }
