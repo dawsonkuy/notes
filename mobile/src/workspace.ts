@@ -31,7 +31,10 @@ export class WorkspaceStore {
   private cache() {
     const key = this.key(), generation = this.generation;
     const serialized = JSON.stringify({ ...this.snapshot.workspace, revision: this.revision, dirty: this.dirty });
-    this.cacheQueue = this.cacheQueue.then(async () => { try { await this.storage.setItem(key, serialized); } catch { if (generation === this.generation) this.emit({ status: 'cache-error' }); } });
+    this.cacheQueue = this.cacheQueue.then(async () => {
+      try { await withDeadline(this.storage.setItem(key, serialized), 7000); }
+      catch { if (generation === this.generation) this.emit({ status: 'cache-error' }); }
+    });
     return this.cacheQueue;
   }
   private schedule(delay = 250) { clearTimeout(this.timer); if (this.snapshot.user && this.ready && this.dirty && !this.conflict) this.timer = setTimeout(() => { void this.flush(); }, delay); }
