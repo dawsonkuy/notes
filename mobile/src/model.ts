@@ -132,7 +132,7 @@ export function replaceParagraphText(blocks: Block[], id: string, value: string,
   while (suffix < block.text.length - prefix && suffix < text.length - prefix && block.text.at(-1 - suffix) === text.at(-1 - suffix)) suffix++;
   const oldStyles = inlineStyles(block);
   const insertedLength = text.length - prefix - suffix;
-  const inherited: InlineStyle = typingStyle || oldStyles[prefix] || oldStyles[Math.max(0, prefix - 1)] || {};
+  const inherited: InlineStyle = typingStyle || oldStyles[Math.max(0, prefix - 1)] || oldStyles[prefix] || {};
   const styles = [...oldStyles.slice(0, prefix), ...Array.from({ length: insertedLength }, () => ({ ...inherited })), ...oldStyles.slice(block.text.length - suffix)];
   if (!text.includes('\n')) return { blocks: blocks.map(item => item.id === id ? { ...item, text, runs: styledRuns(text, styles) } : item) };
   let insertionEnd = text.length - suffix;
