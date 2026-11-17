@@ -127,3 +127,14 @@ The browser crypto/organization bundle is generated from the same native source.
 ```bash
 ./mobile/node_modules/.bin/esbuild mobile/src/web-features.ts --bundle --platform=browser --format=iife --global-name=BestpadFeatures --target=es2020 --outfile=note-features.js
 ```
+
+## Reliability and recovery improvements
+
+- Cloud reconnects now retry in place without unmounting the editor or replacing unsaved offline text. The existing workspace revision guard still blocks overwrites after concurrent cloud updates. Requests and local-cache waits have deadlines and show an offline/local-cache warning if they fail. Pending edits are retried by foreground polling if iOS suspends a debounce timer.
+- The native editor displays formatted bold/italic text when a paragraph is idle and uses a controlled plain text field while editing, avoiding the React Native nested-rich-TextInput duplication bug. Inline formatting is still stored in the shared Delta format; rich presentation resumes when editing ends.
+- In iOS **Settings → Backups & recovery**, **Import JSON backup** opens the Files picker and merges missing notes without overwriting existing note IDs. **Import guest notes into account** is shown for signed-in users; it copies locally saved guest notes into the account while leaving the guest workspace unchanged. Existing note IDs are skipped, and password-protected note IDs are never regenerated (their encryption metadata depends on those IDs).
+- The logo on the Notes screen returns to the top of the all-notes library; this was merged in PR #9.
+
+**Release testing:** Run `npm run typecheck`, `npm run lint`, `npm test` from `mobile/` and the root release tests before making a TestFlight build. On a physical iPhone, verify login/logout, cloud timeout recovery, offline typing, cross-device sync, account guest-note import, JSON backup import, and formatted text edits.
+
+**App Store support:** The public support page currently provides a public GitHub issue tracker only. Before submitting the App Store listing, configure and verify a real private incoming support address and add it to `support.html`; an outbound transactional-email SMTP sender does not by itself create a receiving inbox.
