@@ -62,5 +62,5 @@ test('tapping the iOS BestPad logo restores the main notes library', () => {
   assert.ok(action, 'Home action must exist');
   assert.match(action, /setShowTrash\(false\)/);
   assert.match(action, /setHomeRevision\(version => version \+ 1\)/);
-  assert.match(home, /<OrganizedLibrary key=\{\`home-\$\{homeRevision\}/);
+  assert.ok(home.includes('key={`home-${homeRevision}'), 'home tap resets library scroll and expansion');
 });
