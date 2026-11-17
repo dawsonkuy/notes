@@ -318,6 +318,14 @@ function showTab() {
 function switchTab(id, keepSidebar = false) { if (!tabs.some(note => note.id === id && !isTrashed(note))) return; save(); activeId = id; showTab(); save(); if (!keepSidebar) setNotesDrawer(false); }
 function addTab(text = '', filename = 'Untitled') {
   if ($('add-tab').disabled) return;
+  // A fresh workspace already has one editable starter note. Reuse it.
+  const starter = !text && filename === 'Untitled' ? starterNoteId() : null;
+  if (starter) {
+    switchTab(starter);
+    if (richEditor?.isEnabled()) richEditor.focus();
+    else if (!$('editor').disabled) $('editor').focus();
+    return;
+  }
   save(); const tab = { ...makeTab(text, filename), folderId: currentFolder, order: Date.now() }; tabs.push(tab); activeId = tab.id;
   showTab(); save(); closeMenus(); setNotesDrawer(false);
 }
