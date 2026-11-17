@@ -207,7 +207,7 @@ test('underline combines with bold and italic, survives sync, and applies to new
   const { applyInlineStyle } = await import('../src/model');
   const note = { ...newNote('underline'), text: 'One under and bold', content: [
     { insert: 'One ' }, { insert: 'under', attributes: { underline: true } },
-    { insert: ' and ' }, { insert: 'bold', attributes: { bold: true, italic: true } }, { insert: '\\n' },
+    { insert: ' and ' }, { insert: 'bold', attributes: { bold: true, italic: true } }, { insert: '\n' },
   ] };
   const blocks = toBlocks(note, id);
   assert.equal(blocks[0].runs?.find(run => run.text === 'under')?.underline, true);
