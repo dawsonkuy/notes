@@ -617,7 +617,7 @@ function updateHeadingButtons() {
   const format = range ? richEditor.getFormat(range) : {};
   const level = format.header || 0;
   document.querySelectorAll('[data-heading]').forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.heading) === level)));
-  document.querySelectorAll('[data-inline-format]').forEach(button => button.setAttribute('aria-checked', String(Boolean(format[button.dataset.inlineFormat]))));
+  document.querySelectorAll('[data-inline-format]').forEach(button => button.setAttribute('aria-pressed', String(Boolean(format[button.dataset.inlineFormat]))));
 }
 if (window.Quill) {
   const BlockEmbed = window.Quill.import('blots/block/embed');
@@ -641,6 +641,7 @@ if (window.Quill) {
   richEditor.root.setAttribute('spellcheck', 'true');
   $('rich-editor').hidden = false;
   $('heading-toolbar').hidden = false;
+  $('editor-format-toolbar').hidden = false;
   $('editor').hidden = true;
   document.querySelectorAll('[role="tab"]').forEach(button => button.setAttribute('aria-controls', 'rich-editor'));
   renderRichNote();
@@ -653,7 +654,11 @@ if (window.Quill) {
     button.addEventListener('pointerdown', event => event.preventDefault());
     button.addEventListener('click', () => {
       const range = richEditor.getSelection(true) || { index: 0, length: 0 };
-      richEditor.formatLine(range.index, range.length, 'header', Number(button.dataset.heading) || false, 'user');
+      const requested = Number(button.dataset.heading);
+      const current = richEditor.getFormat(range).header || 0;
+      richEditor.formatLine(range.index, range.length, 'header', current === requested ? false : requested, 'user');
+      richEditor.setSelection(range.index, range.length, 'silent');
+      richEditor.focus();
       updateHeadingButtons();
     });
   });
@@ -668,6 +673,7 @@ document.querySelectorAll('[data-inline-format]').forEach(button => {
     if (!selection) return;
     const enabled = !Boolean(richEditor.getFormat(selection)[kind]);
     richEditor.format(kind, enabled, 'user');
+    richEditor.focus();
     updateHeadingButtons();
     closeMenus();
   });

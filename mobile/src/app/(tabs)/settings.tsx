@@ -3,6 +3,8 @@ import { Alert, Linking, Platform, Pressable, ScrollView, Text, TextInput, View 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { randomUUID } from 'expo-crypto';
 import { File } from 'expo-file-system';
+import Constants from 'expo-constants';
+import { saveWorkspaceBackup } from '../../backup';
 import { parseWorkspaceBackup } from '../../backupData';
 import { router } from 'expo-router';
 import { builtInThemes, defaults, saveTheme, type Colors } from '../../appearance';
@@ -12,7 +14,7 @@ import { ColorEditor } from '../../components/ColorEditor';
 import { Button, Icon, IconButton, SaveStatus, Section, ui } from '../../components/ui';
 export default function Settings() {
   const { appearance, appearanceReady, appearanceError, setAppearance, colors, session, snapshot, store } = useBestpad();
-  const [part, setPart] = useState<keyof Colors | null>(null), [name, setName] = useState(''), [customOpen, setCustomOpen] = useState(false), [busy, setBusy] = useState(false), [deleting, setDeleting] = useState(false), [importing, setImporting] = useState(false);
+  const [part, setPart] = useState<keyof Colors | null>(null), [name, setName] = useState(''), [customOpen, setCustomOpen] = useState(false), [busy, setBusy] = useState(false), [deleting, setDeleting] = useState(false), [importing, setImporting] = useState(false), [exporting, setExporting] = useState(false);
   const names = { font: 'Font', primary: 'Primary', secondary: 'Secondary' };
   const selectedSavedTheme = appearance.themes.find(theme => theme.id === appearance.selected);
   const selectedThemeMatches = (theme: { mode: string; colors: Colors }) => appearance.mode === theme.mode && (['font', 'primary', 'secondary'] as const).every(key => appearance.colors[key] === theme.colors[key]);
@@ -24,6 +26,18 @@ export default function Settings() {
   ] as const;
   function openLegalPage(url: string) {
     void Linking.openURL(url).catch(() => Alert.alert('Unable to open page', 'Check your internet connection and try again.'));
+  }
+  async function exportBackup() {
+    if (exporting || snapshot.loading) return;
+    setExporting(true);
+    try {
+      await saveWorkspaceBackup(store.getSnapshot().workspace);
+      Alert.alert('Backup saved', Platform.OS === 'ios' && Constants.appOwnership !== 'expo'
+        ? 'A JSON backup of all notes, including Trash, was saved to Files → On My iPhone → Bestpad. Keep another copy outside the app.'
+        : 'Your complete JSON backup was created. Save a copy using the share sheet to recover it later.');
+    } catch (error) {
+      Alert.alert('Backup failed', error instanceof Error ? error.message : 'Could not export your notes.');
+    } finally { setExporting(false); }
   }
   async function importFromBackup() {
     if (importing || snapshot.loading) return;
@@ -112,10 +126,11 @@ export default function Settings() {
     <Section title="Account">{session ? <View style={{ gap: 12 }}><Text style={{ color: colors.font }}>{session.user.email}</Text><SaveStatus status={snapshot.status} /><Button label={busy ? 'Signing out…' : 'Sign out'} disabled={busy || deleting} onPress={() => { void signOut(); }} /></View> : <Button label="Login / Create account" icon="person-outline" onPress={() => router.push('/login')} />}<Text style={{ color: colors.muted, fontSize: 11, lineHeight: 18, marginTop: 10 }}>{session ? 'Notes sync with your Bestpad account.' : 'Notes stay on this device until you use an account. Guest and account workspaces are separate.'}</Text></Section>
     <Section title="Backups & recovery">
       <View style={{ gap: 10 }}>
+        <Button label={exporting ? 'Exporting backup…' : 'Export JSON backup'} icon="download-outline" disabled={exporting || snapshot.loading} onPress={() => { void exportBackup(); }} />
         <Button label={importing ? 'Opening backup…' : 'Import JSON backup'} icon="document-attach-outline" disabled={importing || snapshot.loading || snapshot.status === 'conflict'} onPress={() => { void importFromBackup(); }} />
         {session && <Button label="Import guest notes into account" icon="person-add-outline" disabled={snapshot.loading || snapshot.status === 'conflict'} onPress={confirmGuestImport} />}
       </View>
-      <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 18, marginTop: 8 }}>Imports add missing notes; they never replace existing notes. Protected notes keep their original IDs so passwords still work. Use Notes → Export all before major recovery operations.</Text>
+      <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 18, marginTop: 8 }}>Imports add missing notes; they never replace existing notes. Protected notes keep their original IDs so passwords still work. Export a backup here before major recovery operations.</Text>
     </Section>
     <Section title="Themes">
       <View style={{ gap: 9 }}>
@@ -124,7 +139,7 @@ export default function Settings() {
           <Text style={{ color: colors.font, flex: 1, fontSize: 14, fontWeight: selectedThemeMatches(theme) ? '700' : '500' }}>{theme.name}</Text>
           {selectedThemeMatches(theme) && <Icon name="checkmark" size={19} color={colors.font} />}
         </Pressable>)}
-        <Text style={{ color: colors.muted, fontSize: 11, marginTop: 10, marginBottom: 2 }}>SAVED THEMES · ${appearance.themes.length}/4</Text>
+        <Text style={{ color: colors.muted, fontSize: 11, marginTop: 10, marginBottom: 2 }}>{`SAVED THEMES · ${appearance.themes.length}/4`}</Text>
         {appearance.themes.length === 0 && <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>Themes you save in Custom theme appear here.</Text>}
         {appearance.themes.map(theme => <View key={theme.id} style={ui.row}>
           <Pressable accessibilityRole="button" accessibilityLabel={`Apply ${theme.name}`} accessibilityState={{ selected: selectedThemeMatches(theme) }} onPress={() => { setAppearance(current => ({ ...current, mode: theme.mode, colors: { ...theme.colors }, selected: theme.id })); setName(theme.name); }} style={{ flex: 1, minHeight: 54, borderRadius: 12, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.secondary, borderWidth: 1, borderColor: selectedThemeMatches(theme) ? colors.font : colors.border }}>

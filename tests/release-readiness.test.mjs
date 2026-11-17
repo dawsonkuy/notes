@@ -29,11 +29,14 @@ test('iOS EAS configuration, non-transparent icon, and real file backups are ava
 });
 test('mobile conflict recovery writes backup before exposing destructive replace', () => {
   const home = file('mobile/src/app/(tabs)/index.tsx');
-  assert.match(home, /Export all/);
+  const settings = file('mobile/src/app/(tabs)/settings.tsx');
+  assert.doesNotMatch(home, /Export all/);
+  assert.match(settings, /Export JSON backup/);
+  assert.match(settings, /await saveWorkspaceBackup\(store\.getSnapshot\(\)\.workspace\)/);
   assert.match(home, /Rename/);
   assert.match(home, /Back up local notes, then use cloud copy/);
-  assert.ok(home.indexOf('await saveWorkspaceBackup(store.getSnapshot().workspace)') >= 0);
-  assert.ok(home.indexOf('await saveWorkspaceBackup(store.getSnapshot().workspace)') < home.indexOf('store.useCloudCopy()'));
+  assert.ok(home.indexOf('await saveWorkspaceBackup(store.getSnapshot().workspace, true)') >= 0);
+  assert.ok(home.indexOf('await saveWorkspaceBackup(store.getSnapshot().workspace, true)') < home.indexOf('store.useCloudCopy()'));
   assert.match(file('mobile/src/backup.ts'), /Paths\.document/);
   assert.match(file('mobile/src/backup.ts'), /requireExternalCopy && !shared/);
   assert.match(home, /saveWorkspaceBackup\(store\.getSnapshot\(\)\.workspace, true\)/);
@@ -104,4 +107,32 @@ test('four preset themes and saved themes render outside the custom color dropdo
   assert.match(native, /accessibilityState=\{\{ expanded: customOpen \}\}/);
   assert.match(native, /Notes are not synced yet/);
   assert.match(native, /current\.status !== 'saved'/);
+});
+
+test('iOS Notes home actions are in one row and folders keep left alignment', () => {
+  const home = file('mobile/src/app/(tabs)/index.tsx');
+  const library = file('mobile/src/components/OrganizedLibrary.tsx');
+  assert.match(home, /accessibilityLabel="New note"/);
+  assert.match(home, /accessibilityLabel="New folder"/);
+  assert.match(home, /Open Trash/);
+  assert.doesNotMatch(home, /showTrash \? 'Trash' : 'Notes'/);
+  assert.doesNotMatch(home, /Export all notes as JSON backup/);
+  assert.doesNotMatch(library, /marginLeft: item\.depth \* 18/);
+  assert.match(library, /marginLeft: 0/);
+  const settings = file('mobile/src/app/(tabs)/settings.tsx');
+  assert.match(settings, /\{\x60SAVED THEMES · \$\{appearance\.themes\.length\}\/4\x60\}/);
+});
+
+test('iOS inline typing style and web formatting toolbar remain selectable while typing', () => {
+  const mobile = file('mobile/src/app/editor/[id].tsx');
+  const web = file('app.js'), html = file('index.html');
+  assert.match(mobile, /currentTypingFormat\(block, toolbarCursor, toolbarTypingStyle\)\.bold/);
+  assert.match(mobile, /currentTypingFormat\(block, toolbarCursor, toolbarTypingStyle\)\.italic/);
+  assert.match(mobile, /setHeading\(1\)/);
+  assert.match(mobile, /setHeading\(2\)/);
+  assert.match(html, /id="editor-format-toolbar"/);
+  for (const level of ['1','2']) assert.match(html, new RegExp('data-heading="' + level + '"'));
+  for (const format of ['bold','italic']) assert.match(html, new RegExp('data-inline-format="' + format + '"'));
+  assert.match(web, /current === requested \? false : requested/);
+  assert.match(web, /richEditor\.format\(kind, enabled, 'user'\)/);
 });

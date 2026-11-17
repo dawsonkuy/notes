@@ -231,3 +231,12 @@ img.small-brand-mark { display: block; object-fit: contain; padding: 3px; }
 /* Sharing feedback is independent from note sync state. */
 #action-status:empty{display:none}
 #action-status{font-size:11px;color:var(--muted);max-width:220px;overflow-wrap:anywhere}
+
+/* Writing-first formatting controls: H1/H2/B/I stay beside the editor on
+   desktop and phone, and show the current typing format without opening Add. */
+.editor-format-toolbar{display:flex;align-items:center;gap:7px;flex-shrink:0;padding:9px 38px;border-bottom:1px solid var(--soft-border);background:var(--canvas)}
+.editor-format-toolbar button{display:grid;place-items:center;min-width:42px;min-height:40px;padding:5px 10px;border:1px solid var(--soft-border);border-radius:9px;background:var(--control);color:var(--text);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer}
+.editor-format-toolbar button[aria-pressed=true]{border-color:var(--text);background:var(--selected);box-shadow:inset 0 0 0 1px var(--text)}
+.editor-format-toolbar button:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+.editor-format-toolbar button:disabled{opacity:.5;cursor:not-allowed}
+@media (max-width:760px){.editor-format-toolbar{padding:8px 22px;gap:6px}.editor-format-toolbar button{min-height:42px;min-width:43px}}

@@ -102,7 +102,7 @@ The Add sheet and `/add` menu provide H1 (large), H2 (medium), H3 (small), bulle
 
 **Recovery:** Use "Forgot password?" on the native login screen or in the website login dialog. An email links to `https://bestpad.app/?password_reset=1` to choose a new password in the browser. Return to the native app and sign in with it. This URL must be allowed in Supabase Auth redirect settings and the deployed website must serve the updated `auth.js`.
 
-**Backups:** Notes → Export all creates a timestamped JSON file containing the complete currently selected guest or account workspace, including Trash and rich formatting. On iOS, it is saved under Files → On My iPhone → Bestpad (enabled via the expo-file-system config plugin), and the app opens the share sheet. Store another copy outside the device. If local and cloud notes conflict, the native "Back up local notes, then use cloud copy" flow creates the backup before offering replacement.
+**Backups:** Settings → Backups & recovery → Export JSON backup creates a timestamped JSON file containing the complete currently selected guest or account workspace, including Trash and rich formatting. On iOS, it is saved under Files → On My iPhone → Bestpad (enabled via the expo-file-system config plugin), and the app opens the share sheet. Store another copy outside the device. If local and cloud notes conflict, the native "Back up local notes, then use cloud copy" flow creates the backup before offering replacement.
 
 **Notes library:** Rename sets a separate title without changing note text; choosing Automatic title returns to the first-line title behavior.
 
