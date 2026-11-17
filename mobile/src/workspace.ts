@@ -5,6 +5,14 @@ export type Status = 'loading' | 'local' | 'pending' | 'saving' | 'saved' | 'off
 export interface Storage { getItem(key: string): Promise<string | null>; setItem(key: string, value: string): Promise<unknown> }
 export interface Remote { read(user: string): Promise<{ workspace: Workspace; revision: number } | null>; write(user: string, workspace: Workspace, revision: number | null): Promise<number> }
 export class ConflictError extends Error {}
+// Covers queries stalled before fetch/AbortController gets control (for example,
+// waiting for an Auth session lock), without allowing a late result to mutate state.
+export function withDeadline<T>(operation: Promise<T>, milliseconds = 15000): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('Cloud request timed out. Your local notes are safe.')), milliseconds);
+    operation.then(value => { clearTimeout(timeout); resolve(value); }, error => { clearTimeout(timeout); reject(error); });
+  });
+}
 export type Snapshot = { workspace: Workspace; loading: boolean; status: Status; user: string | null };
 type Cache = Workspace & { revision: number | null; dirty: boolean };
 export class WorkspaceStore {
@@ -32,16 +40,16 @@ export class WorkspaceStore {
     this.lockAll(); this.connected = true; const generation = ++this.generation; clearTimeout(this.timer);
     this.ready = false; this.conflict = false; this.dirty = false; this.revision = null;
     this.emit({ loading: true, status: 'loading', user });
-    await this.cacheQueue;
+    await withDeadline(this.cacheQueue, 7000).catch(() => undefined);
     let cached: Cache | null = null;
-    try { const raw = JSON.parse(await this.storage.getItem(this.key()) || 'null'); if (validWorkspace(raw)) cached = raw as Cache; } catch { /* Recover with cloud contents or an empty local workspace. */ }
+    try { const raw = JSON.parse(await withDeadline(this.storage.getItem(this.key()), 7000) || 'null'); if (validWorkspace(raw)) cached = raw as Cache; } catch { /* Recover with cloud contents or an empty local workspace. */ }
     if (generation !== this.generation) return;
     const note = newNote(this.id());
     let workspace = cached ? { tabs: cached.tabs, folders: cached.folders || [], activeId: cached.tabs.some(n => n.id === cached!.activeId) ? cached.activeId : cached.tabs[0].id } : { tabs: [note], activeId: note.id };
     this.revision = Number.isInteger(cached?.revision) ? cached!.revision : null; this.dirty = Boolean(cached?.dirty && user);
     if (!user) { this.emit({ workspace, loading: false, status: 'local' }); return; }
     try {
-      const row = await this.remote.read(user);
+      const row = await withDeadline(this.remote.read(user));
       if (generation !== this.generation) return;
       if (row && !validWorkspace(row.workspace)) throw new Error('Invalid cloud notes');
       if (this.dirty && cached) this.conflict = this.revision !== (row?.revision ?? null);
@@ -117,6 +125,38 @@ export class WorkspaceStore {
   renameFolder(id: string, name: string) { if (name.trim()) this.update({ ...this.snapshot.workspace, folders: (this.snapshot.workspace.folders || []).map(folder => folder.id === id ? { ...folder, name: name.trim().slice(0, 80) } : folder) }); }
   removeFolder(id: string) { this.update(removeFolder(this.snapshot.workspace, id)); }
   move(id: string, parentId: string | null, beforeId?: string) { this.update(moveEntry(this.snapshot.workspace, id, parentId, beforeId)); }
+  // Reconnect in place so a network hiccup never unmounts the editor or
+  // replaces unsaved text with an older AsyncStorage snapshot.
+  async recoverConnection() {
+    const user = this.snapshot.user;
+    if (!user || this.snapshot.loading || this.ready || this.refreshing || this.writing) return;
+    const generation = this.generation;
+    this.refreshing = true;
+    try {
+      const row = await withDeadline(this.remote.read(user));
+      if (generation !== this.generation) return;
+      if (row && !validWorkspace(row.workspace)) throw new Error('Invalid cloud workspace');
+      if (this.dirty) {
+        // Keep typing done during the read. Revision checks protect it from
+        // overwriting work saved from another device in the meantime.
+        this.conflict = this.revision !== (row?.revision ?? null);
+      } else if (row) {
+        this.revision = row.revision;
+        const activeId = this.snapshot.workspace.activeId;
+        this.version++;
+        this.emit({ workspace: { ...row.workspace, activeId: row.workspace.tabs.some(note => note.id === activeId && !isTrashed(note)) ? activeId : row.workspace.activeId } });
+      } else {
+        this.revision = null;
+        this.dirty = true;
+      }
+      this.ready = true;
+      this.emit({ status: this.conflict ? 'conflict' : this.dirty ? 'pending' : 'saved' });
+      await this.cache();
+      this.schedule();
+    } catch {
+      if (generation === this.generation) this.emit({ status: 'offline' });
+    } finally { this.refreshing = false; }
+  }
   async flush() {
     clearTimeout(this.timer);
     if (!this.snapshot.user || !this.ready || !this.dirty || this.conflict || this.writing) return;
@@ -124,7 +164,7 @@ export class WorkspaceStore {
     this.writing = true; this.emit({ status: 'saving' });
     let retry = 250;
     try {
-      const revision = await this.remote.write(user, workspace, this.revision);
+      const revision = await withDeadline(this.remote.write(user, workspace, this.revision));
       if (generation !== this.generation) return;
       this.revision = revision; this.dirty = version !== this.version;
       this.emit({ status: this.dirty ? 'pending' : 'saved' }); await this.cache();
@@ -136,12 +176,13 @@ export class WorkspaceStore {
   }
   async refresh() {
     const user = this.snapshot.user;
-    if (!user || this.snapshot.loading || this.refreshing || this.writing || this.dirty || this.conflict) return;
-    if (!this.ready) { await this.connect(user, true); return; }
+    if (!user || this.snapshot.loading || this.refreshing || this.writing || this.conflict) return;
+    if (!this.ready) { await this.recoverConnection(); return; }
+    if (this.dirty) return;
     const generation = this.generation, version = this.version;
     this.refreshing = true;
     try {
-      const row = await this.remote.read(user);
+      const row = await withDeadline(this.remote.read(user));
       if (generation !== this.generation || version !== this.version || this.dirty || this.writing || !row || !validWorkspace(row.workspace)) return;
       if (row.revision === this.revision) return;
       const activeId = this.snapshot.workspace.activeId;
@@ -165,6 +206,6 @@ export class WorkspaceStore {
     this.revision = row.revision; this.dirty = false; this.conflict = false; this.ready = true; this.version++;
     this.emit({ workspace: row.workspace, status: 'saved' }); await this.cache();
   }
-  retry = () => this.ready && !this.conflict ? (this.dirty ? this.flush() : this.refresh()) : this.connect(this.snapshot.user, true);
+  retry = () => this.snapshot.loading ? Promise.resolve() : !this.ready ? this.recoverConnection() : this.conflict ? Promise.resolve() : this.dirty ? this.flush() : this.refresh();
   dispose() { clearTimeout(this.timer); this.listeners.clear(); }
 }
