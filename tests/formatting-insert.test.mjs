@@ -10,7 +10,7 @@ test('web Add menu keeps lists while heading controls live in the format bar', (
   assert.match(html, />Add <svg/);
   const addMenu = html.match(/<div id="add-menu"[\s\S]*?<\/div>/)?.[0];
   assert.ok(addMenu, 'web Add menu exists');
-  for (const kind of ['bold', 'italic']) {
+  for (const kind of ['bold', 'italic', 'underline']) {
     assert.ok(html.includes('data-inline-format="' + kind + '"'), kind);
     assert.ok(js.includes("'"+kind+"'"), kind);
     assert.ok(!addMenu.includes('data-inline-format="' + kind + '"'), kind + ' must not be in Add');
@@ -33,7 +33,7 @@ test('mobile Add sheet keeps lists while all headings are in the formatting bar'
   const addSheet = mobile.slice(mobile.indexOf('<Modal visible={insertOpen}'));
   assert.doesNotMatch(addSheet, /<Button label="Bold"/);
   assert.doesNotMatch(addSheet, /<Button label="Italic"/);
-  for (const label of ['B', 'I']) assert.ok(mobile.includes('<ToolbarAction label="' + label + '"'), label + ' stays in the toolbar');
+  for (const label of ['B', 'I', 'U']) assert.ok(mobile.includes('<ToolbarAction label="' + label + '"'), label + ' stays in the toolbar');
   assert.match(mobile, /orderedNumber\(blocks, index\)/);
   assert.match(mobile, /onSubmitEditing=\{\(\) => returnFromParagraph\(block\)\}/);
 });
@@ -46,9 +46,27 @@ test('both platforms preserve numbered, bullet and checklist styles in existing 
 });
 
 test('iOS bottom formatting bar and native inline serialization exist', () => {
-  for (const label of ['Add', 'H1', 'H2', 'H3', 'B', 'I']) assert.ok(mobile.includes('<ToolbarAction label="' + label + '"'), label);
+  for (const label of ['Add', 'H1', 'H2', 'H3', 'B', 'I', 'U']) assert.ok(mobile.includes('<ToolbarAction label="' + label + '"'), label);
   assert.match(mobile, /applyInlineStyle\(/);
   assert.match(mobile, /block\.runs\.map\(/);
   assert.match(model, /styledRuns\(/);
-  assert.match(js, /formats: \['header', 'list', 'divider', 'bold', 'italic'\]/);
+  assert.match(js, /formats: \['header', 'list', 'divider', 'bold', 'italic', 'underline'\]/);
+});
+
+test('underline is supported on both clients without removing existing inline styles', () => {
+  assert.ok(html.includes('data-inline-format="underline"'));
+  assert.match(js, /op\.attributes\?\.underline === true/);
+  assert.match(model, /op\.attributes\?\.underline === true/);
+  assert.ok(mobile.includes("inlineActive('underline')"));
+  assert.ok(mobile.includes("toggleInline('underline')"));
+});
+test('folder menus omit move controls while note actions still allow moving', () => {
+  const folderMenu = js.slice(js.indexOf('function openFolderMenu('), js.indexOf('function isLocked()'));
+  assert.doesNotMatch(folderMenu, /Move up|Move down|Move to folder/);
+  const noteMenu = js.slice(js.indexOf('function openTabMenu('), js.indexOf('function renderTabs('));
+  assert.match(noteMenu, /Move to folder/);
+  const nativeLibrary = read('mobile/src/components/OrganizedLibrary.tsx');
+  assert.match(nativeLibrary, /menu\.kind === 'note' &&/);
+  assert.match(nativeLibrary, /Haptics\.impactAsync/);
+  assert.match(read('mobile/src/components/AnimatedLibraryRow.tsx'), /scale: lift/);
 });

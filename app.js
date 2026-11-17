@@ -650,6 +650,7 @@ function safeNoteContents(tab) {
     else if (['checked', 'unchecked', 'bullet', 'ordered'].includes(op.attributes?.list)) attributes.list = op.attributes.list;
     if (op.attributes?.bold === true) attributes.bold = true;
     if (op.attributes?.italic === true) attributes.italic = true;
+    if (op.attributes?.underline === true) attributes.underline = true;
     if (Object.keys(attributes).length) result.attributes = attributes;
     return result;
   });
@@ -694,7 +695,7 @@ if (window.Quill) {
     static value() { return true; }
   }
   window.Quill.register(Divider);
-  richEditor = new window.Quill('#rich-editor', { formats: ['header', 'list', 'divider', 'bold', 'italic'], modules: { toolbar: false }, placeholder: 'Start writing… Type /add for lists, date, or time.' });
+  richEditor = new window.Quill('#rich-editor', { formats: ['header', 'list', 'divider', 'bold', 'italic', 'underline'], modules: { toolbar: false }, placeholder: 'Start writing… Type /add for lists, date, or time.' });
   richEditor.root.setAttribute('role', 'textbox');
   richEditor.root.setAttribute('aria-label', 'Note text');
   richEditor.root.setAttribute('aria-multiline', 'true');
@@ -970,7 +971,7 @@ $('cancel-move').onclick = () => $('move-dialog').close();
 $('new-folder').onclick = () => { const name = prompt('Folder name:'); if (!name?.trim()) return; save(); folders.push({ id: crypto.randomUUID(), name: name.trim().slice(0, 80), parentId: currentFolder, order: Date.now() }); renderTabs(); save(); };
 function openFolderMenu(entry, anchor) {
   closeMenus(); tabMenu.replaceChildren();
-  [[entry.pinned ? 'Unpin folder' : 'Pin folder', () => togglePin(entry.id)], ['Move up', () => moveRelative(entry.id, -1)], ['Move down', () => moveRelative(entry.id, 1)], ['Rename folder', () => { const name = prompt('Folder name:', entry.name); if (name?.trim()) { folders = folders.map(folder => folder.id === entry.id ? { ...folder, name: name.trim().slice(0, 80) } : folder); renderTabs(); save(); } }], ['Move to folder…', () => chooseMove(entry.id)], ['Delete folder', () => { if (!confirm('Delete this folder? Its notes and subfolders will move to the parent folder.')) return; const next = features.removeFolder(workspaceValue(), entry.id); folders = next.folders; tabs = next.tabs; renderTabs(); save(); }]].forEach(([label, action]) => { const button = document.createElement('button'); button.type = 'button'; button.setAttribute('role', 'menuitem'); button.textContent = label; button.onclick = () => { closeMenus(); action(); }; tabMenu.append(button); });
+  [[entry.pinned ? 'Unpin folder' : 'Pin folder', () => togglePin(entry.id)], ['Rename folder', () => { const name = prompt('Folder name:', entry.name); if (name?.trim()) { folders = folders.map(folder => folder.id === entry.id ? { ...folder, name: name.trim().slice(0, 80) } : folder); renderTabs(); save(); } }], ['Delete folder', () => { if (!confirm('Delete this folder? Its notes and subfolders will move to the parent folder.')) return; const next = features.removeFolder(workspaceValue(), entry.id); folders = next.folders; tabs = next.tabs; renderTabs(); save(); }]].forEach(([label, action]) => { const button = document.createElement('button'); button.type = 'button'; button.setAttribute('role', 'menuitem'); button.textContent = label; button.onclick = () => { closeMenus(); action(); }; tabMenu.append(button); });
   tabMenu.hidden = false; const box = anchor.getBoundingClientRect(); tabMenu.style.left = `${box.left}px`; tabMenu.style.top = `${box.bottom}px`;
 }
 function isLocked() { return Boolean(storedActive()?.sealed && !unlockedNotes.has(activeId)); }
@@ -1053,6 +1054,8 @@ function beginLibraryDrag() {
   drag.element.before(drag.placeholder);
   Object.assign(drag.element.style, { position: 'absolute', left: `${box.left - listBox.left}px`, top: `${box.top - listBox.top + drag.startScroll}px`, marginLeft: '0', width: `${box.width}px`, pointerEvents: 'none' });
   drag.element.classList.add('is-lifted'); document.body.classList.add('library-dragging');
+  // A light buzz on browsers that support it; native iOS uses Expo Haptics.
+  if (typeof navigator.vibrate === 'function') navigator.vibrate(10);
 }
 function moveLibraryDrag(clientY) {
   const drag = libraryDrag; if (!drag?.active) return;

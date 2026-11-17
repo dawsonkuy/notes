@@ -1,7 +1,7 @@
 export type ListStyle = 'checked' | 'unchecked' | 'bullet' | 'ordered';
-export type InlineStyle = { bold?: true; italic?: true };
+export type InlineStyle = { bold?: true; italic?: true; underline?: true };
 export type InlineRun = InlineStyle & { text: string };
-export type Op = { insert: string | { divider: true }; attributes?: { header?: 1 | 2 | 3; list?: ListStyle; bold?: boolean; italic?: boolean } };
+export type Op = { insert: string | { divider: true }; attributes?: { header?: 1 | 2 | 3; list?: ListStyle; bold?: boolean; italic?: boolean; underline?: boolean } };
 export type Folder = { id: string; name: string; parentId?: string | null; order?: number; pinned?: boolean };
 export type Note = { folderId?: string | null; order?: number; pinned?: boolean; sealed?: import('./security').Sealed; id: string; text: string; filename: string; customName?: string | null; deletedAt?: string; content?: Op[]; [key: string]: unknown };
 export type Workspace = { folders?: Folder[]; tabs: Note[]; activeId: string };
@@ -13,22 +13,23 @@ export function inlineStyles(block: Block): InlineStyle[] {
   return runs.flatMap(run => Array.from({ length: run.text.length }, () => ({
     ...(run.bold ? { bold: true as const } : {}),
     ...(run.italic ? { italic: true as const } : {}),
+    ...(run.underline ? { underline: true as const } : {}),
   })));
 }
 export function styledRuns(text: string, styles: InlineStyle[]): InlineRun[] | undefined {
-  if (!text || !styles.some(style => style.bold || style.italic)) return undefined;
+  if (!text || !styles.some(style => style.bold || style.italic || style.underline)) return undefined;
   const runs: InlineRun[] = [];
   for (let i = 0; i < text.length; i++) {
     const attrs = styles[i] || {}, last = runs[runs.length - 1];
-    if (last && Boolean(last.bold) === Boolean(attrs.bold) && Boolean(last.italic) === Boolean(attrs.italic)) last.text += text[i];
-    else runs.push({ text: text[i], ...(attrs.bold ? { bold: true as const } : {}), ...(attrs.italic ? { italic: true as const } : {}) });
+    if (last && Boolean(last.bold) === Boolean(attrs.bold) && Boolean(last.italic) === Boolean(attrs.italic) && Boolean(last.underline) === Boolean(attrs.underline)) last.text += text[i];
+    else runs.push({ text: text[i], ...(attrs.bold ? { bold: true as const } : {}), ...(attrs.italic ? { italic: true as const } : {}), ...(attrs.underline ? { underline: true as const } : {}) });
   }
   return runs;
 }
 export function sliceInlineRuns(block: Block, start: number, end: number): InlineRun[] | undefined {
   return styledRuns(block.text.slice(start, end), inlineStyles(block).slice(start, end));
 }
-export function applyInlineStyle(blocks: Block[], id: string, selection: { start: number; end: number }, kind: 'bold' | 'italic'): { blocks: Block[]; enabled: boolean } | null {
+export function applyInlineStyle(blocks: Block[], id: string, selection: { start: number; end: number }, kind: 'bold' | 'italic' | 'underline'): { blocks: Block[]; enabled: boolean } | null {
   const block = blocks.find(item => item.id === id && !item.divider);
   if (!block) return null;
   const start = Math.max(0, Math.min(block.text.length, selection.start)), end = Math.max(start, Math.min(block.text.length, selection.end));
@@ -58,6 +59,7 @@ export function safeOps(note: Note): Op[] | null {
     else if (['checked', 'unchecked', 'bullet', 'ordered'].includes(op.attributes?.list as string)) attrs.list = op.attributes!.list;
     if (op.attributes?.bold === true) attrs.bold = true;
     if (op.attributes?.italic === true) attrs.italic = true;
+    if (op.attributes?.underline === true) attrs.underline = true;
     ops.push(Object.keys(attrs).length ? { insert: op.insert, attributes: attrs } : { insert: op.insert });
   }
   return ops.filter(op => typeof op.insert === 'string').map(op => op.insert).join('') === note.text + '\n' ? ops : null;
@@ -74,7 +76,7 @@ export function toBlocks(note: Note, id: () => string): Block[] {
         text = ''; styles = [];
       } else if (part) {
         text += part;
-        styles.push(...Array.from({ length: part.length }, () => ({ ...(op.attributes?.bold ? { bold: true as const } : {}), ...(op.attributes?.italic ? { italic: true as const } : {}) })));
+        styles.push(...Array.from({ length: part.length }, () => ({ ...(op.attributes?.bold ? { bold: true as const } : {}), ...(op.attributes?.italic ? { italic: true as const } : {}), ...(op.attributes?.underline ? { underline: true as const } : {}) })));
       }
     }
   }
@@ -158,7 +160,7 @@ export function fromBlocks(note: Note, blocks: Block[]): Note {
     if (block.text) {
       const runs = block.runs?.map(run => run.text).join('') === block.text ? block.runs : undefined;
       if (runs?.length) runs.forEach(run => {
-        const attrs = { ...(run.bold ? { bold: true } : {}), ...(run.italic ? { italic: true } : {}) };
+        const attrs = { ...(run.bold ? { bold: true } : {}), ...(run.italic ? { italic: true } : {}), ...(run.underline ? { underline: true } : {}) };
         content.push(Object.keys(attrs).length ? { insert: run.text, attributes: attrs } : { insert: run.text });
       });
       else content.push({ insert: block.text });
