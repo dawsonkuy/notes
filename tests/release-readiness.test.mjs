@@ -46,3 +46,10 @@ test('support page is accessible in both Settings pages and bundled with the web
   assert.match(file('server.mjs'), /'\/support\.html'/);
   assert.match(file('support.html'), /Help &amp; support/);
 });
+
+test('web note search is removed without affecting the note library', () => {
+  const html = file('index.html'), script = file('app.js');
+  assert.doesNotMatch(html, /id="note-search"|id="search-empty"/);
+  assert.doesNotMatch(script, /note-search|search-empty/);
+  assert.match(script, /features\.treeEntries\(workspaceValue\(\), expandedFolders\)/);
+});
