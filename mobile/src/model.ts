@@ -40,6 +40,17 @@ export function applyInlineStyle(blocks: Block[], id: string, selection: { start
 }
 export const noteName = (note: Note) => (typeof note.customName === 'string' && note.customName) || note.text.split(/\r?\n/, 1)[0].trim().slice(0, 80) || 'Untitled';
 export const isTrashed = (note: Note) => typeof note.deletedAt === 'string' && note.deletedAt.length > 0;
+// The app keeps one blank note internally for legacy workspaces and safe editing.
+// Hide only that untouched placeholder; never hide actual, named, pinned, or filed notes.
+export function starterNoteId(workspace: Workspace): string | null {
+  if (workspace.folders?.length) return null;
+  const notes = workspace.tabs.filter(note => !isTrashed(note));
+  if (notes.length !== 1) return null;
+  const note = notes[0];
+  if (note.text || note.customName || note.filename !== 'Untitled' || note.order != null || note.pinned || note.folderId || note.sealed) return null;
+  if (Array.isArray(note.content) && !note.content.every(op => op && typeof op.insert === 'string' && op.insert === '\\n')) return null;
+  return note.id;
+}
 export const newNote = (id: string): Note => ({ id, text: '', filename: 'Untitled', customName: null });
 export function validWorkspace(value: unknown): value is Workspace {
   const v = value as Workspace | null;
