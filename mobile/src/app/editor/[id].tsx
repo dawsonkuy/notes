@@ -14,6 +14,15 @@ function orderedNumber(blocks: Block[], index: number) {
   for (let i = index - 1; i >= 0 && blocks[i].list === 'ordered'; i--) number++;
   return number;
 }
+type ToolbarLabel = 'Add' | 'H1' | 'H2' | 'B' | 'I';
+function ToolbarAction({ label, active, onPress }: { label: ToolbarLabel; active: boolean; onPress: () => void }) {
+  const { colors } = useBestpad();
+  const accessibilityLabel = label === 'B' ? 'Bold' : label === 'I' ? 'Italic' : label === 'Add' ? 'Add formatting' : label + ' heading';
+  return <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{ selected: active }} onPress={onPress}
+    style={{ minWidth: 45, minHeight: 44, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: active ? colors.font : colors.border, backgroundColor: active ? colors.selected : colors.secondary, alignItems: 'center', justifyContent: 'center' }}>
+    <Text style={{ color: colors.font, fontSize: 14, fontWeight: label === 'B' || label.startsWith('H') ? '700' : '500', fontStyle: label === 'I' ? 'italic' : 'normal' }}>{label}</Text>
+  </Pressable>;
+}
 function NoteEditor({ note }: { note: Note }) {
   const { colors, appearance, snapshot, store } = useBestpad(), insets = useSafeAreaInsets();
   const [protectOpen, setProtectOpen] = useState(false);
@@ -179,15 +188,11 @@ function NoteEditor({ note }: { note: Note }) {
     <View style={{ paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
       <View style={[ui.row, { justifyContent: 'space-between', marginBottom: 6 }]}><SaveStatus status={snapshot.status} /><Text style={{ color: colors.muted, fontSize: 10 }}>{note.text.trim().split(/\s+/).filter(Boolean).length} words</Text></View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="always" contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 2 }}>
-        {([
-          { label: 'Add', action: () => setInsertOpen(true), active: false },
-          { label: 'H1', action: () => setHeading(1), active: blocks.find(b => b.id === toolbarCursor.id)?.heading === 1 },
-          { label: 'H2', action: () => setHeading(2), active: blocks.find(b => b.id === toolbarCursor.id)?.heading === 2 },
-          { label: 'B', action: () => toggleInline('bold'), active: inlineActive('bold') },
-          { label: 'I', action: () => toggleInline('italic'), active: inlineActive('italic') },
-        ] as const).map(item => <Pressable key={item.label} accessibilityRole="button" accessibilityLabel={item.label === 'B' ? 'Bold' : item.label === 'I' ? 'Italic' : item.label === 'Add' ? 'Add formatting' : item.label + ' heading'} accessibilityState={{ selected: item.active }} onPress={item.action} style={{ minWidth: 45, minHeight: 44, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: item.active ? colors.font : colors.border, backgroundColor: item.active ? colors.selected : colors.secondary, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ color: colors.font, fontSize: 14, fontWeight: item.label === 'B' || item.label.startsWith('H') ? '700' : '500', fontStyle: item.label === 'I' ? 'italic' : 'normal' }}>{item.label}</Text>
-        </Pressable>)}
+        <ToolbarAction label="Add" active={false} onPress={() => setInsertOpen(true)} />
+        <ToolbarAction label="H1" active={blocks.some(b => b.id === toolbarCursor.id && b.heading === 1)} onPress={() => setHeading(1)} />
+        <ToolbarAction label="H2" active={blocks.some(b => b.id === toolbarCursor.id && b.heading === 2)} onPress={() => setHeading(2)} />
+        <ToolbarAction label="B" active={inlineActive('bold')} onPress={() => toggleInline('bold')} />
+        <ToolbarAction label="I" active={inlineActive('italic')} onPress={() => toggleInline('italic')} />
         <IconButton label="Dismiss keyboard" name="checkmark" onPress={() => Keyboard.dismiss()} />
       </ScrollView>
     </View>
