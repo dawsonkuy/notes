@@ -64,3 +64,13 @@ test('tapping the iOS BestPad logo restores the main notes library', () => {
   assert.match(action, /setHomeRevision\(version => version \+ 1\)/);
   assert.ok(home.includes('key={`home-${homeRevision}'), 'home tap resets library scroll and expansion');
 });
+
+test('web cloud save turns green after server confirms unchanged notes and folders', () => {
+  const app = file('app.js');
+  // Prevent a regression that compared {tabs, folders} to tabs alone,
+  // incorrectly leaving cloudDirty true and retrying forever.
+  assert.doesNotMatch(app, /cloudDirty = notesPayload\(\) !== JSON\.stringify\(snapshot\.tabs\)/);
+  assert.match(app, /cloudDirty = notesPayload\(\) !== JSON\.stringify\(\{ tabs: snapshot\.tabs, folders: snapshot\.folders \|\| \[\] \}\)/);
+  assert.match(app, /cloudDirty \? 'Saved locally · waiting to sync…' : 'Saved to cloud'/);
+  assert.match(file('style.css'), /footer\[data-save-state=waiting\] \.save-indicator/);
+});
