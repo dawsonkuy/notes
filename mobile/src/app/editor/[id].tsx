@@ -23,7 +23,7 @@ function orderedNumber(blocks: Block[], index: number) {
   for (let i = index - 1; i >= 0 && blocks[i].list === 'ordered'; i--) number++;
   return number;
 }
-type ToolbarLabel = 'Add' | 'H1' | 'H2' | 'B' | 'I';
+type ToolbarLabel = 'Add' | 'H1' | 'H2' | 'H3' | 'B' | 'I';
 function ToolbarAction({ label, active, onPress }: { label: ToolbarLabel; active: boolean; onPress: () => void }) {
   const { colors } = useBestpad();
   const accessibilityLabel = label === 'B' ? 'Bold' : label === 'I' ? 'Italic' : label === 'Add' ? 'Add formatting' : label + ' heading';
@@ -111,7 +111,7 @@ function NoteEditor({ note }: { note: Note }) {
     emit(result.blocks); setPendingFocus(result.focus);
   }
   function dismissInsert() { if (slash.current) dismissedSlash.current = `${slash.current.id}:${slash.current.start}`; slash.current = null; setInsertOpen(false); }
-  function setHeading(level: 1 | 2) {
+  function setHeading(level: 1 | 2 | 3) {
     const selection = cursor.current;
     const block = blocksRef.current.find(item => item.id === selection.id && !item.divider);
     if (!block) return;
@@ -202,6 +202,7 @@ function NoteEditor({ note }: { note: Note }) {
         <ToolbarAction label="Add" active={false} onPress={() => setInsertOpen(true)} />
         <ToolbarAction label="H1" active={blocks.some(b => b.id === toolbarCursor.id && b.heading === 1)} onPress={() => setHeading(1)} />
         <ToolbarAction label="H2" active={blocks.some(b => b.id === toolbarCursor.id && b.heading === 2)} onPress={() => setHeading(2)} />
+        <ToolbarAction label="H3" active={blocks.some(b => b.id === toolbarCursor.id && b.heading === 3)} onPress={() => setHeading(3)} />
         <ToolbarAction label="B" active={inlineActive('bold')} onPress={() => toggleInline('bold')} />
         <ToolbarAction label="I" active={inlineActive('italic')} onPress={() => toggleInline('italic')} />
         <IconButton label="Dismiss keyboard" name="checkmark" onPress={() => Keyboard.dismiss()} />
@@ -212,7 +213,7 @@ function NoteEditor({ note }: { note: Note }) {
         <View style={{ flex: 1 }}><Button label="Bold" onPress={() => { dismissInsert(); toggleInline('bold'); }} /></View>
         <View style={{ flex: 1 }}><Button label="Italic" onPress={() => { dismissInsert(); toggleInline('italic'); }} /></View>
       </View>
-      <ScrollView keyboardShouldPersistTaps="always">{([{ kind: 'heading-1', label: 'Large heading (H1)', icon: 'text-outline' }, { kind: 'heading-2', label: 'Medium heading (H2)', icon: 'text-outline' }, { kind: 'heading-3', label: 'Small heading (H3)', icon: 'text-outline' }, { kind: 'bullet-list', label: 'Bulleted list', icon: 'list-outline' }, { kind: 'numbered-list', label: 'Numbered list', icon: 'list-outline' }, { kind: 'checklist', label: 'Checklist', icon: 'checkbox-outline' }, { kind: 'time', label: 'Current time', icon: 'time-outline' }, { kind: 'date', label: 'Current date', icon: 'calendar-outline' }] as const).map(item => <Pressable key={item.kind} accessibilityRole="button" accessibilityLabel={item.label} onPress={() => insert(item.kind)} style={[ui.row, { minHeight: 54 }]}><Icon name={item.icon} /><Text style={{ color: colors.font, fontSize: 16 }}>{item.label}</Text></Pressable>)}</ScrollView></Pressable></Pressable></Modal>
+      <ScrollView keyboardShouldPersistTaps="always">{([{ kind: 'bullet-list', label: 'Bulleted list', icon: 'list-outline' }, { kind: 'numbered-list', label: 'Numbered list', icon: 'list-outline' }, { kind: 'checklist', label: 'Checklist', icon: 'checkbox-outline' }, { kind: 'time', label: 'Current time', icon: 'time-outline' }, { kind: 'date', label: 'Current date', icon: 'calendar-outline' }] as const).map(item => <Pressable key={item.kind} accessibilityRole="button" accessibilityLabel={item.label} onPress={() => insert(item.kind)} style={[ui.row, { minHeight: 54 }]}><Icon name={item.icon} /><Text style={{ color: colors.font, fontSize: 16 }}>{item.label}</Text></Pressable>)}</ScrollView></Pressable></Pressable></Modal>
   </KeyboardAvoidingView></SafeAreaView>;
 }
 export default function Editor() {
