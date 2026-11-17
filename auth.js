@@ -144,6 +144,7 @@
     finally { busy(false); }
   });
   document.getElementById('sign-out').addEventListener('click', async () => {
+    if (window.bestpadHasUnsyncedChanges?.() && !confirm('Your latest notes have not finished syncing to the cloud. Stay signed in to retry, or choose OK to sign out anyway if you have a backup.')) return;
     busy(true);
     try {
       const { error } = await client.auth.signOut({ scope: 'local' });
