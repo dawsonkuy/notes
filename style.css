@@ -130,7 +130,8 @@ dialog::backdrop { background: #10172270; backdrop-filter: blur(5px); }
 #auth-form, #account-session { display: grid; gap: 14px; }
 #auth-form label { display: grid; gap: 7px; font-size: 12px; font-weight: 500; }
 #auth-form input { width: 100%; font-size: 16px; padding: 12px; background: var(--control); border: 1px solid var(--soft-border); border-radius: 9px; }
-#auth-form button, #sign-out { min-height: 44px; padding: 10px; border-radius: 9px; border: 1px solid var(--soft-border); background: var(--control); }
+#auth-form button, #sign-out, #signed-in-forgot-password { min-height: 44px; padding: 10px; border-radius: 9px; border: 1px solid var(--soft-border); background: var(--control); }
+#signed-in-forgot-password { color: var(--text); font-size: 12px; cursor: pointer; }
 #auth-form #sign-in { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
 #account-email { overflow-wrap: anywhere; }
 #auth-status { font-size: 12px; line-height: 1.6; color: var(--muted); margin: 18px 0 0; }
@@ -192,6 +193,13 @@ img.small-brand-mark { display: block; object-fit: contain; padding: 3px; }
 .legal-settings-links { display: grid; gap: 7px; }
 .legal-settings-links a, .legal-settings-links button { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 14px; min-height: 44px; width: 100%; border: 1px solid var(--soft-border); border-radius: 10px; background: var(--control); color: var(--text); font: inherit; font-size: 13px; text-align: left; text-decoration: none; cursor: pointer; }
 .legal-settings-links a:hover, .legal-settings-links button:hover, .legal-settings-links a:focus-visible, .legal-settings-links button:focus-visible { background: var(--selected); }
+.account-deletion-settings { margin-top: 26px; padding-top: 24px; border-top: 1px solid var(--soft-border); }
+.account-deletion-settings h3 { margin: 0 0 12px; font-size: 14px; }
+.account-deletion-settings p { font-size: 12px; line-height: 1.6; color: var(--muted); margin: 0 0 12px; }
+#delete-account { display: block; width: 100%; min-height: 44px; padding: 12px 14px; border: 1px solid var(--soft-border); border-radius: 10px; background: var(--control); color: #d75353; font: inherit; font-size: 13px; cursor: pointer; }
+#delete-account:hover, #delete-account:focus-visible { background: var(--selected); }
+#delete-account[hidden], #delete-account-signed-out[hidden] { display: none; }
+#delete-account-status:empty { display: none; }
 
 /* Keep the insert palette reachable on small screens and with the keyboard. */
 #add-menu { max-height: min(66dvh, 510px); overflow-y: auto; overscroll-behavior: contain; }
