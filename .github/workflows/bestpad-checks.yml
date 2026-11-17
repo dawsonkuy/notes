@@ -23,6 +23,7 @@ jobs:
           npm run test:release
           npm run test:legal
           npm run test:formatting
+          npm run test:save
       - name: Install iOS dependencies
         run: cd mobile && npm ci --no-audit --no-fund
       - name: Check iOS types
@@ -31,3 +32,5 @@ jobs:
         run: cd mobile && npm run lint
       - name: Run iOS unit tests
         run: cd mobile && npm test
+      - name: Bundle iOS release JavaScript
+        run: cd mobile && npm run export:ios

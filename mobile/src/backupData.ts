@@ -17,7 +17,7 @@ export function parseWorkspaceBackup(raw: string): Workspace {
   try { parsed = JSON.parse(raw); } catch { throw new Error('This file is not valid JSON.'); }
   const backup = parsed as Partial<BackupPayload> | null;
   if (!backup || backup.format !== 'bestpad-workspace-backup' || backup.version !== 1 || !validWorkspace(backup.workspace)) {
-    throw new Error('Select a valid BestPad JSON backup created with Export all.');
+    throw new Error('Select a valid BestPad JSON backup created with Export JSON backup.');
   }
   if (backup.workspace.tabs.length > 10000 || (backup.workspace.folders?.length || 0) > 2000) throw new Error('Backup contains too many items.');
   return backup.workspace;
@@ -28,29 +28,64 @@ export function mergeWorkspaceNotes(current: Workspace, imported: Workspace, new
   const existingNotes = new Set(current.tabs.map(note => note.id));
   const existingFolders = new Set((current.folders || []).map(folder => folder.id));
   const importedFolders = imported.folders || [];
-  const importableNotes = imported.tabs.filter(note => !existingNotes.has(note.id) && (Boolean(note.text) || Boolean(note.sealed) || Boolean(note.deletedAt) || Boolean(note.customName) || note.filename !== 'Untitled'));
-  const skipped = imported.tabs.length - importableNotes.length;
-  if (!importableNotes.length) return { workspace: current, added: 0, skipped, foldersAdded: 0 };
+
+  // An exported backup is an explicit request to restore notes, including
+  // untitled/empty ones. Only an existing note ID counts as a duplicate.
+  // Protected note IDs must stay unchanged: encryption binds to the note ID.
+  const notes: Note[] = imported.tabs
+    .filter(note => !existingNotes.has(note.id))
+    .map(note => ({ ...note }));
+  const skipped = imported.tabs.length - notes.length;
+
+  // A repeat import must reuse folders that already have the same ID. The
+  // previous implementation remapped them on every import and created duplicates.
+  // Remap only if a folder's ID collides with a note ID.
   const folderIdMap = new Map<string, string>();
-  // Folder ID clashes can be remapped because folder IDs are not used as
-  // encryption associated data. Protected note IDs cannot be remapped.
-  const reservedFolderIds = new Set([...existingFolders, ...importedFolders.map(folder => folder.id)]);
+  const reservedIds = new Set([
+    ...existingFolders, ...existingNotes,
+    ...importedFolders.map(folder => folder.id), ...imported.tabs.map(note => note.id),
+  ]);
+  const folders: Folder[] = [];
   for (const folder of importedFolders) {
-    if (!existingFolders.has(folder.id)) { folderIdMap.set(folder.id, folder.id); continue; }
-    let next = newId();
-    while (reservedFolderIds.has(next) || existingNotes.has(next)) next = newId();
-    reservedFolderIds.add(next);
-    folderIdMap.set(folder.id, next);
+    if (existingFolders.has(folder.id)) {
+      folderIdMap.set(folder.id, folder.id);
+      continue;
+    }
+    let id = folder.id;
+    if (existingNotes.has(id)) {
+      id = newId();
+      while (reservedIds.has(id)) id = newId();
+      reservedIds.add(id);
+    }
+    folderIdMap.set(folder.id, id);
   }
-  const folders: Folder[] = importedFolders.map(folder => ({
-    ...folder,
-    id: folderIdMap.get(folder.id)!,
-    parentId: folder.parentId ? folderIdMap.get(folder.parentId) || null : null,
+  for (const folder of importedFolders) {
+    if (existingFolders.has(folder.id)) continue;
+    folders.push({
+      ...folder,
+      id: folderIdMap.get(folder.id)!,
+      parentId: folder.parentId
+        ? folderIdMap.get(folder.parentId) || (existingFolders.has(folder.parentId) ? folder.parentId : null)
+        : null,
+    });
+  }
+  const mappedNotes = notes.map(note => ({
+    ...note,
+    folderId: note.folderId
+      ? folderIdMap.get(note.folderId) || (existingFolders.has(note.folderId) ? note.folderId : null)
+      : null,
   }));
-  const notes: Note[] = importableNotes.map(note => ({ ...note, folderId: note.folderId ? folderIdMap.get(note.folderId) || null : null }));
-  // Never replace existing note contents or the current editor selection.
+
+  if (!mappedNotes.length && !folders.length) {
+    return { workspace: current, added: 0, skipped, foldersAdded: 0 };
+  }
+  // Keep the original workspace and active editor untouched.
   return {
-    workspace: { ...current, folders: [...(current.folders || []), ...folders], tabs: [...current.tabs, ...notes] },
-    added: notes.length, skipped, foldersAdded: folders.length,
+    workspace: {
+      ...current,
+      folders: [...(current.folders || []), ...folders],
+      tabs: [...current.tabs, ...mappedNotes],
+    },
+    added: mappedNotes.length, skipped, foldersAdded: folders.length,
   };
 }

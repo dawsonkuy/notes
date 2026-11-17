@@ -76,3 +76,10 @@ Web cloud reads and writes have bounded waits and a safe reconnect path that kee
 
 
 The folder options menu now supports **Pin folder** and **Unpin folder** on web and iOS. Pinned folders sort above unpinned items within their current parent, just like pinned notes. Their contained notes and nested folders are never moved when the pin state changes.
+
+## November 17 release audit hardening
+
+- Web autosave tracks the last cloud-confirmed notes-and-folders payload. Unchanged notes, reverted edits, and repeated saves of an unlocked protected note do not create redundant cloud PATCH writes.
+- If browser local storage rejects a recovery write, BestPad reports the failure but still queues an independent cloud save. When both browser storage and cloud are unavailable, **download a copy before closing**.
+- iOS JSON backup imports now restore empty notes and empty folders, reuse existing folder IDs on repeated imports, preserve nested folders and pinned status, and keep encrypted note IDs unchanged.
+- The GitHub pull-request checks now exercise real browser save behavior in a sandbox and produce an iOS JavaScript release bundle. A production installation/TestFlight smoke test remains necessary.

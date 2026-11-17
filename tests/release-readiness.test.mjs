@@ -73,7 +73,9 @@ test('web cloud save turns green after server confirms unchanged notes and folde
   // Prevent a regression that compared {tabs, folders} to tabs alone,
   // incorrectly leaving cloudDirty true and retrying forever.
   assert.doesNotMatch(app, /cloudDirty = notesPayload\(\) !== JSON\.stringify\(snapshot\.tabs\)/);
-  assert.match(app, /cloudDirty = notesPayload\(\) !== JSON\.stringify\(\{ tabs: snapshot\.tabs, folders: snapshot\.folders \|\| \[\] \}\)/);
+  assert.match(app, /cloudConfirmedNotes = JSON\.stringify\(\{ tabs: snapshot\.tabs, folders: snapshot\.folders \|\| \[\] \}\)/);
+  assert.match(app, /cloudDirty = notesPayload\(\) !== cloudConfirmedNotes/);
+  assert.match(app, /cloudConfirmedNotes !== null && notesPayload\(\) === cloudConfirmedNotes/);
   assert.match(app, /cloudDirty \? 'Saved locally · waiting to sync…' : 'Saved to cloud'/);
   assert.match(file('style.css'), /footer\[data-save-state=waiting\] \.save-indicator/);
 });
