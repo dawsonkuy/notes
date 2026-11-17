@@ -12,7 +12,8 @@ test('web Add menu exposes headings, lists, bold and italic', () => {
     assert.ok(html.includes('data-inline-format="' + kind + '"'), kind);
     assert.ok(js.includes("'"+kind+"'"), kind);
   }
-  for (const kind of ['heading-1', 'heading-2', 'heading-3', 'bullet-list', 'numbered-list', 'checklist']) {
+  for (const level of [1, 2]) assert.ok(html.includes('data-heading="' + level + '"'), 'heading ' + level + ' in persistent formatting toolbar');
+  for (const kind of ['heading-3', 'bullet-list', 'numbered-list', 'checklist']) {
     assert.ok(html.includes('data-insert="' + kind + '"'), kind);
   }
   assert.match(js, /kind\.startsWith\('heading-'\)|heading-\[123\]/);
