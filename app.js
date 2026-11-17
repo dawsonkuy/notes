@@ -27,6 +27,21 @@ let savedNotesPayload = '';
 const notesPayload = () => JSON.stringify({ tabs, folders });
 let cloudChannel = null;
 let cloudRefreshing = false;
+let cloudRecovering = false;
+// Abort the network request and also stop waiting if the SDK stalls before
+// fetch starts (for example while obtaining an Auth session lock).
+async function cloudRequest(query, milliseconds = 12000) {
+  const controller = new AbortController();
+  let timeout;
+  const deadline = new Promise((_, reject) => {
+    timeout = setTimeout(() => {
+      controller.abort();
+      reject(new Error('Cloud request timed out; local notes were kept.'));
+    }, milliseconds);
+  });
+  try { return await Promise.race([query.abortSignal(controller.signal), deadline]); }
+  finally { clearTimeout(timeout); }
+}
 const payload = () => JSON.stringify({ tabs, folders, activeId });
 function cacheNotes() {
   localStorage.setItem(storageKey, JSON.stringify({ tabs, folders, activeId, revision: cloudRevision, dirty: cloudDirty }));
@@ -100,18 +115,19 @@ function downloadTab(tab) {
 }
 async function shareTab(tab) {
   closeMenus(); save();
+  $('action-status').textContent = '';
   if (tab.sealed) { const session = unlockedNotes.get(tab.id); if (!session) { alert('Unlock this note before sharing it.'); return; } tab = session.note; }
   const data = { title: noteName(tab), text: tab.text };
   try {
     if (navigator.share) {
       await navigator.share(data);
-      $('save-status').textContent = 'Note shared';
+      $('action-status').textContent = 'Note shared';
     } else {
       await navigator.clipboard.writeText(tab.text);
-      $('save-status').textContent = 'Note copied — paste it to share';
+      $('action-status').textContent = 'Note copied — paste it to share';
     }
   } catch (error) {
-    if (error.name !== 'AbortError') $('save-status').textContent = 'Unable to share — use Save as to download the note';
+    if (error.name !== 'AbortError') $('action-status').textContent = 'Unable to share — use Save as to download the note';
   }
 }
 function openTabMenu(tab, anchor) {
@@ -294,7 +310,7 @@ async function flushCloud() {
     const query = revision === null
       ? window.notesClient.from('note_workspaces').insert(row)
       : window.notesClient.from('note_workspaces').update(row).eq('user_id', userId).eq('revision', revision);
-    const { data, error } = await query.select('revision');
+    const { data, error } = await cloudRequest(query.select('revision'));
     if (generation !== accountGeneration) return;
     if (error?.code === '23505' || (!error && !data?.length)) {
       cloudConflict = true;
@@ -329,7 +345,7 @@ function downloadWorkspaceBackup(kind, workspace, revision) {
   setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
 async function readCloudWorkspace(user) {
-  const { data, error } = await window.notesClient.from('note_workspaces').select('*').eq('user_id', user).maybeSingle();
+  const { data, error } = await cloudRequest(window.notesClient.from('note_workspaces').select('*').eq('user_id', user).maybeSingle());
   if (error) throw error;
   if (data && (!validWorkspace({ tabs: data.tabs }) || !Number.isInteger(data.revision))) throw new Error('Cloud copy was invalid. Neither version was changed.');
   return data;
@@ -341,7 +357,7 @@ async function clearIdenticalCloudConflict() {
   try {
     const remote = await readCloudWorkspace(user);
     if (generation !== accountGeneration || !cloudConflict || localNotes !== notesPayload()) return;
-    if (remote && JSON.stringify(remote.tabs) === localNotes) {
+    if (remote && JSON.stringify({ tabs: remote.tabs, folders: remote.folders || [] }) === localNotes) {
       cloudRevision = remote.revision;
       cloudDirty = false;
       cloudConflict = false;
@@ -385,13 +401,13 @@ async function resolveCloudConflict(choice) {
       const query = revision === null
         ? window.notesClient.from('note_workspaces').insert(row)
         : window.notesClient.from('note_workspaces').update(row).eq('user_id', user).eq('revision', revision);
-      const { data, error } = await query.select('revision');
+      const { data, error } = await cloudRequest(query.select('revision'));
       if (generation !== accountGeneration) return;
       if (error?.code === '23505' || (!error && !data?.length)) throw new Error('Cloud changed again. Please download fresh backups and retry.');
       if (error) throw error;
       cloudRevision = data[0].revision;
       cloudConflict = false;
-      cloudDirty = notesPayload() !== JSON.stringify(local.tabs);
+      cloudDirty = notesPayload() !== JSON.stringify({ tabs: local.tabs, folders: local.folders || [] });
       cacheNotes();
       $('save-status').textContent = cloudDirty ? 'Saved locally · waiting to sync…' : 'Saved to cloud';
       $('sync-dialog').close();
@@ -414,7 +430,7 @@ async function refreshCloud() {
   const user = cloudUser, generation = accountGeneration, contents = payload();
   cloudRefreshing = true;
   try {
-    const { data, error } = await window.notesClient.from('note_workspaces').select('*').eq('user_id', user).maybeSingle();
+    const { data, error } = await cloudRequest(window.notesClient.from('note_workspaces').select('*').eq('user_id', user).maybeSingle());
     if (error || !data || generation !== accountGeneration || cloudDirty || cloudWriting || slashComposing || contents !== payload() || data.revision === cloudRevision || !validWorkspace({ tabs: data.tabs })) return;
     const selection = richEditor?.getSelection(), scroll = richEditor?.root.scrollTop, focused = document.activeElement;
     const selected = activeId;
@@ -450,7 +466,7 @@ async function loadAccount(userId) {
   $('editor').disabled = true; $('add-tab').disabled = true; $('tabs').inert = true;
   $('save-status').textContent = 'Loading saved notes…';
   try {
-    const { data, error } = await window.notesClient.from('note_workspaces').select('*').eq('user_id', userId).maybeSingle();
+    const { data, error } = await cloudRequest(window.notesClient.from('note_workspaces').select('*').eq('user_id', userId).maybeSingle());
     if (generation !== accountGeneration) return;
     if (error) throw error;
     cloudRevision = data?.revision ?? null;
@@ -478,7 +494,8 @@ async function loadAccount(userId) {
     if (cloudConflict) void clearIdenticalCloudConflict();
   } catch {
     // A failed read must never permit overwriting unknown cloud contents.
-    cloudDirty = Boolean(cached?.dirty);
+    cloudRevision = Number.isInteger(cached?.revision) ? cached.revision : null;
+    cloudDirty = cloudDirty || Boolean(cached?.dirty);
     $('save-status').textContent = 'Cloud unavailable · saved locally; reconnect to retry';
   } finally {
     if (generation === accountGeneration) {
@@ -495,12 +512,43 @@ if (window.notesClient) {
     setTimeout(() => loadAccount(session?.user.id || null), 0);
   });
 }
-window.addEventListener('online', () => {
-  if (cloudUser && !cloudReady) {
-    const userId = cloudUser; cloudUser = null; loadAccount(userId);
-  } else flushCloud();
+// Recover cloud state in place after a failed sign-in/read. Do not reload the
+// account and discard notes the user typed while the network was unavailable.
+async function recoverCloud() {
+  if (!cloudUser || cloudReady || cloudRecovering || document.hidden) return;
+  const user = cloudUser, generation = accountGeneration, before = notesPayload();
+  cloudRecovering = true;
+  try {
+    const remote = await readCloudWorkspace(user);
+    if (generation !== accountGeneration || user !== cloudUser) return;
+    if (notesPayload() !== before) cloudDirty = true;
+    const previousRevision = cloudRevision;
+    if (cloudDirty) {
+      cloudConflict = previousRevision !== (remote?.revision ?? null);
+    } else if (remote) {
+      useWorkspace({ tabs: remote.tabs, folders: remote.folders || [], activeId: remote.active_id });
+    } else {
+      cloudDirty = true;
+    }
+    cloudRevision = cloudConflict ? previousRevision : (remote?.revision ?? null);
+    cloudReady = true;
+    cacheNotes();
+    $('save-status').textContent = cloudConflict ? 'Cloud conflict — local copy kept; download before reloading' : cloudDirty ? 'Saved locally · waiting to sync…' : 'Saved to cloud';
+    if (cloudConflict) void clearIdenticalCloudConflict();
+    else queueCloudSave();
+  } catch {
+    if (generation === accountGeneration) $('save-status').textContent = 'Cloud unavailable · saved locally; reconnect to retry';
+  } finally { cloudRecovering = false; }
+}
+window.addEventListener('online', () => { if (cloudUser && !cloudReady) void recoverCloud(); else void flushCloud(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) void flushCloud();
+  else if (cloudUser && !cloudReady) void recoverCloud();
+  else void refreshCloud();
 });
-document.addEventListener('visibilitychange', () => { if (document.hidden) flushCloud(); else void refreshCloud(); });
+// Realtime drives active cloud refreshes. Poll only to recover disconnected
+// reads, so an outage doesn't leave the user permanently offline until reload.
+setInterval(() => { if (cloudUser && !cloudReady && navigator.onLine && !document.hidden) void recoverCloud(); }, 10000);
 window.addEventListener('beforeunload', event => {
   if (cloudUser && cloudDirty) { event.preventDefault(); event.returnValue = ''; }
 });
