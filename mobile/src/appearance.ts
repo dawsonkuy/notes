@@ -3,12 +3,18 @@ export type Mode = 'light' | 'dark';
 export type Theme = { id: string; name: string; mode: Mode; colors: Colors };
 export type Appearance = { mode: Mode; colors: Colors; themes: Theme[]; selected: string | null; font: 'sans' | 'serif' | 'mono' | 'rounded'; size: 16 | 18 | 22 };
 export const defaults: Record<Mode, Colors> = { light: { font: '#292d37', primary: '#faf7ef', secondary: '#eee8da' }, dark: { font: '#f1f4f9', primary: '#0c1422', secondary: '#162236' } };
+export const builtInThemes: Theme[] = [
+  { id: 'preset-paper', name: 'Paper', mode: 'light', colors: { ...defaults.light } },
+  { id: 'preset-cloud', name: 'Cloud', mode: 'light', colors: { font: '#202b3a', primary: '#f5f7fa', secondary: '#e8edf3' } },
+  { id: 'preset-midnight', name: 'Midnight', mode: 'dark', colors: { ...defaults.dark } },
+  { id: 'preset-evergreen', name: 'Evergreen', mode: 'dark', colors: { font: '#f1f6ef', primary: '#13271f', secondary: '#234034' } },
+];
 export const validColors = (value: unknown): value is Colors => Boolean(value && ['font', 'primary', 'secondary'].every(key => /^#[0-9a-f]{6}$/i.test((value as Record<string, string>)[key])));
-export function initialAppearance(mode: Mode = 'dark'): Appearance { return { mode, colors: { ...defaults[mode] }, themes: [], selected: null, font: 'sans', size: 16 }; }
+export function initialAppearance(mode: Mode = 'dark'): Appearance { return { mode, colors: { ...defaults[mode] }, themes: [], selected: mode === 'dark' ? 'preset-midnight' : 'preset-paper', font: 'sans', size: 16 }; }
 export function restoreAppearance(raw: unknown, mode: Mode = 'dark'): Appearance {
   const value = raw as Appearance | null; if (!value || !validColors(value.colors) || !['light', 'dark'].includes(value.mode)) return initialAppearance(mode);
   const themes = (Array.isArray(value.themes) ? value.themes : []).filter(t => t && typeof t.id === 'string' && typeof t.name === 'string' && ['light', 'dark'].includes(t.mode) && validColors(t.colors)).slice(0, 4).map(t => ({ id: t.id, name: t.name.slice(0, 24), mode: t.mode, colors: { ...t.colors } }));
-  return { mode: value.mode, colors: { ...value.colors }, themes, selected: themes.some(t => t.id === value.selected) ? value.selected : null, font: ['sans', 'serif', 'mono', 'rounded'].includes(value.font) ? value.font : 'sans', size: [16, 18, 22].includes(value.size) ? value.size : 16 };
+  return { mode: value.mode, colors: { ...value.colors }, themes, selected: [...builtInThemes, ...themes].some(t => t.id === value.selected) ? value.selected : null, font: ['sans', 'serif', 'mono', 'rounded'].includes(value.font) ? value.font : 'sans', size: [16, 18, 22].includes(value.size) ? value.size : 16 };
 }
 export function saveTheme(state: Appearance, name: string, id: string): Appearance {
   if (state.themes.length >= 4) return state;

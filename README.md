@@ -32,15 +32,15 @@ Use Body, H1, H2, or H3 above the editor to format the current paragraph or sele
 
 The rich editor uses Quill 2.0.3, loaded from jsDelivr. If it cannot load, the plain-text editor stays available. Only text, heading levels, checked/unchecked checklist items, and the app’s divider embeds are accepted when restoring formatted notes.
 
-The Insert menu inserts headings, the current local time/date, interactive checklists, and dividers. Checklist states and dividers autosave inside the workspace alongside the rest of the note.
+The Add menu inserts headings, the current local time/date, interactive checklists, and dividers. Checklist states and dividers autosave inside the workspace alongside the rest of the note.
 
 ## App interface
 
-The desktop layout has a searchable notes sidebar and a focused editor with rename, download, and share controls. On phones, use the notes button beside the logo to open the notes drawer. Insert stays in the header with Heading, Current time, and Current date. The app retains the existing local/cloud workspace format and autosave behavior.
+The desktop layout has a structured notes sidebar and a focused editor with rename, download, and share controls. On phones, use the notes button beside the logo to open the notes drawer. Add stays in the header with Heading, Current time, and Current date. The app retains the existing local/cloud workspace format and autosave behavior.
 
 The sidebar supports vertical drag reordering on desktop, Up/Down/Home/End keyboard navigation, and Ctrl+Alt+N for a new note. All themes use solid backgrounds, and note fonts and text sizes remain adjustable in Settings.
 
-Type `/insert` in a note to open Heading, Current time, and Current date at the cursor. Use Up/Down and Enter, or tap an option. Choosing an item replaces the command; Escape dismisses the menu and leaves the typed text intact. The same actions are available from Insert in the header.
+Type `/add` in a note to open Heading, Current time, and Current date at the cursor. Use Up/Down and Enter, or tap an option. Choosing an item replaces the command; Escape dismisses the menu and leaves the typed text intact. The same actions are available from Add in the header.
 
 ## Custom appearance
 
@@ -59,10 +59,17 @@ The public privacy policy is at `https://bestpad.app/privacy.html`, Terms of Ser
 Run `npm run test:legal` to verify that the legal pages, static deployment mapping, and mobile Settings links exist. Use the privacy-policy URL in App Store Connect's App Privacy settings. Before App Store release, provide a private, working developer support contact address; current general support links lead to the public GitHub issue tracker and must not be used to share sensitive note or account content. Review the legal drafts with qualified counsel for the countries you serve, and verify App Privacy disclosures against production provider behavior.
 
 ## Heading sizes and lists (web and mobile)
-Use Insert or type `/insert` for Large (H1), Medium (H2), Small (H3) headings; bulleted, numbered and checkbox lists; and date/time. The website uses Quill v2 list markers and the native app displays lists with native input rows. The existing Supabase `note_workspaces` JSON stores these styles as `header` and `list` attributes with no schema change. Deploy the web update and restart Expo Go to test both clients before an App Store build.
+Use Add or type `/add` for Large (H1), Medium (H2), Small (H3) headings; bulleted, numbered and checkbox lists; and date/time. The website uses Quill v2 list markers and the native app displays lists with native input rows. The existing Supabase `note_workspaces` JSON stores these styles as `header` and `list` attributes with no schema change. Deploy the web update and restart Expo Go to test both clients before an App Store build.
 
 To check editor menu support before publishing, run `npm run check`, `npm run test:formatting`, and `npm run test:legal` at the repository root. From `mobile/`, run `npm run typecheck`, `npm test`, and `npx expo install --check`. Verify headings and lists in Expo Go on a real device before submitting an iOS build.
 
 ## Release hardening (November 2026)
 
 The native app supports note renaming and Undo after moving a note to Trash, full-workspace JSON backups before conflict recovery, and password-reset requests linked to the website. The website has a reset-password form and uses `https://bestpad.app/` for confirmation redirects, replacing a leftover Netlify URL. The native EAS configuration and iPhone-only release settings are in `mobile/eas.json` and `mobile/app.json`. Run `npm run test:release`, `npm run test:legal`, `npm run test:formatting`, and `npm run check` at the root; in mobile, run `npm run typecheck`, `npm test`, and `npm run lint`. EAS project linking, physical device testing, legal/support contact verification, and the Supabase leaked-password-protection setting require separate release setup.
+
+
+## Themes and save recovery (November 2026)
+
+Paper, Cloud, Midnight and Evergreen are the four high-contrast built-in themes in website and iPhone Settings. Saved custom themes appear directly below them. Color editing, light/dark starting palettes, and saving/updating custom themes are inside the collapsible **Custom theme** section. Existing saved themes are preserved.
+
+Web cloud reads and writes have bounded waits and a safe reconnect path that keeps offline notes open. The share/copy confirmation no longer changes the cloud-save indicator. The iPhone app prompts before signing out while cloud changes are still unsynced.

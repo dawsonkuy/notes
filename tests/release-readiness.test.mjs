@@ -74,3 +74,34 @@ test('web cloud save turns green after server confirms unchanged notes and folde
   assert.match(app, /cloudDirty \? 'Saved locally · waiting to sync…' : 'Saved to cloud'/);
   assert.match(file('style.css'), /footer\[data-save-state=waiting\] \.save-indicator/);
 });
+
+test('cloud request deadlines and safe reconnect keep web editing state protected', () => {
+  const web = file('app.js'), html = file('index.html');
+  assert.match(web, /async function cloudRequest\(query/);
+  assert.match(web, /query\.abortSignal\(controller\.signal\)/);
+  assert.match(web, /async function recoverCloud\(\)/);
+  assert.doesNotMatch(web, /cloudUser = null; loadAccount\(userId\)/);
+  assert.match(web, /JSON\.stringify\(\{ tabs: remote\.tabs, folders: remote\.folders \|\| \[\] \}\) === localNotes/);
+  assert.match(web, /JSON\.stringify\(\{ tabs: local\.tabs, folders: local\.folders \|\| \[\] \}\)/);
+  const share = web.match(/async function shareTab\(tab\) \{([\s\S]*?)\n\}/)?.[1];
+  assert.ok(share);
+  assert.doesNotMatch(share, /\$\('save-status'\)/);
+  assert.match(share, /\$\('action-status'\)/);
+  assert.match(html, /id="action-status"/);
+  assert.match(file('auth.js'), /window\.bestpadHasUnsyncedChanges/);
+  assert.match(web, /window\.bestpadHasUnsyncedChanges =/);
+});
+
+test('four preset themes and saved themes render outside the custom color dropdown', () => {
+  const web = file('appearance.js'), native = file('mobile/src/app/(tabs)/settings.tsx');
+  for (const name of ['Paper', 'Cloud', 'Midnight', 'Evergreen']) assert.match(web, new RegExp("name: '" + name + "'"));
+  assert.match(web, /data-preset-themes/);
+  assert.match(web, /data-saved-themes/);
+  assert.match(web, /data-custom-panel hidden/);
+  assert.ok(web.indexOf('data-saved-themes') < web.indexOf('data-custom-panel'));
+  assert.match(native, /builtInThemes\.map/);
+  assert.match(native, /appearance\.themes\.map/);
+  assert.match(native, /accessibilityState=\{\{ expanded: customOpen \}\}/);
+  assert.match(native, /Notes are not synced yet/);
+  assert.match(native, /current\.status !== 'saved'/);
+});
