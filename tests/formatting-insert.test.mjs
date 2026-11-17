@@ -89,3 +89,32 @@ test('drag tick fires on distinct crossed items, rather than every pointer movem
   assert.match(js, /crossedItem !== drag\.lastPassedItem/);
   assert.match(js, /navigator\.vibrate\(6\)/);
 });
+
+test('starter workspace shows a centered Create note action without creating duplicate notes', () => {
+  const nativeLibrary = read('mobile/src/components/OrganizedLibrary.tsx');
+  const mobileHome = read('mobile/src/app/(tabs)/index.tsx');
+  const styles = read('style.css');
+  assert.match(nativeLibrary, /Nothing here yet\./);
+  assert.match(nativeLibrary, /label="Create note"/);
+  assert.match(nativeLibrary, /starterNoteId\(workspace\)/);
+  assert.match(mobileHome, /starterNoteId\(store\.getSnapshot\(\)\.workspace\) \?\? store\.add\(\)/);
+  assert.match(js, /function starterNoteId\(\)/);
+  assert.match(js, /Nothing here yet\./);
+  assert.match(js, /create\.textContent = 'Create note'/);
+  assert.match(js, /if \(starter\) \{\s*switchTab\(starter\)/);
+  assert.match(js, /Boolean\(starterNoteId\(\)\) !== emptyLibraryVisible/);
+  assert.match(styles, /\.library-empty-state/);
+});
+test('buttons and note rows provide subtle pressed feedback without overriding dragging', () => {
+  const styles = read('style.css');
+  const ui = read('mobile/src/components/ui.tsx');
+  const library = read('mobile/src/components/OrganizedLibrary.tsx');
+  const settings = read('mobile/src/app/(tabs)/settings.tsx');
+  const editor = read('mobile/src/app/editor/[id].tsx');
+  assert.match(styles, /button:not\(:disabled\):not\(\.library-open\):not\(\.folder-toggle\):active/);
+  assert.match(styles, /\.tab:not\(\.is-lifted\):has\(\.library-open:active\)/);
+  assert.match(ui, /transform: \[\{ scale: pressed && !disabled \?/);
+  assert.match(library, /pressed && dragId !== item\.id/);
+  assert.match(settings, /backgroundColor: pressed \? colors\.selected : colors\.secondary/);
+  assert.match(editor, /transform: \[\{ scale: pressed \? \.97 : 1 \}\]/);
+});

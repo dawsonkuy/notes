@@ -75,6 +75,17 @@ const protectedPlainPayload = note => JSON.stringify({
 });
 const makeTab = (text = '', filename = 'Untitled') => ({ id: crypto.randomUUID(), text, filename, customName: filename !== 'Untitled' ? filename : null });
 const noteName = tab => tab.customName || tab.text.split(/\r?\n/, 1)[0].trim().slice(0, 80) || 'Untitled';
+// Keep the blank default note internally, but treat it as an empty library until edited.
+function starterNoteId() {
+  if (folders.length) return null;
+  const notes = liveTabs();
+  if (notes.length !== 1) return null;
+  const note = notes[0];
+  if (note.text || note.customName || note.filename !== 'Untitled' || note.order != null || note.pinned || note.folderId || note.sealed) return null;
+  if (Array.isArray(note.content) && !note.content.every(op => op && op.insert === '\n' && !op.attributes)) return null;
+  return note.id;
+}
+let emptyLibraryVisible = false;
 const tabMenu = document.createElement('div');
 tabMenu.className = 'tab-menu'; tabMenu.hidden = true;
 tabMenu.setAttribute('role', 'menu'); document.body.append(tabMenu);
@@ -227,6 +238,7 @@ function refreshNames() {
   const tab = active(), name = noteName(tab);
   const label = `${storedActive()?.pinned ? '📌 ' : ''}${storedActive()?.sealed ? '🔒 ' : ''}${name}`;
   if ($('note-title').textContent !== name) setTitle();
+  if (Boolean(starterNoteId()) !== emptyLibraryVisible) renderTabs();
   const button = document.getElementById(`tab-${tab.id}`);
   if (!button) return;
   const title = button.querySelector('.note-list-title'), preview = button.querySelector('.note-list-preview'), text = notePreview(tab);
@@ -239,7 +251,24 @@ $('editor').addEventListener('input', save);
 ['click', 'keyup', 'select'].forEach(type => $('editor').addEventListener(type, position));
 function renderTabs() {
   if (libraryDrag?.active) finishLibraryDrag(false);
-  $('tabs').replaceChildren(); renderTrash(); $('note-total').textContent = liveTabs().length;
+  const list = $('tabs'), starter = starterNoteId();
+  emptyLibraryVisible = Boolean(starter);
+  list.replaceChildren();
+  list.setAttribute('role', starter ? 'group' : 'tablist');
+  renderTrash();
+  $('note-total').textContent = String(liveTabs().length - (starter ? 1 : 0));
+  if (starter) {
+    const empty = document.createElement('div'); empty.className = 'library-empty-state';
+    const message = document.createElement('p'); message.textContent = 'Nothing here yet.';
+    const create = document.createElement('button'); create.type = 'button'; create.textContent = 'Create note'; create.setAttribute('aria-label', 'Create note');
+    create.onclick = () => {
+      switchTab(starter);
+      if (richEditor?.isEnabled()) richEditor.focus();
+      else if (!$('editor').disabled) $('editor').focus();
+    };
+    empty.append(message, create); list.append(empty);
+    return;
+  }
   const items = features.treeEntries(workspaceValue(), expandedFolders);
   items.forEach(entry => {
     const item = document.createElement('div'); item.className = 'tab'; item.dataset.entry = entry.id; item.style.marginLeft = `${entry.depth * 18}px`; item.style.width = `calc(100% - ${entry.depth * 18}px)`; item.draggable = false;
@@ -289,6 +318,14 @@ function showTab() {
 function switchTab(id, keepSidebar = false) { if (!tabs.some(note => note.id === id && !isTrashed(note))) return; save(); activeId = id; showTab(); save(); if (!keepSidebar) setNotesDrawer(false); }
 function addTab(text = '', filename = 'Untitled') {
   if ($('add-tab').disabled) return;
+  // A fresh workspace already has one editable starter note. Reuse it.
+  const starter = !text && filename === 'Untitled' ? starterNoteId() : null;
+  if (starter) {
+    switchTab(starter);
+    if (richEditor?.isEnabled()) richEditor.focus();
+    else if (!$('editor').disabled) $('editor').focus();
+    return;
+  }
   save(); const tab = { ...makeTab(text, filename), folderId: currentFolder, order: Date.now() }; tabs.push(tab); activeId = tab.id;
   showTab(); save(); closeMenus(); setNotesDrawer(false);
 }
