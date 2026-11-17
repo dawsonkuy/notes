@@ -6,14 +6,19 @@ const js = read('app.js');
 const html = read('index.html');
 const mobile = read('mobile/src/app/editor/[id].tsx');
 const model = read('mobile/src/model.ts');
-test('web Insert menu exposes all heading sizes and list types', () => {
+test('web Add menu exposes headings, lists, bold and italic', () => {
+  assert.match(html, />Add <svg/);
+  for (const kind of ['bold', 'italic']) {
+    assert.ok(html.includes('data-inline-format="' + kind + '"'), kind);
+    assert.ok(js.includes("'"+kind+"'"), kind);
+  }
   for (const kind of ['heading-1', 'heading-2', 'heading-3', 'bullet-list', 'numbered-list', 'checklist']) {
     assert.ok(html.includes('data-insert="' + kind + '"'), kind);
   }
   assert.match(js, /kind\.startsWith\('heading-'\)|heading-\[123\]/);
   assert.match(js, /listType = kind === 'checklist'/);
 });
-test('mobile Insert sheet exposes matching headings and lists', () => {
+test('mobile Add sheet exposes matching headings and lists', () => {
   for (const kind of ['heading-1', 'heading-2', 'heading-3', 'bullet-list', 'numbered-list', 'checklist']) {
     assert.ok(mobile.includes("kind: '" + kind + "'"), kind);
   }
