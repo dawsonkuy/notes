@@ -253,7 +253,7 @@ img.small-brand-mark { display: block; object-fit: contain; padding: 3px; }
 #settings-dialog .legal-settings h3,
 #settings-dialog .account-deletion-settings h3 { font-size: 15px; font-weight: 650; text-align: center; }
 #settings-dialog .appearance-section-heading { position: relative; justify-content: center; }
-#settings-dialog .appearance-section-heading h3 { width: 100%; padding-inline: 44px; }
+#settings-dialog .appearance-section-heading h3 { box-sizing: border-box; width: 100%; padding-inline: 44px; }
 #settings-dialog .appearance-section-heading > span { position: absolute; right: 0; top: 0; }
 #settings-dialog .appearance-parts button { align-items: center; text-align: center; }
 #settings-dialog .appearance-theme-choice,
