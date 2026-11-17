@@ -43,7 +43,8 @@ function useBestpadValue() {
     if (!authReady || !userId) return;
     const refresh = () => { if (AppState.currentState === 'active') void store.refresh(); };
     const channel = supabase.channel(`mobile-notes:${userId}`).on('postgres_changes', { event: '*', schema: 'public', table: 'note_workspaces', filter: `user_id=eq.${userId}` }, refresh).subscribe(status => { if (status === 'SUBSCRIBED') refresh(); });
-    const timer = setInterval(refresh, 3000);
+    // Realtime drives fast updates; periodic reads are a slower safety net, not a constant full-workspace download.
+    const timer = setInterval(refresh, 10000);
     return () => { clearInterval(timer); void supabase.removeChannel(channel); };
   }, [authReady, userId, store]);
   return { store, snapshot, session, authReady, appearance, appearanceReady, appearanceError, setAppearance, colors: palette(appearance) };
