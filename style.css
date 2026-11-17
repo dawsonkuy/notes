@@ -79,6 +79,8 @@ button svg { flex-shrink: 0; }
 .ql-editor h1 { font-size: 2em; line-height: 1.4; font-weight: 700; padding-bottom: .25em; }
 .ql-editor h2 { font-size: 1.5em; line-height: 1.5; font-weight: 700; padding-bottom: .2em; }
 .ql-editor h3 { font-size: 1.2em; line-height: 1.5; font-weight: 700; }
+.ql-editor strong { font-weight: 700; }
+.ql-editor em { font-style: italic; }
 .ql-editor.ql-blank::before { left: var(--write-inset); right: var(--write-inset); color: var(--muted); opacity: .65; font-style: normal; }
 .ql-editor hr { border: 0; border-top: 1px solid var(--border); margin: 14px 0; }
 .ql-editor li { line-height: var(--note-line-height); }
