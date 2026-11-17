@@ -1,9 +1,42 @@
 export type ListStyle = 'checked' | 'unchecked' | 'bullet' | 'ordered';
-export type Op = { insert: string | { divider: true }; attributes?: { header?: 1 | 2 | 3; list?: ListStyle } };
+export type InlineStyle = { bold?: true; italic?: true };
+export type InlineRun = InlineStyle & { text: string };
+export type Op = { insert: string | { divider: true }; attributes?: { header?: 1 | 2 | 3; list?: ListStyle; bold?: boolean; italic?: boolean } };
 export type Folder = { id: string; name: string; parentId?: string | null; order?: number };
 export type Note = { folderId?: string | null; order?: number; pinned?: boolean; sealed?: import('./security').Sealed; id: string; text: string; filename: string; customName?: string | null; deletedAt?: string; content?: Op[]; [key: string]: unknown };
 export type Workspace = { folders?: Folder[]; tabs: Note[]; activeId: string };
-export type Block = { id: string; text: string; heading?: 1 | 2 | 3; list?: ListStyle; divider?: boolean };
+export type Block = { id: string; text: string; heading?: 1 | 2 | 3; list?: ListStyle; divider?: boolean; runs?: InlineRun[] };
+// Inline runs are indexed by UTF-16 units, matching TextInput selections.
+export function inlineStyles(block: Block): InlineStyle[] {
+  const runs = block.runs;
+  if (!runs || runs.map(run => run.text).join('') !== block.text) return Array.from({ length: block.text.length }, () => ({}));
+  return runs.flatMap(run => Array.from({ length: run.text.length }, () => ({
+    ...(run.bold ? { bold: true as const } : {}),
+    ...(run.italic ? { italic: true as const } : {}),
+  })));
+}
+export function styledRuns(text: string, styles: InlineStyle[]): InlineRun[] | undefined {
+  if (!text || !styles.some(style => style.bold || style.italic)) return undefined;
+  const runs: InlineRun[] = [];
+  for (let i = 0; i < text.length; i++) {
+    const attrs = styles[i] || {}, last = runs[runs.length - 1];
+    if (last && Boolean(last.bold) === Boolean(attrs.bold) && Boolean(last.italic) === Boolean(attrs.italic)) last.text += text[i];
+    else runs.push({ text: text[i], ...(attrs.bold ? { bold: true } : {}), ...(attrs.italic ? { italic: true } : {}) });
+  }
+  return runs;
+}
+export function sliceInlineRuns(block: Block, start: number, end: number): InlineRun[] | undefined {
+  return styledRuns(block.text.slice(start, end), inlineStyles(block).slice(start, end));
+}
+export function applyInlineStyle(blocks: Block[], id: string, selection: { start: number; end: number }, kind: 'bold' | 'italic'): { blocks: Block[]; enabled: boolean } | null {
+  const block = blocks.find(item => item.id === id && !item.divider);
+  if (!block) return null;
+  const start = Math.max(0, Math.min(block.text.length, selection.start)), end = Math.max(start, Math.min(block.text.length, selection.end));
+  if (start === end) return null;
+  const styles = inlineStyles(block), enabled = !styles.slice(start, end).every(style => style[kind]);
+  for (let i = start; i < end; i++) styles[i] = { ...styles[i], [kind]: enabled ? true : undefined };
+  return { blocks: blocks.map(item => item.id === id ? { ...item, runs: styledRuns(item.text, styles) } : item), enabled };
+}
 export const noteName = (note: Note) => (typeof note.customName === 'string' && note.customName) || note.text.split(/\r?\n/, 1)[0].trim().slice(0, 80) || 'Untitled';
 export const isTrashed = (note: Note) => typeof note.deletedAt === 'string' && note.deletedAt.length > 0;
 export const newNote = (id: string): Note => ({ id, text: '', filename: 'Untitled', customName: null });
@@ -20,26 +53,32 @@ export function safeOps(note: Note): Op[] | null {
       if (!op.insert || op.insert.divider !== true || Object.keys(op.insert).length !== 1) return null;
       ops.push({ insert: { divider: true } }); continue;
     }
-    const result: Op = { insert: op.insert };
-    if ([1, 2, 3].includes(op.attributes?.header as number)) result.attributes = { header: op.attributes!.header };
-    else if (['checked', 'unchecked', 'bullet', 'ordered'].includes(op.attributes?.list as string)) result.attributes = { list: op.attributes!.list };
-    ops.push(result);
+    const attrs: NonNullable<Op['attributes']> = {};
+    if ([1, 2, 3].includes(op.attributes?.header as number)) attrs.header = op.attributes!.header;
+    else if (['checked', 'unchecked', 'bullet', 'ordered'].includes(op.attributes?.list as string)) attrs.list = op.attributes!.list;
+    if (op.attributes?.bold === true) attrs.bold = true;
+    if (op.attributes?.italic === true) attrs.italic = true;
+    ops.push(Object.keys(attrs).length ? { insert: op.insert, attributes: attrs } : { insert: op.insert });
   }
   return ops.filter(op => typeof op.insert === 'string').map(op => op.insert).join('') === note.text + '\n' ? ops : null;
 }
 export function toBlocks(note: Note, id: () => string): Block[] {
   const ops = safeOps(note);
   if (!ops) return note.text.split('\n').map(text => ({ id: id(), text }));
-  const blocks: Block[] = []; let text = '';
+  const blocks: Block[] = []; let text = ''; let styles: InlineStyle[] = [];
   for (const op of ops) {
     if (typeof op.insert !== 'string') { blocks.push({ id: id(), text: '', divider: true }); continue; }
-    const lines = op.insert.split('\n');
-    lines.forEach((line, i) => {
-      text += line;
-      if (i < lines.length - 1) { blocks.push({ id: id(), text, heading: op.attributes?.header, list: op.attributes?.list }); text = ''; }
-    });
+    for (const part of op.insert.split(/(\n)/)) {
+      if (part === '\n') {
+        blocks.push({ id: id(), text, runs: styledRuns(text, styles), heading: op.attributes?.header, list: op.attributes?.list });
+        text = ''; styles = [];
+      } else if (part) {
+        text += part;
+        styles.push(...Array.from({ length: part.length }, () => ({ ...(op.attributes?.bold ? { bold: true as const } : {}), ...(op.attributes?.italic ? { italic: true as const } : {}) })));
+      }
+    }
   }
-  if (text || !blocks.length) blocks.push({ id: id(), text });
+  if (text || !blocks.length) blocks.push({ id: id(), text, runs: styledRuns(text, styles) });
   return blocks;
 }
 export type ParagraphFocus = { id: string; start: number; end: number };
@@ -66,7 +105,7 @@ export function breakParagraph(blocks: Block[], id: string, selection: { start: 
   // Lists continue in the same style; completed tasks create unchecked items.
   const nextBlock: Block = { id: newId(), text: block.text.slice(end), ...(block.list ? { list: block.list === 'checked' ? 'unchecked' as const : block.list } : {}) };
   return {
-    blocks: [...blocks.slice(0, index), { ...block, text: block.text.slice(0, start) }, nextBlock, ...blocks.slice(index + 1)],
+    blocks: [...blocks.slice(0, index), { ...block, text: block.text.slice(0, start), runs: sliceInlineRuns(block, 0, start) }, { ...nextBlock, runs: sliceInlineRuns(block, end, block.text.length) }, ...blocks.slice(index + 1)],
     focus: { id: nextBlock.id, start: 0, end: 0 }
   };
 }
@@ -79,24 +118,35 @@ export function joinBackward(blocks: Block[], id: string, selection: { start: nu
   if (index === 0) return null;
   const previous = blocks[index - 1];
   if (previous.divider) return { blocks: blocks.filter(item => item.id !== previous.id), focus: { id, start: 0, end: 0 } };
-  return { blocks: blocks.filter(item => item.id !== id).map(item => item.id === previous.id ? { ...item, text: previous.text + block.text } : item), focus: { id: previous.id, start: previous.text.length, end: previous.text.length } };
+  const mergedText = previous.text + block.text;
+  const mergedRuns = styledRuns(mergedText, [...inlineStyles(previous), ...inlineStyles(block)]);
+  return { blocks: blocks.filter(item => item.id !== id).map(item => item.id === previous.id ? { ...item, text: mergedText, runs: mergedRuns } : item), focus: { id: previous.id, start: previous.text.length, end: previous.text.length } };
 }
 // Normalize pasted line endings and keep the caret just after the inserted text.
-export function replaceParagraphText(blocks: Block[], id: string, value: string, newId: () => string, selection?: { start: number; end: number }): { blocks: Block[]; focus?: ParagraphFocus } | null {
+export function replaceParagraphText(blocks: Block[], id: string, value: string, newId: () => string, selection?: { start: number; end: number }, typingStyle?: InlineStyle): { blocks: Block[]; focus?: ParagraphFocus } | null {
   const index = blocks.findIndex(block => block.id === id && !block.divider);
   if (index < 0) return null;
   const block = blocks[index], text = value.replace(/\r\n?/g, '\n');
-  if (!text.includes('\n')) return { blocks: blocks.map(item => item.id === id ? { ...item, text } : item) };
   let prefix = 0, suffix = 0;
   while (prefix < block.text.length && prefix < text.length && block.text[prefix] === text[prefix]) prefix++;
   while (suffix < block.text.length - prefix && suffix < text.length - prefix && block.text.at(-1 - suffix) === text.at(-1 - suffix)) suffix++;
+  const oldStyles = inlineStyles(block);
+  const insertedLength = text.length - prefix - suffix;
+  const inherited: InlineStyle = typingStyle || oldStyles[prefix] || oldStyles[Math.max(0, prefix - 1)] || {};
+  const styles = [...oldStyles.slice(0, prefix), ...Array.from({ length: insertedLength }, () => ({ ...inherited })), ...oldStyles.slice(block.text.length - suffix)];
+  if (!text.includes('\n')) return { blocks: blocks.map(item => item.id === id ? { ...item, text, runs: styledRuns(text, styles) } : item) };
   let insertionEnd = text.length - suffix;
   if (selection && selection.start >= 0 && selection.end >= selection.start && selection.end <= block.text.length) {
     const before = block.text.slice(0, selection.start), after = block.text.slice(selection.end);
     if (text.startsWith(before) && text.endsWith(after) && text.length >= before.length + after.length) insertionEnd = text.length - after.length;
   }
   const inserted = text.slice(0, insertionEnd).split('\n');
-  const replacement: Block[] = text.split('\n').map((line, i) => i === 0 ? { ...block, text: line } : { id: newId(), text: line, list: block.list === 'checked' ? 'unchecked' : block.list });
+  let start = 0;
+  const replacement: Block[] = text.split('\n').map((line, i) => {
+    const runs = styledRuns(line, styles.slice(start, start + line.length));
+    start += line.length + 1;
+    return i === 0 ? { ...block, text: line, runs } : { id: newId(), text: line, runs, list: block.list === 'checked' ? 'unchecked' as const : block.list };
+  });
   const target = replacement[Math.min(inserted.length - 1, replacement.length - 1)], offset = inserted.at(-1)!.length;
   return { blocks: [...blocks.slice(0, index), ...replacement, ...blocks.slice(index + 1)], focus: { id: target.id, start: offset, end: offset } };
 }
@@ -105,7 +155,14 @@ export function fromBlocks(note: Note, blocks: Block[]): Note {
   const editable = blocks.length ? blocks : [{ id: 'empty', text: '' }];
   for (const block of editable) {
     if (block.divider) { content.push({ insert: { divider: true } }); continue; }
-    if (block.text) content.push({ insert: block.text });
+    if (block.text) {
+      const runs = block.runs?.map(run => run.text).join('') === block.text ? block.runs : undefined;
+      if (runs?.length) runs.forEach(run => {
+        const attrs = { ...(run.bold ? { bold: true } : {}), ...(run.italic ? { italic: true } : {}) };
+        content.push(Object.keys(attrs).length ? { insert: run.text, attributes: attrs } : { insert: run.text });
+      });
+      else content.push({ insert: block.text });
+    }
     const attributes = block.heading ? { header: block.heading } : block.list ? { list: block.list } : undefined;
     content.push(attributes ? { insert: '\n', attributes } : { insert: '\n' });
   }
