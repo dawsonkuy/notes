@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { breakParagraph, fromBlocks, inlineStyles, newNote, replaceParagraphText, safeOps, toBlocks, validWorkspace } from '../src/model';
+import { breakParagraph, fromBlocks, inlineStyles, newNote, replaceParagraphText, safeOps, starterNoteId, toBlocks, validWorkspace } from '../src/model';
 import { builtInThemes, fromHSV, initialAppearance, restoreAppearance, saveTheme, toHSV } from '../src/appearance';
 let counter = 0; const id = () => `block-${++counter}`;
 test('legacy text and trailing newlines round-trip without loss', () => {
@@ -225,4 +225,22 @@ test('underline combines with bold and italic, survives sync, and applies to new
   const initial = toBlocks(plain, id);
   const typed = replaceParagraphText(initial, initial[0].id, 'hello!', id, { start: 5, end: 5 }, { underline: true })!;
   assert.ok(fromBlocks(plain, typed.blocks).content?.some(op => op.insert === '!' && op.attributes?.underline));
+});
+
+test('only an untouched starter note is treated as an empty library', () => {
+  const starter = newNote('starter');
+  const workspace = { tabs: [starter], activeId: starter.id };
+  assert.equal(starterNoteId(workspace), starter.id);
+  assert.equal(starterNoteId({ ...workspace, tabs: [{ ...starter, content: [{ insert: '\n' }] }] }), starter.id);
+  for (const note of [
+    { ...starter, text: 'A note' },
+    { ...starter, customName: 'My note' },
+    { ...starter, pinned: true },
+    { ...starter, order: 1 },
+    { ...starter, folderId: 'folder' },
+    { ...starter, content: [{ insert: '\n', attributes: { header: 1 as const } }] },
+  ]) assert.equal(starterNoteId({ ...workspace, tabs: [note] }), null);
+  assert.equal(starterNoteId({ ...workspace, tabs: [starter, newNote('two')] }), null);
+  assert.equal(starterNoteId({ ...workspace, folders: [{ id: 'folder', name: 'Folder' }] }), null);
+  assert.equal(starterNoteId({ ...workspace, tabs: [starter, { ...newNote('old'), deletedAt: new Date().toISOString() }] }), starter.id);
 });
