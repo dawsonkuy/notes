@@ -240,3 +240,43 @@ img.small-brand-mark { display: block; object-fit: contain; padding: 3px; }
 .editor-format-toolbar button:focus-visible{outline:2px solid var(--text);outline-offset:2px}
 .editor-format-toolbar button:disabled{opacity:.5;cursor:not-allowed}
 @media (max-width:760px){.editor-format-toolbar{padding:8px 22px;gap:6px}.editor-format-toolbar button{min-height:42px;min-width:43px}}
+
+/* Website settings: centered typography and clearly actionable account deletion. */
+#settings-dialog { text-align: center; }
+#settings-dialog .dialog-heading { position: relative; justify-content: center; min-height: 42px; }
+#settings-dialog .dialog-heading > div { width: 100%; padding-inline: 42px; }
+#settings-dialog .dialog-heading h2 { font-size: 30px; line-height: 1.2; font-weight: 700; letter-spacing: -.8px; }
+#settings-dialog #close-settings { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
+#settings-dialog .appearance-section h3,
+#settings-dialog .font-options legend,
+#settings-dialog .font-setting > label,
+#settings-dialog .legal-settings h3,
+#settings-dialog .account-deletion-settings h3 { font-size: 15px; font-weight: 650; text-align: center; }
+#settings-dialog .appearance-section-heading { position: relative; justify-content: center; }
+#settings-dialog .appearance-section-heading h3 { width: 100%; padding-inline: 44px; }
+#settings-dialog .appearance-section-heading > span { position: absolute; right: 0; top: 0; }
+#settings-dialog .appearance-parts button { align-items: center; text-align: center; }
+#settings-dialog .appearance-theme-choice,
+#settings-dialog .font-choice { justify-content: center; text-align: center; }
+#settings-dialog .appearance-custom-toggle { position: relative; justify-content: center; padding-inline: 38px; text-align: center; }
+#settings-dialog .appearance-custom-toggle > span:first-child { flex: 1; align-items: center; }
+#settings-dialog .appearance-custom-toggle > span:last-child { position: absolute; right: 14px; }
+#settings-dialog .appearance-color-heading { position: relative; justify-content: center; min-height: 32px; }
+#settings-dialog .appearance-color-heading button { position: absolute; right: 0; top: 0; }
+#settings-dialog .appearance-empty,
+#settings-dialog .appearance-limit,
+#settings-dialog .appearance-status,
+#settings-dialog .appearance-custom-panel h4 { text-align: center; }
+#settings-dialog .appearance-save-form input,
+#settings-dialog #note-size { text-align: center; }
+#settings-dialog .appearance-update { width: 100%; text-align: center; }
+#settings-dialog .font-options legend { width: 100%; }
+#settings-dialog .legal-settings-links a { position: relative; justify-content: center; text-align: center; padding-inline: 36px; }
+#settings-dialog .legal-settings-links a > span { position: absolute; right: 14px; }
+#settings-dialog #delete-account {
+  min-height: 48px; border: 1px solid #a92a38; border-radius: 11px;
+  background: #a92a38; color: #fff; font-size: 14px; font-weight: 700;
+  text-align: center; transition: background-color .15s ease, border-color .15s ease;
+}
+#settings-dialog #delete-account:hover { background: #87212d; border-color: #87212d; }
+#settings-dialog #delete-account:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
