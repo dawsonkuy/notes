@@ -281,3 +281,46 @@ img.small-brand-mark { display: block; object-fit: contain; padding: 3px; }
 }
 #settings-dialog #delete-account:hover { background: #87212d; border-color: #87212d; }
 #settings-dialog #delete-account:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+
+/* Quiet, consistent press feedback. Leave draggable rows' transforms alone. */
+button:not(:disabled):not(.library-open):not(.folder-toggle) {
+  transition: background-color .14s ease, border-color .14s ease, box-shadow .14s ease, scale .12s ease, filter .12s ease;
+}
+button:not(:disabled):not(.library-open):not(.folder-toggle):active {
+  scale: .985;
+  filter: brightness(.97);
+}
+.tab:not(.is-lifted) { transition: transform 170ms cubic-bezier(.2,.7,.2,1), scale .1s ease, background-color .12s ease; }
+.tab:not(.is-lifted):has(.library-open:active),
+.tab:not(.is-lifted):has(.folder-toggle:active) {
+  background: var(--selected);
+  scale: .99;
+}
+.library-empty-state {
+  display: flex;
+  flex: 1;
+  min-height: 200px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--muted);
+}
+.library-empty-state p { margin: 0; font-size: 14px; }
+.library-empty-state button {
+  min-width: 150px;
+  min-height: 44px;
+  padding: 11px 16px;
+  border: 1px solid var(--soft-border);
+  border-radius: 10px;
+  background: var(--text);
+  color: var(--canvas);
+  font-size: 13px;
+  font-weight: 600;
+}
+@media (prefers-reduced-motion: reduce) {
+  button:not(:disabled):not(.library-open):not(.folder-toggle),
+  .tab:not(.is-lifted) { transition: none; }
+}
