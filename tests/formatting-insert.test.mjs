@@ -6,14 +6,19 @@ const js = read('app.js');
 const html = read('index.html');
 const mobile = read('mobile/src/app/editor/[id].tsx');
 const model = read('mobile/src/model.ts');
-test('web Insert menu exposes all heading sizes and list types', () => {
+test('web Add menu exposes headings, lists, bold and italic', () => {
+  assert.match(html, />Add <svg/);
+  for (const kind of ['bold', 'italic']) {
+    assert.ok(html.includes('data-inline-format="' + kind + '"'), kind);
+    assert.ok(js.includes("'"+kind+"'"), kind);
+  }
   for (const kind of ['heading-1', 'heading-2', 'heading-3', 'bullet-list', 'numbered-list', 'checklist']) {
     assert.ok(html.includes('data-insert="' + kind + '"'), kind);
   }
   assert.match(js, /kind\.startsWith\('heading-'\)|heading-\[123\]/);
   assert.match(js, /listType = kind === 'checklist'/);
 });
-test('mobile Insert sheet exposes matching headings and lists', () => {
+test('mobile Add sheet exposes matching headings and lists', () => {
   for (const kind of ['heading-1', 'heading-2', 'heading-3', 'bullet-list', 'numbered-list', 'checklist']) {
     assert.ok(mobile.includes("kind: '" + kind + "'"), kind);
   }
@@ -26,4 +31,12 @@ test('both platforms preserve numbered, bullet and checklist styles in existing 
     assert.ok(model.includes("'" + format + "'"), format + ' missing in mobile');
   }
   assert.match(model, /block\.list === 'checked' \? 'unchecked'/);
+});
+
+test('iOS bottom formatting bar and native inline serialization exist', () => {
+  for (const label of ["label: 'Add'", "label: 'H1'", "label: 'H2'", "label: 'B'", "label: 'I'"]) assert.ok(mobile.includes(label), label);
+  assert.match(mobile, /applyInlineStyle\(/);
+  assert.match(mobile, /block\.runs\.map\(/);
+  assert.match(model, /styledRuns\(/);
+  assert.match(js, /formats: \['header', 'list', 'divider', 'bold', 'italic'\]/);
 });

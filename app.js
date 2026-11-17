@@ -524,15 +524,19 @@ if (window.visualViewport) {
 
 function safeNoteContents(tab) {
   if (!Array.isArray(tab.content)) return null;
-  // Restore only text, supported line styles, and our own divider embed.
+  // Restore only supported inline and line styles, plus our own divider embed.
   const ops = tab.content.map(op => {
     if (!op) return null;
     if (typeof op.insert !== 'string') {
       return op.insert && op.insert.divider === true && Object.keys(op.insert).length === 1 ? { insert: { divider: true } } : null;
     }
     const result = { insert: op.insert };
-    if ([1, 2, 3].includes(op.attributes?.header)) result.attributes = { header: op.attributes.header };
-    else if (['checked', 'unchecked', 'bullet', 'ordered'].includes(op.attributes?.list)) result.attributes = { list: op.attributes.list };
+    const attributes = {};
+    if ([1, 2, 3].includes(op.attributes?.header)) attributes.header = op.attributes.header;
+    else if (['checked', 'unchecked', 'bullet', 'ordered'].includes(op.attributes?.list)) attributes.list = op.attributes.list;
+    if (op.attributes?.bold === true) attributes.bold = true;
+    if (op.attributes?.italic === true) attributes.italic = true;
+    if (Object.keys(attributes).length) result.attributes = attributes;
     return result;
   });
   if (ops.some(op => !op) || ops.filter(op => typeof op.insert === 'string').map(op => op.insert).join('') !== tab.text + '\n') return null;
@@ -552,13 +556,15 @@ function renderRichNote() {
 }
 function setEditorEnabled(enabled) {
   if (richEditor) richEditor.enable(enabled);
-  document.querySelectorAll('[data-heading], [data-insert], #open-add').forEach(button => { button.disabled = !enabled; });
+  document.querySelectorAll('[data-heading], [data-insert], [data-inline-format], #open-add').forEach(button => { button.disabled = !enabled; });
   if (!enabled) closeMenus();
 }
 function updateHeadingButtons() {
   const range = richEditor?.getSelection();
-  const level = range ? richEditor.getFormat(range).header || 0 : 0;
+  const format = range ? richEditor.getFormat(range) : {};
+  const level = format.header || 0;
   document.querySelectorAll('[data-heading]').forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.heading) === level)));
+  document.querySelectorAll('[data-inline-format]').forEach(button => button.setAttribute('aria-checked', String(Boolean(format[button.dataset.inlineFormat]))));
 }
 if (window.Quill) {
   const BlockEmbed = window.Quill.import('blots/block/embed');
@@ -574,7 +580,7 @@ if (window.Quill) {
     static value() { return true; }
   }
   window.Quill.register(Divider);
-  richEditor = new window.Quill('#rich-editor', { formats: ['header', 'list', 'divider'], modules: { toolbar: false }, placeholder: 'Start writing… Type /insert to add a heading, list, date, or time.' });
+  richEditor = new window.Quill('#rich-editor', { formats: ['header', 'list', 'divider', 'bold', 'italic'], modules: { toolbar: false }, placeholder: 'Start writing… Type /add for formatting, headings, lists, date, or time.' });
   richEditor.root.setAttribute('role', 'textbox');
   richEditor.root.setAttribute('aria-label', 'Note text');
   richEditor.root.setAttribute('aria-multiline', 'true');
@@ -600,6 +606,19 @@ if (window.Quill) {
   });
 }
 
+document.querySelectorAll('[data-inline-format]').forEach(button => {
+  button.addEventListener('pointerdown', event => event.preventDefault());
+  button.addEventListener('click', () => {
+    if (!richEditor || !richEditor.isEnabled()) return;
+    const kind = button.dataset.inlineFormat;
+    const selection = richEditor.getSelection(true);
+    if (!selection) return;
+    const enabled = !Boolean(richEditor.getFormat(selection)[kind]);
+    richEditor.format(kind, enabled, 'user');
+    updateHeadingButtons();
+    closeMenus();
+  });
+});
 $('open-add').addEventListener('pointerdown', event => event.preventDefault());
 $('open-add').addEventListener('click', event => {
   const opening = $('add-menu').hidden;
@@ -617,8 +636,8 @@ function insertNoteItem(kind) {
   const command = slashCommand;
   closeMenus();
   if (!richEditor || !richEditor.isEnabled()) return;
-  const range = command && command.noteId === activeId && richEditor.getText(command.index, 7) === '/insert'
-    ? { index: command.index, length: 7 }
+  const range = command && command.noteId === activeId && richEditor.getText(command.index, command.length) === command.text
+    ? { index: command.index, length: command.length }
     : richEditor.getSelection(true) || { index: Math.max(0, richEditor.getLength() - 1), length: 0 };
   richEditor.history.cutoff();
   const Delta = window.Quill.import('delta');
@@ -748,19 +767,19 @@ function updateSlashCommand() {
   const range = richEditor.getSelection();
   if (!range || range.length || document.activeElement !== richEditor.root) return;
   const before = richEditor.getText(0, range.index);
-  const match = /(?:^|\s)(\/insert)$/.exec(before);
+  const match = /(?:^|\s)(\/(?:add|insert))$/.exec(before);
   if (!match) {
     if (slashCommand) closeMenus();
     dismissedSlash = null;
     return;
   }
-  const index = range.index - 7;
+  const index = range.index - match[1].length;
   const key = `${activeId}:${index}`;
   if (key === dismissedSlash) return;
-  if (!slashCommand || slashCommand.index !== index || slashCommand.noteId !== activeId) {
+  if (!slashCommand || slashCommand.index !== index || slashCommand.noteId !== activeId || slashCommand.text !== match[1]) {
     closeMenus();
     dismissedSlash = null;
-    slashCommand = { index, noteId: activeId, selected: 0 };
+    slashCommand = { index, noteId: activeId, selected: 0, length: match[1].length, text: match[1] };
   }
   const menu = $('add-menu');
   menu.hidden = false;

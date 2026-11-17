@@ -4,7 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router, useLocalSearchParams } from 'expo-router';
 import { randomUUID } from 'expo-crypto';
 import { useBestpad } from '../../context';
-import { breakParagraph, joinBackward, replaceParagraphText, fromBlocks, isTrashed, noteName, toBlocks, type Block, type Note } from '../../model';
+import { applyInlineStyle, inlineStyles, sliceInlineRuns, breakParagraph, joinBackward, replaceParagraphText, fromBlocks, isTrashed, noteName, toBlocks, type Block, type InlineStyle, type Note } from '../../model';
 import { Button, Icon, IconButton, SaveStatus, ui } from '../../components/ui';
 import { NotePassword } from '../../components/NotePassword';
 type Cursor = { id: string; start: number; end: number };
@@ -38,6 +38,8 @@ function NoteEditor({ note }: { note: Note }) {
   const cursor = useRef<Cursor>({ id: blocks[0].id, start: 0, end: 0 });
   const slash = useRef<Cursor | null>(null), dismissedSlash = useRef<string | null>(null);
   const [pendingFocus, setPendingFocus] = useState<Cursor | null>(null);
+  const typingStyle = useRef<{ id: string; flags: InlineStyle } | null>(null);
+  const [, refreshToolbar] = useState(0);
   const fontFamily = appearance.font === 'serif' ? Platform.OS === 'ios' ? 'Georgia' : 'serif' : appearance.font === 'mono' ? Platform.OS === 'ios' ? 'Menlo' : 'monospace' : appearance.font === 'rounded' ? Platform.OS === 'ios' ? 'Avenir Next' : 'sans-serif' : undefined;
   function emit(next: Block[]) { blocksRef.current = next; setBlocks(next); const updated = fromBlocks(noteRef.current, next); displayed.current = JSON.stringify([updated.text, updated.content]); store.updateNote(updated); }
   useEffect(() => {
@@ -61,13 +63,13 @@ function NoteEditor({ note }: { note: Note }) {
   }, [pendingFocus]);
   function checkSlash(selection: Cursor) {
     const block = blocksRef.current.find(item => item.id === selection.id); if (!block || selection.start !== selection.end || !inputs.current[selection.id]?.isFocused()) return;
-    const match = /(?:^|\s)(\/insert)$/.exec(block.text.slice(0, selection.start));
+    const match = /(?:^|\s)(\/(?:add|insert))$/.exec(block.text.slice(0, selection.start));
     if (!match) { if (slash.current) { slash.current = null; setInsertOpen(false); } dismissedSlash.current = null; return; }
-    const range = { id: block.id, start: selection.start - 7, end: selection.start };
+    const range = { id: block.id, start: selection.start - match[1].length, end: selection.start };
     if (`${range.id}:${range.start}` !== dismissedSlash.current) { slash.current = range; setInsertOpen(true); }
   }
   function change(block: Block, text: string) {
-    const result = replaceParagraphText(blocksRef.current, block.id, text, randomUUID, cursor.current.id === block.id ? cursor.current : undefined);
+    const result = replaceParagraphText(blocksRef.current, block.id, text, randomUUID, cursor.current.id === block.id ? cursor.current : undefined, typingStyle.current?.id === block.id ? typingStyle.current.flags : undefined);
     if (!result) return;
     emit(result.blocks);
     if (result.focus) setPendingFocus(result.focus);
@@ -86,6 +88,37 @@ function NoteEditor({ note }: { note: Note }) {
     emit(result.blocks); setPendingFocus(result.focus);
   }
   function dismissInsert() { if (slash.current) dismissedSlash.current = `${slash.current.id}:${slash.current.start}`; slash.current = null; setInsertOpen(false); }
+  function setHeading(level: 1 | 2) {
+    const selection = cursor.current;
+    const block = blocksRef.current.find(item => item.id === selection.id && !item.divider);
+    if (!block) return;
+    const heading = block.heading === level ? undefined : level;
+    emit(blocksRef.current.map(item => item.id === block.id ? { ...item, heading, list: undefined } : item));
+    setPendingFocus(selection);
+  }
+  function inlineActive(kind: 'bold' | 'italic') {
+    const selection = cursor.current, block = blocks.find(item => item.id === selection.id && !item.divider);
+    if (!block) return false;
+    const styles = inlineStyles(block);
+    if (selection.start < selection.end) return styles.slice(selection.start, selection.end).every(style => Boolean(style[kind]));
+    if (typingStyle.current?.id === block.id) return Boolean(typingStyle.current.flags[kind]);
+    return Boolean((styles[Math.max(0, selection.start - 1)] || styles[selection.start])?.[kind]);
+  }
+  function toggleInline(kind: 'bold' | 'italic') {
+    const selection = cursor.current;
+    const block = blocksRef.current.find(item => item.id === selection.id && !item.divider);
+    if (!block) return;
+    if (selection.start !== selection.end) {
+      const result = applyInlineStyle(blocksRef.current, block.id, selection, kind);
+      if (result) emit(result.blocks);
+      typingStyle.current = null;
+    } else {
+      const flags = typingStyle.current?.id === block.id ? typingStyle.current.flags : inlineStyles(block)[Math.max(0, selection.start - 1)] || {};
+      typingStyle.current = { id: block.id, flags: { ...flags, [kind]: flags[kind] ? undefined : (true as const) } };
+    }
+    refreshToolbar(x => x + 1);
+    setPendingFocus(selection);
+  }
   function insert(kind: InsertKind) {
     const range = slash.current || cursor.current, list = blocksRef.current; let index = list.findIndex(item => item.id === range.id && !item.divider);
     if (index < 0) index = list.findLastIndex(item => !item.divider);
@@ -102,16 +135,18 @@ function NoteEditor({ note }: { note: Note }) {
       } else {
         const inserted: Block = { id: randomUUID(), text: '', heading, list: listStyle };
         const replacement: Block[] = [
-          ...(before ? [{ ...block, text: before }] : []),
+          ...(before ? [{ ...block, text: before, runs: sliceInlineRuns(block, 0, start) }] : []),
           inserted,
-          { id: randomUUID(), text: after, ...(after ? { heading: block.heading, list: block.list } : {}) },
+          { id: randomUUID(), text: after, runs: sliceInlineRuns(block, end, block.text.length), ...(after ? { heading: block.heading, list: block.list } : {}) },
         ];
         emit([...list.slice(0, index), ...replacement, ...list.slice(index + 1)]);
         setPendingFocus({ id: inserted.id, start: 0, end: 0 });
       }
     } else {
       const text = new Intl.DateTimeFormat(undefined, kind === 'time' ? { hour: 'numeric', minute: '2-digit' } : { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date());
-      emit(list.map(item => item.id === block.id ? { ...block, text: before + text + after } : item)); setPendingFocus({ id: block.id, start: start + text.length, end: start + text.length });
+      const result = replaceParagraphText(list, block.id, before + text + after, randomUUID, { start, end }, typingStyle.current?.id === block.id ? typingStyle.current.flags : undefined);
+      if (result) emit(result.blocks);
+      setPendingFocus({ id: block.id, start: start + text.length, end: start + text.length });
     }
   }
   function securityOptions() {
@@ -125,11 +160,30 @@ function NoteEditor({ note }: { note: Note }) {
     <View style={[ui.row, { justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 6 }]}><Pressable accessibilityRole="button" accessibilityLabel="Notes" onPress={close} style={[ui.row, { minHeight: 44 }]}><Icon name="chevron-back" /><Text style={{ color: colors.font, fontSize: 15 }}>Notes</Text></Pressable><View style={ui.row}><IconButton name="lock-closed-outline" label="Note password protection" onPress={securityOptions} /><IconButton name="share-outline" label="Share note" onPress={() => { void Share.share({ title: noteName(note), message: `${noteName(note)}\n\n${note.text}` }).catch(() => undefined); }} /></View></View>
     <ScrollView ref={scroll} onLayout={event => { viewport.current.height = event.nativeEvent.layout.height; keepCaretVisible(); }} onScroll={event => { viewport.current.offset = event.nativeEvent.contentOffset.y; }} scrollEventThrottle={16} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} contentContainerStyle={{ padding: 24, paddingTop: 20, paddingBottom: 24, flexGrow: 1 }}>
       {blocks.map((block, index) => block.divider ? <View key={block.id} style={[ui.row, { marginVertical: 10 }]}><View style={{ height: 1, flex: 1, backgroundColor: colors.border }} /><IconButton name="close" label="Remove divider" onPress={() => { const next = blocks.filter(item => item.id !== block.id); emit(next.length ? next : [{ id: randomUUID(), text: '' }]); }} /></View> : <View key={block.id} onLayout={event => { layouts.current[block.id] = event.nativeEvent.layout; keepCaretVisible(); }} style={{ flexDirection: 'row', alignItems: 'flex-start' }}>{(block.list === 'checked' || block.list === 'unchecked') ? <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: block.list === 'checked' }} accessibilityLabel={block.text || 'Task'} onPress={() => emit(blocks.map(item => item.id === block.id ? { ...item, list: item.list === 'checked' ? 'unchecked' : 'checked' } : item))} style={{ minWidth: 38, minHeight: 40, paddingTop: 4 }}><Icon name={block.list === 'checked' ? 'checkbox-outline' : 'square-outline'} /></Pressable> : (block.list === 'bullet' || block.list === 'ordered') ? <View accessible={false} style={{ width: 38, paddingTop: 2, alignItems: 'flex-start' }}><Text style={{ color: colors.font, fontSize: appearance.size, lineHeight: appearance.size * 1.55 }}>{block.list === 'bullet' ? '•' : `${orderedNumber(blocks, index)}.`}</Text></View> : null}
-      <TextInput ref={input => { inputs.current[block.id] = input; }} accessibilityLabel={block.heading ? `Heading ${block.heading}` : block.list === 'bullet' ? `Bulleted list item ${index + 1}` : block.list === 'ordered' ? `Numbered list item ${orderedNumber(blocks, index)}` : block.list ? `Checklist item ${index + 1}` : `Note paragraph ${index + 1}`} multiline autoCorrect spellCheck autoCapitalize="sentences" keyboardAppearance={colors.dark ? 'dark' : 'light'} selectionColor={colors.font} scrollEnabled={false} submitBehavior="submit" returnKeyType="default" placeholder={block.heading ? 'Heading' : blocks.length === 1 ? 'Start writing…' : ''} placeholderTextColor={colors.muted} value={block.text} onChangeText={text => change(block, text)} onSubmitEditing={() => returnFromParagraph(block)} onSelectionChange={event => { if (!inputs.current[block.id]?.isFocused()) return; const next = { id: block.id, ...event.nativeEvent.selection }; cursor.current = next; checkSlash(next); keepCaretVisible(); }} onKeyPress={event => { if (event.nativeEvent.key === 'Backspace') backspace(block); }} style={{ flex: 1, padding: 0, margin: 0, color: colors.font, fontFamily, fontSize: appearance.size * (block.heading === 1 ? 1.6 : block.heading === 2 ? 1.35 : block.heading === 3 ? 1.15 : 1), lineHeight: appearance.size * (block.heading === 1 ? 2.1 : block.heading === 2 ? 1.85 : block.heading === 3 ? 1.65 : 1.55), minHeight: appearance.size * 1.55, fontWeight: block.heading ? '700' : '400', textDecorationLine: block.list === 'checked' ? 'line-through' : 'none', textAlignVertical: 'top' }} /></View>)}
+      <TextInput ref={input => { inputs.current[block.id] = input; }} accessibilityLabel={block.heading ? `Heading ${block.heading}` : block.list === 'bullet' ? `Bulleted list item ${index + 1}` : block.list === 'ordered' ? `Numbered list item ${orderedNumber(blocks, index)}` : block.list ? `Checklist item ${index + 1}` : `Note paragraph ${index + 1}`} multiline autoCorrect spellCheck autoCapitalize="sentences" keyboardAppearance={colors.dark ? 'dark' : 'light'} selectionColor={colors.font} scrollEnabled={false} submitBehavior="submit" returnKeyType="default" placeholder={block.heading ? 'Heading' : blocks.length === 1 ? 'Start writing…' : ''} placeholderTextColor={colors.muted} value={block.runs?.length && Platform.OS === 'ios' ? undefined : block.text} onChangeText={text => change(block, text)} onSubmitEditing={() => returnFromParagraph(block)} onSelectionChange={event => { if (!inputs.current[block.id]?.isFocused()) return; const next = { id: block.id, ...event.nativeEvent.selection }; const changed = next.id !== cursor.current.id || next.start !== cursor.current.start || next.end !== cursor.current.end; cursor.current = next; if (typingStyle.current && (next.id !== typingStyle.current.id || next.start !== next.end)) typingStyle.current = null; if (changed) refreshToolbar(x => x + 1); checkSlash(next); keepCaretVisible(); }} onKeyPress={event => { if (event.nativeEvent.key === 'Backspace') backspace(block); }} style={{ flex: 1, padding: 0, margin: 0, color: colors.font, fontFamily, fontSize: appearance.size * (block.heading === 1 ? 1.6 : block.heading === 2 ? 1.35 : block.heading === 3 ? 1.15 : 1), lineHeight: appearance.size * (block.heading === 1 ? 2.1 : block.heading === 2 ? 1.85 : block.heading === 3 ? 1.65 : 1.55), minHeight: appearance.size * 1.55, fontWeight: block.heading ? '700' : '400', textDecorationLine: block.list === 'checked' ? 'line-through' : 'none', textAlignVertical: 'top' }}>{Platform.OS === 'ios' && block.runs?.length ? <Text>{block.runs.map((run, i) => <Text key={i} style={{ fontWeight: run.bold ? '700' : block.heading ? '700' : '400', fontStyle: run.italic ? 'italic' : 'normal' }}>{run.text}</Text>)}</Text> : null}</TextInput></View>)}
       <Pressable accessibilityRole="button" accessibilityLabel="Continue writing" onPress={() => { const last = blocksRef.current.findLast(item => !item.divider); if (last) setPendingFocus({ id: last.id, start: last.text.length, end: last.text.length }); }} style={{ minHeight: 100, flexGrow: 1 }} />
     </ScrollView>
-    <View style={{ padding: 16, paddingBottom: 10, borderTopWidth: 1, borderTopColor: colors.border }}><View style={[ui.row, { justifyContent: 'space-between', marginBottom: 12 }]}><SaveStatus status={snapshot.status} /><Text style={{ color: colors.muted, fontSize: 10 }}>{note.text.trim().split(/\s+/).filter(Boolean).length} words</Text></View><View style={[ui.row, { justifyContent: 'space-between' }]}><Button label="Insert" icon="add" onPress={() => setInsertOpen(true)} /><IconButton label="Dismiss keyboard" name="checkmark" onPress={() => Keyboard.dismiss()} /></View></View>
-    <Modal visible={insertOpen} transparent animationType="fade" onRequestClose={dismissInsert}><Pressable accessibilityRole="button" accessibilityLabel="Close Insert menu" onPress={dismissInsert} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#0006' }}><Pressable accessibilityRole="none" onPress={() => undefined} style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 20), maxHeight: '78%', backgroundColor: colors.secondary, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}><Text style={{ color: colors.muted, marginBottom: 10 }}>Insert</Text><ScrollView keyboardShouldPersistTaps="always">{([{ kind: 'heading-1', label: 'Large heading (H1)', icon: 'text-outline' }, { kind: 'heading-2', label: 'Medium heading (H2)', icon: 'text-outline' }, { kind: 'heading-3', label: 'Small heading (H3)', icon: 'text-outline' }, { kind: 'bullet-list', label: 'Bulleted list', icon: 'list-outline' }, { kind: 'numbered-list', label: 'Numbered list', icon: 'list-outline' }, { kind: 'checklist', label: 'Checklist', icon: 'checkbox-outline' }, { kind: 'time', label: 'Current time', icon: 'time-outline' }, { kind: 'date', label: 'Current date', icon: 'calendar-outline' }] as const).map(item => <Pressable key={item.kind} accessibilityRole="button" accessibilityLabel={item.label} onPress={() => insert(item.kind)} style={[ui.row, { minHeight: 54 }]}><Icon name={item.icon} /><Text style={{ color: colors.font, fontSize: 16 }}>{item.label}</Text></Pressable>)}</ScrollView></Pressable></Pressable></Modal>
+    <View style={{ paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+      <View style={[ui.row, { justifyContent: 'space-between', marginBottom: 6 }]}><SaveStatus status={snapshot.status} /><Text style={{ color: colors.muted, fontSize: 10 }}>{note.text.trim().split(/\s+/).filter(Boolean).length} words</Text></View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="always" contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 2 }}>
+        {([
+          { label: 'Add', action: () => setInsertOpen(true), active: false },
+          { label: 'H1', action: () => setHeading(1), active: blocks.find(b => b.id === cursor.current.id)?.heading === 1 },
+          { label: 'H2', action: () => setHeading(2), active: blocks.find(b => b.id === cursor.current.id)?.heading === 2 },
+          { label: 'B', action: () => toggleInline('bold'), active: inlineActive('bold') },
+          { label: 'I', action: () => toggleInline('italic'), active: inlineActive('italic') },
+        ] as const).map(item => <Pressable key={item.label} accessibilityRole="button" accessibilityLabel={item.label === 'B' ? 'Bold' : item.label === 'I' ? 'Italic' : item.label === 'Add' ? 'Add formatting' : item.label + ' heading'} accessibilityState={{ selected: item.active }} onPress={item.action} style={{ minWidth: 45, minHeight: 44, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: item.active ? colors.font : colors.border, backgroundColor: item.active ? colors.selected : colors.secondary, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: colors.font, fontSize: 14, fontWeight: item.label === 'B' || item.label.startsWith('H') ? '700' : '500', fontStyle: item.label === 'I' ? 'italic' : 'normal' }}>{item.label}</Text>
+        </Pressable>)}
+        <IconButton label="Dismiss keyboard" name="checkmark" onPress={() => Keyboard.dismiss()} />
+      </ScrollView>
+    </View>
+    <Modal visible={insertOpen} transparent animationType="fade" onRequestClose={dismissInsert}><Pressable accessibilityRole="button" accessibilityLabel="Close Add menu" onPress={dismissInsert} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#0006' }}><Pressable accessibilityRole="none" onPress={() => undefined} style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 20), maxHeight: '78%', backgroundColor: colors.secondary, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}><Text style={{ color: colors.muted, marginBottom: 10 }}>Add</Text>
+      <View style={[ui.row, { marginBottom: 10 }]}>
+        <View style={{ flex: 1 }}><Button label="Bold" onPress={() => { dismissInsert(); toggleInline('bold'); }} /></View>
+        <View style={{ flex: 1 }}><Button label="Italic" onPress={() => { dismissInsert(); toggleInline('italic'); }} /></View>
+      </View>
+      <ScrollView keyboardShouldPersistTaps="always">{([{ kind: 'heading-1', label: 'Large heading (H1)', icon: 'text-outline' }, { kind: 'heading-2', label: 'Medium heading (H2)', icon: 'text-outline' }, { kind: 'heading-3', label: 'Small heading (H3)', icon: 'text-outline' }, { kind: 'bullet-list', label: 'Bulleted list', icon: 'list-outline' }, { kind: 'numbered-list', label: 'Numbered list', icon: 'list-outline' }, { kind: 'checklist', label: 'Checklist', icon: 'checkbox-outline' }, { kind: 'time', label: 'Current time', icon: 'time-outline' }, { kind: 'date', label: 'Current date', icon: 'calendar-outline' }] as const).map(item => <Pressable key={item.kind} accessibilityRole="button" accessibilityLabel={item.label} onPress={() => insert(item.kind)} style={[ui.row, { minHeight: 54 }]}><Icon name={item.icon} /><Text style={{ color: colors.font, fontSize: 16 }}>{item.label}</Text></Pressable>)}</ScrollView></Pressable></Pressable></Modal>
   </KeyboardAvoidingView></SafeAreaView>;
 }
 export default function Editor() {
