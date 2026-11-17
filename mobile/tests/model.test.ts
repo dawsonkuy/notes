@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { breakParagraph, fromBlocks, newNote, safeOps, toBlocks, validWorkspace } from '../src/model';
-import { fromHSV, initialAppearance, restoreAppearance, saveTheme, toHSV } from '../src/appearance';
+import { builtInThemes, fromHSV, initialAppearance, restoreAppearance, saveTheme, toHSV } from '../src/appearance';
 let counter = 0; const id = () => `block-${++counter}`;
 test('legacy text and trailing newlines round-trip without loss', () => {
   for (const text of ['', 'One line', 'One\nTwo', 'One\n\n', '\n\n']) { const note = { ...newNote('note'), text }; assert.equal(fromBlocks(note, toBlocks(note, id)).text, text); }
@@ -150,4 +150,27 @@ test('splitting and rejoining formatted paragraphs preserves exact inline text',
   const saved = fromBlocks(newNote('note'), joined.blocks);
   assert.equal(saved.text, 'Hello world');
   assert.deepEqual(toBlocks(saved, id)[0].runs?.find(run => run.bold), { text: 'world', bold: true });
+});
+
+test('four built-in BestPad themes have strong text contrast and survive preference restoration', () => {
+  assert.deepEqual(builtInThemes.map(t => t.name), ['Paper', 'Cloud', 'Midnight', 'Evergreen']);
+  function luminance(hex: string) {
+    const channels = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16) / 255)
+      .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+    return channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
+  }
+  function contrast(a: string, b: string) {
+    const first = luminance(a), second = luminance(b);
+    return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+  }
+  for (const theme of builtInThemes) {
+    assert.ok(contrast(theme.colors.font, theme.colors.primary) >= 7, theme.name + ' primary contrast');
+    assert.ok(contrast(theme.colors.font, theme.colors.secondary) >= 7, theme.name + ' secondary contrast');
+    const customized = restoreAppearance({ ...initialAppearance(theme.mode), selected: theme.id, colors: theme.colors });
+    assert.equal(customized.selected, theme.id);
+  }
+  const saved = saveTheme(initialAppearance('dark'), 'My custom', 'my-custom');
+  const restored = restoreAppearance(JSON.parse(JSON.stringify(saved)));
+  assert.equal(restored.themes[0].name, 'My custom');
+  assert.equal(restored.selected, 'my-custom');
 });
