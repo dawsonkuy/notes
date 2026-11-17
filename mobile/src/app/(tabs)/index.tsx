@@ -103,7 +103,7 @@ export default function Notes() {
           <Icon name="download-outline" size={18} /><Text style={{ color: colors.font, fontSize: 13 }}>{exporting ? 'Exporting…' : 'Export all'}</Text>
         </Pressable>
       </View>
-      {['offline', 'conflict', 'cache-error'].includes(snapshot.status) && <Pressable onPress={() => { void store.retry(); }} accessibilityRole="button" style={{ paddingVertical: 10, minHeight: 44, justifyContent: 'center' }}><Text style={{ color: colors.font, fontSize: 12 }}>Retry sync</Text></Pressable>}
+      {['pending', 'offline'].includes(snapshot.status) && <Pressable onPress={() => { void store.retry(); }} accessibilityRole="button" style={{ paddingVertical: 10, minHeight: 44, justifyContent: 'center' }}><Text style={{ color: colors.font, fontSize: 12 }}>Retry sync</Text></Pressable>}
       {snapshot.status === 'conflict' && <Pressable accessibilityRole="button" disabled={exporting} onPress={() => { void backupThenUseCloud(); }} style={{ paddingVertical: 10, minHeight: 44, justifyContent: 'center' }}><Text style={{ color: colors.font, fontSize: 12 }}>Back up local notes, then use cloud copy…</Text></Pressable>}
     </View>
     {snapshot.loading || !authReady ? <ActivityIndicator style={{ marginTop: 45 }} color={colors.font} /> : <OrganizedLibrary key={`home-${homeRevision}-${showTrash ? 'trash' : 'notes'}`} trash={showTrash} bottomSpace={Boolean(canUndo)} onOpen={open} onRename={beginRename} onRemove={remove} onDelete={permanentlyDelete} />}
