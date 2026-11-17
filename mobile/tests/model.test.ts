@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { breakParagraph, fromBlocks, newNote, safeOps, toBlocks, validWorkspace } from '../src/model';
+import { breakParagraph, fromBlocks, inlineStyles, newNote, replaceParagraphText, safeOps, toBlocks, validWorkspace } from '../src/model';
 import { builtInThemes, fromHSV, initialAppearance, restoreAppearance, saveTheme, toHSV } from '../src/appearance';
 let counter = 0; const id = () => `block-${++counter}`;
 test('legacy text and trailing newlines round-trip without loss', () => {
@@ -173,4 +173,32 @@ test('four built-in BestPad themes have strong text contrast and survive prefere
   const restored = restoreAppearance(JSON.parse(JSON.stringify(saved)));
   assert.equal(restored.themes[0].name, 'My custom');
   assert.equal(restored.selected, 'my-custom');
+});
+
+test('mobile typing after Bold and Italic activation saves actual styled characters, not only toolbar state', () => {
+  const original = [{ id: 'line', text: '' }];
+  const start = replaceParagraphText(original, 'line', 'Bold', id, { start: 0, end: 0 }, { bold: true });
+  assert.ok(start);
+  assert.equal(start.blocks[0].runs?.[0].bold, true);
+  const append = replaceParagraphText(start.blocks, 'line', 'Bold and italic', id, { start: 4, end: 4 }, { bold: true, italic: true });
+  assert.ok(append);
+  const styles = inlineStyles(append.blocks[0]);
+  assert.equal(styles[0].bold, true);
+  assert.equal(styles[0].italic, undefined);
+  assert.equal(styles[6].bold, true);
+  assert.equal(styles[6].italic, true);
+  const serialized = fromBlocks(newNote('note'), append.blocks);
+  assert.ok(serialized.content?.some(op => op.attributes?.bold && op.attributes?.italic));
+  const restored = toBlocks(serialized, id);
+  assert.ok(inlineStyles(restored[0]).some(s => s.bold && s.italic));
+});
+
+test('applying heading formatting before typing preserves H1/H2 in the saved note', () => {
+  for (const heading of [1, 2] as const) {
+    const blocks = [{ id: 'heading', text: '', heading }];
+    const result = replaceParagraphText(blocks, 'heading', 'New heading', id);
+    assert.ok(result);
+    const saved = fromBlocks(newNote('note'), result.blocks);
+    assert.ok(saved.content?.some(op => op.insert === '\\n' && op.attributes?.header === heading));
+  }
 });
