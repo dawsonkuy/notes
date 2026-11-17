@@ -28,7 +28,14 @@ test('mobile and web Settings expose links and in-app account deletion', () => {
   }
   assert.match(mobile, /Account deletion/);
   assert.match(mobile, /functions\.invoke\('delete-account'/);
-  assert.match(web, /open-account-settings/);
+  assert.match(web, /id="delete-account"/);
+  const settingsDialog = web.slice(web.indexOf('<dialog id="settings-dialog"'), web.indexOf('</dialog>', web.indexOf('<dialog id="settings-dialog"')));
+  const loginDialog = web.slice(web.indexOf('<dialog id="login-dialog"'), web.indexOf('</dialog>', web.indexOf('<dialog id="login-dialog"')));
+  assert.match(settingsDialog, /id="delete-account"/);
+  assert.doesNotMatch(loginDialog, /id="delete-account"/);
+  assert.match(loginDialog, /id="signed-in-forgot-password"/);
+  assert.match(read('auth.js'), /signedInForgotPassword\.addEventListener\('click'/);
+  assert.match(read('auth.js'), /deletionMessage/);
 });
 test('development and Cloudflare build serve each public legal URL', () => {
   for (const name of ['privacy.html', 'terms.html', 'delete-account.html', 'legal.css']) {
