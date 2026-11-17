@@ -70,3 +70,22 @@ test('folder menus omit move controls while note actions still allow moving', ()
   assert.match(nativeLibrary, /Haptics\.impactAsync/);
   assert.match(read('mobile/src/components/AnimatedLibraryRow.tsx'), /scale: lift/);
 });
+
+test('settings show Themes immediately beneath the website card and use standard deletion controls', () => {
+  const settings = read('mobile/src/app/(tabs)/settings.tsx');
+  const website = settings.indexOf('Use Bestpad on any device');
+  const themes = settings.indexOf('<SettingsSection title="Themes">');
+  const backups = settings.indexOf('<SettingsSection title="Backups & recovery">');
+  assert.ok(website !== -1 && themes > website && backups > themes);
+  assert.ok(settings.includes('textAlign: \'center\''));
+  assert.match(settings, /<Button label=\{deleting \? 'Deleting account…' : 'Delete account'\} icon="trash-outline" danger/);
+  assert.match(settings, /<SettingsSection title="Account deletion">/);
+});
+test('drag tick fires on distinct crossed items, rather than every pointer movement', () => {
+  const library = read('mobile/src/components/OrganizedLibrary.tsx');
+  assert.match(library, /crossedItem !== lastPassedItem\.current/);
+  assert.match(library, /Math\.abs\(gesture\.moveY - lastPassFeedbackY\.current\) >= 12/);
+  assert.match(library, /Haptics\.selectionAsync\(\)/);
+  assert.match(js, /crossedItem !== drag\.lastPassedItem/);
+  assert.match(js, /navigator\.vibrate\(6\)/);
+});
