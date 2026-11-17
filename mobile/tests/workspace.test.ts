@@ -226,3 +226,19 @@ test('watchdog resumes pending changes if the original save timer was suspended'
     assert.equal(f.store.getSnapshot().status, 'saved');
   } finally { f.store.dispose(); }
 });
+
+test('successful mobile cloud save reaches green saved state and does not keep reuploading', async () => {
+  const f = fixture();
+  try {
+    f.rows.set('alice', { workspace: f.workspace('Before'), revision: 1 });
+    await f.store.connect('alice');
+    f.store.updateNote({ ...f.store.getSnapshot().workspace.tabs[0], text: 'Finished typing' });
+    assert.equal(f.store.getSnapshot().status, 'pending');
+    await f.store.flush();
+    assert.equal(f.store.getSnapshot().status, 'saved');
+    const writes = f.writeCount();
+    await new Promise(resolve => setTimeout(resolve, 800));
+    assert.equal(f.writeCount(), writes, 'a completed save should not be uploaded again without new edits');
+    assert.equal(f.store.getSnapshot().status, 'saved');
+  } finally { f.store.dispose(); }
+});
