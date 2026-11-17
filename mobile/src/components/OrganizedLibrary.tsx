@@ -22,7 +22,7 @@ export function OrganizedLibrary(props: Props) {
   const startOffset = useRef(0), previousShifts = useRef(''), restoreExpanded = useRef<string | null>(null);
   const claimed = useRef(false);
   const drag = useRef<string | null>(null), target = useRef<{ parent: string | null; before?: string } | null>(null);
-  const lastPassedItem = useRef<string | null>(null), lastPassFeedbackAt = useRef(0);
+  const lastPassedItem = useRef<string | null>(null), lastPassFeedbackY = useRef(0);
   const rows = useRef<Record<string, React.ComponentRef<typeof View> | null>>({});
   const measured = useRef<Record<string, { y: number; height: number }>>({});
   const list = useRef<React.ComponentRef<typeof FlatList<TreeEntry>>>(null), offset = useRef(0);
@@ -62,9 +62,8 @@ export function OrganizedLibrary(props: Props) {
       const crossedItem = folder ? `folder:${folder.id}` : projection.over ? `row:${projection.over}` : null;
       if (crossedItem !== lastPassedItem.current) {
         lastPassedItem.current = crossedItem;
-        const now = Date.now();
-        if (crossedItem && now - lastPassFeedbackAt.current >= 75 && Platform.OS !== 'web') {
-          lastPassFeedbackAt.current = now;
+        if (crossedItem && Math.abs(gesture.moveY - lastPassFeedbackY.current) >= 12 && Platform.OS !== 'web') {
+          lastPassFeedbackY.current = gesture.moveY;
           void Haptics.selectionAsync().catch(() => undefined);
         }
       }
@@ -78,7 +77,7 @@ export function OrganizedLibrary(props: Props) {
   function startDrag(id: string, fingerY: number) {
     if (props.trash || drag.current) return; claimed.current = false; startFingerY.current = fingerY; startOffset.current = offset.current; dragY.setValue(0);
     if (expanded.has(id)) { restoreExpanded.current = id; setExpanded(current => { const next = new Set(current); next.delete(id); return next; }); }
-    lastPassedItem.current = null; lastPassFeedbackAt.current = Date.now();
+    lastPassedItem.current = null; lastPassFeedbackY.current = fingerY;
     drag.current = id; setDragId(id);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     root.current?.measureInWindow((_x, y, _width, height) => { bounds.current = { top: y + 12, bottom: y + height - 12 }; });
