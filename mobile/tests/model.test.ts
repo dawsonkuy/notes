@@ -199,6 +199,6 @@ test('applying heading formatting before typing preserves H1/H2 in the saved not
     const result = replaceParagraphText(blocks, 'heading', 'New heading', id);
     assert.ok(result);
     const saved = fromBlocks(newNote('note'), result.blocks);
-    assert.ok(saved.content?.some(op => op.insert === '\\n' && op.attributes?.header === heading));
+    assert.ok(saved.content?.some(op => op.insert === '\n' && op.attributes?.header === heading));
   }
 });
