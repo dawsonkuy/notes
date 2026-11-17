@@ -79,8 +79,14 @@
           <a href="/terms.html">Terms of Service <span aria-hidden="true">↗</span></a>
           <a href="/delete-account.html">Account Deletion <span aria-hidden="true">↗</span></a>
           <a href="/support.html">Help &amp; Support <span aria-hidden="true">↗</span></a>
-          <button id="open-account-settings" type="button">Manage account / Delete account <span aria-hidden="true">→</span></button>
         </div>
+      </section>
+      <section class="account-deletion-settings" aria-labelledby="account-deletion-title">
+        <h3 id="account-deletion-title">Account deletion</h3>
+        <p>Permanently delete your account and cloud notes, including Trash. Export anything you want to keep first.</p>
+        <button id="delete-account" class="danger-button" type="button" hidden>Delete account</button>
+        <p id="delete-account-signed-out">Sign in to delete your account.</p>
+        <p id="delete-account-status" role="status" aria-live="polite"></p>
       </section>
     </dialog>
     <dialog id="login-dialog" aria-labelledby="login-title">
@@ -98,7 +104,7 @@
         <label>Confirm new password<input id="recovery-confirm" type="password" autocomplete="new-password" minlength="8" required></label>
         <button id="save-recovery-password" type="submit">Update password</button>
       </form>
-      <div id="account-session" hidden><span id="account-email"></span><button id="sign-out" type="button">Sign out</button><button id="delete-account" class="danger-button" type="button">Delete account</button></div>
+      <div id="account-session" hidden><span id="account-email"></span><button id="sign-out" type="button">Sign out</button><button id="signed-in-forgot-password" type="button">Forgot password?</button></div>
       <p id="auth-status" role="status" aria-live="polite">Connecting to your account…</p>
     </dialog>
     <dialog id="sync-dialog" aria-labelledby="sync-title">
