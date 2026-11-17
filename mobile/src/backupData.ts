@@ -28,6 +28,9 @@ export function mergeWorkspaceNotes(current: Workspace, imported: Workspace, new
   const existingNotes = new Set(current.tabs.map(note => note.id));
   const existingFolders = new Set((current.folders || []).map(folder => folder.id));
   const importedFolders = imported.folders || [];
+  const importableNotes = imported.tabs.filter(note => !existingNotes.has(note.id) && (Boolean(note.text) || Boolean(note.sealed) || Boolean(note.deletedAt) || Boolean(note.customName) || note.filename !== 'Untitled'));
+  const skipped = imported.tabs.length - importableNotes.length;
+  if (!importableNotes.length) return { workspace: current, added: 0, skipped, foldersAdded: 0 };
   const folderIdMap = new Map<string, string>();
   // Folder ID clashes can be remapped because folder IDs are not used as
   // encryption associated data. Protected note IDs cannot be remapped.
@@ -44,14 +47,7 @@ export function mergeWorkspaceNotes(current: Workspace, imported: Workspace, new
     id: folderIdMap.get(folder.id)!,
     parentId: folder.parentId ? folderIdMap.get(folder.parentId) || null : null,
   }));
-  const notes: Note[] = []; let skipped = 0;
-  for (const note of imported.tabs) {
-    if (existingNotes.has(note.id)) { skipped++; continue; }
-    // Empty guest starter notes do not need to be imported.
-    if (!note.text && !note.sealed && !note.deletedAt && !note.customName && note.filename === 'Untitled') { skipped++; continue; }
-    notes.push({ ...note, folderId: note.folderId ? folderIdMap.get(note.folderId) || null : null });
-    existingNotes.add(note.id);
-  }
+  const notes: Note[] = importableNotes.map(note => ({ ...note, folderId: note.folderId ? folderIdMap.get(note.folderId) || null : null }));
   // Never replace existing note contents or the current editor selection.
   return {
     workspace: { ...current, folders: [...(current.folders || []), ...folders], tabs: [...current.tabs, ...notes] },
