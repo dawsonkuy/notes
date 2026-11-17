@@ -39,7 +39,7 @@ function NoteEditor({ note }: { note: Note }) {
   const slash = useRef<Cursor | null>(null), dismissedSlash = useRef<string | null>(null);
   const [pendingFocus, setPendingFocus] = useState<Cursor | null>(null);
   const typingStyle = useRef<{ id: string; flags: InlineStyle } | null>(null);
-  const [selectionVersion, refreshToolbar] = useState(0);
+  const [, refreshToolbar] = useState(0);
   const fontFamily = appearance.font === 'serif' ? Platform.OS === 'ios' ? 'Georgia' : 'serif' : appearance.font === 'mono' ? Platform.OS === 'ios' ? 'Menlo' : 'monospace' : appearance.font === 'rounded' ? Platform.OS === 'ios' ? 'Avenir Next' : 'sans-serif' : undefined;
   function emit(next: Block[]) { blocksRef.current = next; setBlocks(next); const updated = fromBlocks(noteRef.current, next); displayed.current = JSON.stringify([updated.text, updated.content]); store.updateNote(updated); }
   useEffect(() => {
@@ -170,7 +170,12 @@ function NoteEditor({ note }: { note: Note }) {
         <IconButton label="Dismiss keyboard" name="checkmark" onPress={() => Keyboard.dismiss()} />
       </ScrollView>
     </View>
-    <Modal visible={insertOpen} transparent animationType="fade" onRequestClose={dismissInsert}><Pressable accessibilityRole="button" accessibilityLabel="Close Add menu" onPress={dismissInsert} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#0006' }}><Pressable accessibilityRole="none" onPress={() => undefined} style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 20), maxHeight: '78%', backgroundColor: colors.secondary, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}><Text style={{ color: colors.muted, marginBottom: 10 }}>Add</Text><ScrollView keyboardShouldPersistTaps="always">{([{ kind: 'heading-1', label: 'Large heading (H1)', icon: 'text-outline' }, { kind: 'heading-2', label: 'Medium heading (H2)', icon: 'text-outline' }, { kind: 'heading-3', label: 'Small heading (H3)', icon: 'text-outline' }, { kind: 'bullet-list', label: 'Bulleted list', icon: 'list-outline' }, { kind: 'numbered-list', label: 'Numbered list', icon: 'list-outline' }, { kind: 'checklist', label: 'Checklist', icon: 'checkbox-outline' }, { kind: 'time', label: 'Current time', icon: 'time-outline' }, { kind: 'date', label: 'Current date', icon: 'calendar-outline' }] as const).map(item => <Pressable key={item.kind} accessibilityRole="button" accessibilityLabel={item.label} onPress={() => insert(item.kind)} style={[ui.row, { minHeight: 54 }]}><Icon name={item.icon} /><Text style={{ color: colors.font, fontSize: 16 }}>{item.label}</Text></Pressable>)}</ScrollView></Pressable></Pressable></Modal>
+    <Modal visible={insertOpen} transparent animationType="fade" onRequestClose={dismissInsert}><Pressable accessibilityRole="button" accessibilityLabel="Close Add menu" onPress={dismissInsert} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#0006' }}><Pressable accessibilityRole="none" onPress={() => undefined} style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 20), maxHeight: '78%', backgroundColor: colors.secondary, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}><Text style={{ color: colors.muted, marginBottom: 10 }}>Add</Text>
+      <View style={[ui.row, { marginBottom: 10 }]}>
+        <View style={{ flex: 1 }}><Button label="Bold" onPress={() => { dismissInsert(); toggleInline('bold'); }} /></View>
+        <View style={{ flex: 1 }}><Button label="Italic" onPress={() => { dismissInsert(); toggleInline('italic'); }} /></View>
+      </View>
+      <ScrollView keyboardShouldPersistTaps="always">{([{ kind: 'heading-1', label: 'Large heading (H1)', icon: 'text-outline' }, { kind: 'heading-2', label: 'Medium heading (H2)', icon: 'text-outline' }, { kind: 'heading-3', label: 'Small heading (H3)', icon: 'text-outline' }, { kind: 'bullet-list', label: 'Bulleted list', icon: 'list-outline' }, { kind: 'numbered-list', label: 'Numbered list', icon: 'list-outline' }, { kind: 'checklist', label: 'Checklist', icon: 'checkbox-outline' }, { kind: 'time', label: 'Current time', icon: 'time-outline' }, { kind: 'date', label: 'Current date', icon: 'calendar-outline' }] as const).map(item => <Pressable key={item.kind} accessibilityRole="button" accessibilityLabel={item.label} onPress={() => insert(item.kind)} style={[ui.row, { minHeight: 54 }]}><Icon name={item.icon} /><Text style={{ color: colors.font, fontSize: 16 }}>{item.label}</Text></Pressable>)}</ScrollView></Pressable></Pressable></Modal>
   </KeyboardAvoidingView></SafeAreaView>;
 }
 export default function Editor() {
