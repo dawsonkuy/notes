@@ -88,6 +88,8 @@ test('cloud request deadlines and safe reconnect keep web editing state protecte
   assert.doesNotMatch(share, /\$\('save-status'\)/);
   assert.match(share, /\$\('action-status'\)/);
   assert.match(html, /id="action-status"/);
+  assert.match(file('auth.js'), /window\.bestpadHasUnsyncedChanges/);
+  assert.match(web, /window\.bestpadHasUnsyncedChanges =/);
 });
 
 test('four preset themes and saved themes render outside the custom color dropdown', () => {
