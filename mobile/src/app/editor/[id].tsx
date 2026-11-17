@@ -9,6 +9,15 @@ import { Button, Icon, IconButton, SaveStatus, ui } from '../../components/ui';
 import { NotePassword } from '../../components/NotePassword';
 type Cursor = { id: string; start: number; end: number };
 type InsertKind = 'heading-1' | 'heading-2' | 'heading-3' | 'bullet-list' | 'numbered-list' | 'checklist' | 'time' | 'date';
+// Native TextInput does not support mixed nested text formatting while typing.
+// Mirror the caret's current style on the active TextInput, and retain exact
+// per-character formatting in the saved runs / unfocused paragraph preview.
+function currentTypingFormat(block: Block, selection: Cursor, override: { id: string; flags: InlineStyle } | null): InlineStyle {
+  if (override?.id === block.id) return override.flags;
+  const styles = inlineStyles(block);
+  if (selection.id !== block.id) return {};
+  return styles[Math.max(0, selection.start - 1)] || styles[selection.start] || {};
+}
 function orderedNumber(blocks: Block[], index: number) {
   let number = 1;
   for (let i = index - 1; i >= 0 && blocks[i].list === 'ordered'; i--) number++;
@@ -108,6 +117,8 @@ function NoteEditor({ note }: { note: Note }) {
     if (!block) return;
     const heading = block.heading === level ? undefined : level;
     emit(blocksRef.current.map(item => item.id === block.id ? { ...item, heading, list: undefined } : item));
+    setFocusedBlock(block.id);
+    setToolbarCursor(selection);
     setPendingFocus(selection);
   }
   function inlineActive(kind: 'bold' | 'italic') {
@@ -182,7 +193,7 @@ function NoteEditor({ note }: { note: Note }) {
             {block.runs.map((run, i) => <Text key={i} style={{ fontWeight: run.bold || block.heading ? '700' : '400', fontStyle: run.italic ? 'italic' : 'normal' }}>{run.text}</Text>)}
           </Text>
         </Pressable>
-        : <TextInput ref={input => { inputs.current[block.id] = input; }} accessibilityLabel={block.heading ? `Heading ${block.heading}` : block.list === 'bullet' ? `Bulleted list item ${index + 1}` : block.list === 'ordered' ? `Numbered list item ${orderedNumber(blocks, index)}` : block.list ? `Checklist item ${index + 1}` : `Note paragraph ${index + 1}`} multiline autoCorrect spellCheck autoCapitalize="sentences" keyboardAppearance={colors.dark ? 'dark' : 'light'} selectionColor={colors.font} scrollEnabled={false} submitBehavior="submit" returnKeyType="default" placeholder={block.heading ? 'Heading' : blocks.length === 1 ? 'Start writing…' : ''} placeholderTextColor={colors.muted} value={block.text} onFocus={() => setFocusedBlock(block.id)} onBlur={() => setFocusedBlock(current => current === block.id ? null : current)} onChangeText={text => change(block, text)} onSubmitEditing={() => returnFromParagraph(block)} onSelectionChange={event => { if (!inputs.current[block.id]?.isFocused()) return; const next = { id: block.id, ...event.nativeEvent.selection }; const changed = next.id !== cursor.current.id || next.start !== cursor.current.start || next.end !== cursor.current.end; cursor.current = next; if (typingStyle.current && (next.id !== typingStyle.current.id || next.start !== next.end)) { typingStyle.current = null; setToolbarTypingStyle(null); } if (changed) setToolbarCursor(next); checkSlash(next); keepCaretVisible(); }} onKeyPress={event => { if (event.nativeEvent.key === 'Backspace') backspace(block); }} style={{ flex: 1, padding: 0, margin: 0, color: colors.font, fontFamily, fontSize: appearance.size * (block.heading === 1 ? 1.6 : block.heading === 2 ? 1.35 : block.heading === 3 ? 1.15 : 1), lineHeight: appearance.size * (block.heading === 1 ? 2.1 : block.heading === 2 ? 1.85 : block.heading === 3 ? 1.65 : 1.55), minHeight: appearance.size * 1.55, fontWeight: block.heading ? '700' : '400', textDecorationLine: block.list === 'checked' ? 'line-through' : 'none', textAlignVertical: 'top' }} />}</View>)}
+        : <TextInput ref={input => { inputs.current[block.id] = input; }} accessibilityLabel={block.heading ? `Heading ${block.heading}` : block.list === 'bullet' ? `Bulleted list item ${index + 1}` : block.list === 'ordered' ? `Numbered list item ${orderedNumber(blocks, index)}` : block.list ? `Checklist item ${index + 1}` : `Note paragraph ${index + 1}`} multiline autoCorrect spellCheck autoCapitalize="sentences" keyboardAppearance={colors.dark ? 'dark' : 'light'} selectionColor={colors.font} scrollEnabled={false} submitBehavior="submit" returnKeyType="default" placeholder={block.heading ? 'Heading' : blocks.length === 1 ? 'Start writing…' : ''} placeholderTextColor={colors.muted} value={block.text} onFocus={() => { setFocusedBlock(block.id); if (cursor.current.id !== block.id) { const next = { id: block.id, start: 0, end: 0 }; cursor.current = next; setToolbarCursor(next); } }} onBlur={() => setFocusedBlock(current => current === block.id ? null : current)} onChangeText={text => change(block, text)} onSubmitEditing={() => returnFromParagraph(block)} onSelectionChange={event => { if (!inputs.current[block.id]?.isFocused()) return; const next = { id: block.id, ...event.nativeEvent.selection }; const changed = next.id !== cursor.current.id || next.start !== cursor.current.start || next.end !== cursor.current.end; cursor.current = next; if (typingStyle.current && (next.id !== typingStyle.current.id || next.start !== next.end)) { typingStyle.current = null; setToolbarTypingStyle(null); } if (changed) setToolbarCursor(next); checkSlash(next); keepCaretVisible(); }} onKeyPress={event => { if (event.nativeEvent.key === 'Backspace') backspace(block); }} style={{ flex: 1, padding: 0, margin: 0, color: colors.font, fontFamily, fontSize: appearance.size * (block.heading === 1 ? 1.6 : block.heading === 2 ? 1.35 : block.heading === 3 ? 1.15 : 1), lineHeight: appearance.size * (block.heading === 1 ? 2.1 : block.heading === 2 ? 1.85 : block.heading === 3 ? 1.65 : 1.55), minHeight: appearance.size * 1.55, fontWeight: block.heading || (focusedBlock === block.id && currentTypingFormat(block, toolbarCursor, toolbarTypingStyle).bold) ? '700' : '400', fontStyle: focusedBlock === block.id && currentTypingFormat(block, toolbarCursor, toolbarTypingStyle).italic ? 'italic' : 'normal', textDecorationLine: block.list === 'checked' ? 'line-through' : 'none', textAlignVertical: 'top' }} />}</View>)}
       <Pressable accessibilityRole="button" accessibilityLabel="Continue writing" onPress={() => { const last = blocksRef.current.findLast(item => !item.divider); if (last) setPendingFocus({ id: last.id, start: last.text.length, end: last.text.length }); }} style={{ minHeight: 100, flexGrow: 1 }} />
     </ScrollView>
     <View style={{ paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
