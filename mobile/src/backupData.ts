@@ -17,7 +17,7 @@ export function parseWorkspaceBackup(raw: string): Workspace {
   try { parsed = JSON.parse(raw); } catch { throw new Error('This file is not valid JSON.'); }
   const backup = parsed as Partial<BackupPayload> | null;
   if (!backup || backup.format !== 'bestpad-workspace-backup' || backup.version !== 1 || !validWorkspace(backup.workspace)) {
-    throw new Error('Select a valid BestPad JSON backup created with Export all.');
+    throw new Error('Select a valid BestPad JSON backup created with Export JSON backup.');
   }
   if (backup.workspace.tabs.length > 10000 || (backup.workspace.folders?.length || 0) > 2000) throw new Error('Backup contains too many items.');
   return backup.workspace;
