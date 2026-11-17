@@ -202,3 +202,27 @@ test('applying heading formatting before typing preserves H1/H2 in the saved not
     assert.ok(saved.content?.some(op => op.insert === '\n' && op.attributes?.header === heading));
   }
 });
+
+test('underline combines with bold and italic, survives sync, and applies to newly typed text', async () => {
+  const { applyInlineStyle } = await import('../src/model');
+  const note = { ...newNote('underline'), text: 'One under and bold', content: [
+    { insert: 'One ' }, { insert: 'under', attributes: { underline: true } },
+    { insert: ' and ' }, { insert: 'bold', attributes: { bold: true, italic: true } }, { insert: '\\n' },
+  ] };
+  const blocks = toBlocks(note, id);
+  assert.equal(blocks[0].runs?.find(run => run.text === 'under')?.underline, true);
+  const selection = { start: note.text.indexOf('bold'), end: note.text.length };
+  const underlined = applyInlineStyle(blocks, blocks[0].id, selection, 'underline')!;
+  assert.equal(underlined.enabled, true);
+  const saved = fromBlocks(note, underlined.blocks);
+  assert.ok(safeOps(saved));
+  assert.ok(saved.content?.some(op => op.insert === 'bold' && op.attributes?.bold && op.attributes?.italic && op.attributes?.underline));
+  const removed = applyInlineStyle(underlined.blocks, underlined.blocks[0].id, selection, 'underline')!;
+  assert.equal(removed.enabled, false);
+  assert.ok(!fromBlocks(note, removed.blocks).content?.some(op => op.insert === 'bold' && op.attributes?.underline));
+
+  const plain = { ...newNote('typing'), text: 'hello' };
+  const initial = toBlocks(plain, id);
+  const typed = replaceParagraphText(initial, initial[0].id, 'hello!', id, { start: 5, end: 5 }, { underline: true })!;
+  assert.ok(fromBlocks(plain, typed.blocks).content?.some(op => op.insert === '!' && op.attributes?.underline));
+});
