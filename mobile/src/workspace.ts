@@ -37,7 +37,7 @@ export class WorkspaceStore {
     });
     return this.cacheQueue;
   }
-  private schedule(delay = 250) { clearTimeout(this.timer); if (this.snapshot.user && this.ready && this.dirty && !this.conflict) this.timer = setTimeout(() => { void this.flush(); }, delay); }
+  private schedule(delay = 700) { clearTimeout(this.timer); if (this.snapshot.user && this.ready && this.dirty && !this.conflict) this.timer = setTimeout(() => { void this.flush(); }, delay); }
   async connect(user: string | null, force = false) {
     if (this.connected && user === this.snapshot.user && !force) return;
     if (this.connected && !this.snapshot.loading) await this.cache();
