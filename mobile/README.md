@@ -37,7 +37,7 @@ Expo may prompt to install its tunnel package. This needs internet access and a 
 - Email/password sign-in and account creation against your existing Supabase project.
 - Local saving with a recovery copy, 250 ms debounced cloud saving, and five-second retries after failed writes while the app is active.
 - Existing note names, headings, checked/unchecked checklist items, and dividers are retained when editing website notes.
-- Insert Heading, Current time, or Current date. Typing `/insert` at the cursor also opens the Insert sheet.
+- Use Add for headings, lists, date/time, Bold, and Italic. Typing `/add` at the cursor also opens the Add sheet.
 - Native system sharing of a plain-text copy.
 - Light/Dark modes, color-wheel and hex editing for Font / Primary / Secondary, up to four named custom themes, four font choices, and three text sizes.
 
@@ -57,7 +57,7 @@ Trash, restore, and permanent deletion sync with the website using the existing 
 
 ## Delete an account
 
-In the app, open **Settings → Account → Delete account**. On the website, open **Account → Delete account**. Confirm the permanent deletion. This deletes the signed-in Auth user and all their cloud notes (including Trash), clears that account's recovery cache on this device, and signs out. Guest notes and appearance preferences are kept. A failed server request keeps the account signed in and shows an error.
+In the app, open **Settings → Account → Delete account**. On the website, open **Settings → Account deletion**. Confirm the permanent deletion. This deletes the signed-in Auth user and all their cloud notes (including Trash), clears that account's recovery cache on this device, and signs out. Guest notes and appearance preferences are kept. A failed server request keeps the account signed in and shows an error.
 
 The server endpoint is in `supabase/functions/delete-account/`. It verifies the access token with Supabase Auth and uses only that verified user ID. Its service-role key is a server environment secret, never an app setting. The existing `ON DELETE CASCADE` foreign key removes the user's `note_workspaces` row. The function performs its own authentication, so gateway JWT verification is disabled in `supabase/config.toml`.
 
@@ -96,7 +96,7 @@ npm run web
 A later TestFlight/App Store release can use EAS Build. No Apple Developer account is needed for testing in Expo Go.
 
 ## Headings and lists (App Store editor)
-The Insert sheet and `/insert` menu provide H1 (large), H2 (medium), H3 (small), bulleted lists, numbered lists, and checked/unchecked to-do lists, along with date and time. Pressing Return after a heading moves to normal text; pressing Return inside a list adds the next item, and pressing Return on an empty list item returns to plain text. Rich formatting persists in the existing `note_workspaces.tabs[].content` Quill Delta format without a database migration. Test editing the same note on mobile and on the website, including offline conflict recovery.
+The Add sheet and `/add` menu provide H1 (large), H2 (medium), H3 (small), bulleted lists, numbered lists, and checked/unchecked to-do lists, along with date and time. Pressing Return after a heading moves to normal text; pressing Return inside a list adds the next item, and pressing Return on an empty list item returns to plain text. Rich formatting persists in the existing `note_workspaces.tabs[].content` Quill Delta format without a database migration. Test editing the same note on mobile and on the website, including offline conflict recovery.
 
 ## App Store release preparation
 
