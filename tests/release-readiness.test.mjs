@@ -252,7 +252,7 @@ test('native and browser password inputs have no maximum character restriction',
   assert.match(login, /accessibilityLabel="Password"/);
   assert.doesNotMatch(native, /maxLength/);
   assert.doesNotMatch(login, /maxLength/);
-  for (const id of ['auth-password', 'recovery-password', 'recovery-confirm', 'note-password', 'note-password-confirm']) {
+  for (const id of ['auth-password', 'recovery-password', 'recovery-confirm', 'note-password']) {
     const element = html.match(new RegExp('<input[^>]*id="' + id + '"[^>]*>'))?.[0];
     assert.ok(element, `Missing password input ${id}`);
     assert.doesNotMatch(element, /maxlength\s*=/i);
@@ -319,15 +319,35 @@ test('new note protection is unavailable in iOS while existing protected notes c
   assert.match(workspace, /visibleNote\(id: string\)/);
 });
 
-test('web disables creation of protected notes without hiding existing encrypted notes', () => {
+test('website has no note protection creation UI but can recover old encrypted notes', () => {
   const browser = file('app.js');
   const html = file('index.html');
-  const tabMenu = browser.match(/function openTabMenu\(tab, anchor\) \{([\s\S]*?)\n\}/)?.[1];
-  assert.ok(tabMenu);
-  assert.doesNotMatch(tabMenu, /Password protect…/);
-  assert.match(tabMenu, /tab\.sealed \? \[\['🔒', 'Open protected note'/);
-  assert.match(browser, /\$\('password-note'\)\.hidden = !storedActive\(\)\?\.sealed/);
+  const menu = browser.match(/function openTabMenu\(tab, anchor\) \{([\s\S]*?)\n\}/)?.[1];
+  assert.ok(menu);
+  assert.doesNotMatch(menu, /Password protect|Open protected note|passwordAction/);
+  assert.doesNotMatch(browser, /features\.protectNote\(/);
+  assert.doesNotMatch(html, /Protect note|Confirm password|id="note-password-confirm"/);
+  assert.match(html, /id="legacy-note-tools"[^>]* hidden/);
+  assert.match(html, /id="unlock-note" type="button"/);
   assert.match(browser, /if \(!original\?\.sealed\) return;/);
-  assert.match(html, /<button id="password-note" type="button" hidden>Unlock note<\/button>/);
-  assert.match(browser, /const password = await askNotePassword\(!original\.sealed\)/);
+  assert.match(browser, /await features\.unlockNote\(original, password\)/);
+  assert.match(browser, /if \(!confirm\('Remove password protection\?/);
+  assert.match(browser, /\$\('legacy-note-tools'\)\.hidden = !isLegacyProtected \|\| locked/);
+  assert.match(browser, /delete plain\.sealed;/);
+});
+
+test('web Add button removed and all format / insert actions shown directly above the editor', () => {
+  const html = file('index.html');
+  const web = file('app.js');
+  const css = file('style.css');
+  const bar = html.match(/<div id="editor-format-toolbar"[\s\S]*?<\/div>/)?.[0];
+  assert.ok(bar);
+  assert.doesNotMatch(html, /id="open-add"|id="heading-toolbar"/);
+  assert.doesNotMatch(web, /open-add|heading-toolbar/);
+  for (const format of ['bold', 'italic', 'underline'])
+    assert.match(bar, new RegExp('data-inline-format="' + format + '"'));
+  for (const kind of ['bullet-list', 'numbered-list', 'checklist', 'divider', 'date', 'time'])
+    assert.match(bar, new RegExp('data-insert="' + kind + '"'));
+  assert.match(css, /\.editor-format-toolbar\{[^\n]*overflow-x:auto/);
+  assert.match(web, /function insertNoteItem\(kind\)/);
 });
