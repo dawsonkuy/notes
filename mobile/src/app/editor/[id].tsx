@@ -11,7 +11,6 @@ import { NotePassword } from '../../components/NotePassword';
 import { clearFaceIdKey, faceIdAvailable, faceIdEnabled, saveFaceIdKey } from '../../biometric';
 import type { AlertButton } from 'react-native';
 import { recordEditorEdit, travelEditorHistory, type EditorHistory, type EditOrigin } from '../../editorHistory';
-import * as Haptics from 'expo-haptics';
 type Cursor = { id: string; start: number; end: number };
 type InsertKind = 'heading-1' | 'heading-2' | 'heading-3' | 'bullet-list' | 'numbered-list' | 'checklist' | 'time' | 'date';
 function orderedNumber(blocks: Block[], index: number) {
@@ -96,7 +95,6 @@ function NoteEditor({ note, focusOnOpen = false }: { note: Note; focusOnOpen?: b
       const next = { id: target.id, start: Math.min(selection.start, target.text.length), end: Math.min(selection.end, target.text.length) };
       cursor.current = next; setToolbarCursor(next); setPendingFocus(next);
     }
-    if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => undefined);
   }
   useEffect(() => {
     if (!pendingFocus) return;
