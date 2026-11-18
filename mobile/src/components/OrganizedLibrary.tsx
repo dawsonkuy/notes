@@ -13,7 +13,7 @@ export function OrganizedLibrary(props: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   function tapFeedback() { if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => undefined); }
   function toggle(id: string) {
-    if (drag.current) return;
+    if (dragId !== null) return;
     tapFeedback();
     setExpanded(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   }
