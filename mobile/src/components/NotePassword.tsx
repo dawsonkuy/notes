@@ -110,12 +110,12 @@ export function NotePassword({ id, protect = false, onCancel }: { id: string; pr
           autoCapitalize="none" autoCorrect={false} value={password} onChangeText={setPassword}
           editable={!busy} placeholder={protect ? 'Create note password' : 'Use note password instead'}
           placeholderTextColor={colors.muted}
-          style={[ui.input, { color: colors.font, borderColor: colors.border, backgroundColor: colors.secondary }]} />
+          style={[ui.input, { color: colors.font, borderColor: colors.border, backgroundColor: colors.secondary, textAlign: 'center', textAlignVertical: 'center' }]} />
         {protect && <TextInput accessibilityLabel="Confirm note password" returnKeyType="done"
           onSubmitEditing={() => { void submit(); }} secureTextEntry autoCapitalize="none" autoCorrect={false}
           value={confirm} onChangeText={setConfirm} editable={!busy} placeholder="Confirm note password"
           placeholderTextColor={colors.muted}
-          style={[ui.input, { color: colors.font, borderColor: colors.border, backgroundColor: colors.secondary }]} />}
+          style={[ui.input, { color: colors.font, borderColor: colors.border, backgroundColor: colors.secondary, textAlign: 'center', textAlignVertical: 'center' }]} />}
         {!!error && <Text accessibilityLiveRegion="polite" style={{ color: colors.font }}>{error}</Text>}
         {busy && <ActivityIndicator color={colors.font} />}
         <Button disabled={busy} label={busy ? 'Please wait…' : protect ? 'Protect note' : 'Unlock with password'}
