@@ -1033,7 +1033,9 @@ async function passwordAction() {
     if (!confirm('Remove password protection? This note will be saved without encryption.')) return;
     const session = unlockedNotes.get(id); const plain = { ...original, text: session.note.text, content: session.note.content, filename: session.note.filename, customName: session.note.customName }; delete plain.sealed; tabs = tabs.map(note => note.id === id ? plain : note); session.key.fill(0); unlockedNotes.delete(id); showTab(); save(); return;
   }
-  save(); const password = await askNotePassword(!original.sealed); if (password === null) return;
+  save();
+  if (!original.sealed && !cloudUser && !cacheNotes()) { alert('This browser cannot save local notes right now. Your note is unchanged. Export a backup or sign in before protecting it.'); return; }
+  const password = await askNotePassword(!original.sealed); if (password === null) return;
   const keyEpoch = noteKeyEpoch;
   $('password-note').disabled = true; $('save-status').textContent = original.sealed ? 'Unlocking note…' : 'Encrypting note…';
   try {
@@ -1042,6 +1044,15 @@ async function passwordAction() {
     if (original.sealed) unlockedNotes.set(id, { key: result.key, note: result.note, lastPlainPayload: protectedPlainPayload(result.note) });
     else { unlockedNotes.set(id, { key: result.key, note: { ...original }, lastPlainPayload: protectedPlainPayload(original) }); tabs = tabs.map(note => note.id === id ? result.note : note); }
     showTab(); save();
+    if (!original.sealed && !cloudUser && !localRecoveryAvailable) {
+      // A guest has no cloud fallback: don't leave the editor showing a
+      // protected state if its encrypted version failed to persist locally.
+      unlockedNotes.get(id)?.key.fill(0);
+      unlockedNotes.delete(id);
+      tabs = tabs.map(note => note.id === id ? original : note);
+      showTab(); save();
+      throw new Error('Could not save the protected note in this browser. The original note remains open; download a backup before closing this tab.');
+    }
   } catch (error) { alert(error.message || 'Could not open note.'); renderLockState(); }
   finally { $('password-note').disabled = false; }
 }
