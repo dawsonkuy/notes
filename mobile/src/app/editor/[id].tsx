@@ -241,7 +241,9 @@ function NoteEditor({ note, focusOnOpen = false }: { note: Note; focusOnOpen?: b
   }
   async function unprotectWithCleanup() {
     try {
-      if (await faceIdEnabled(snapshot.user, note.id)) await clearFaceIdKey(snapshot.user, note.id);
+      // Delete the Keychain entry even if biometrics were disabled or changed.
+      // A stale credential must not survive removal of note encryption.
+      await clearFaceIdKey(snapshot.user, note.id);
       store.unprotect(note.id);
     } catch {
       Alert.alert('Could not remove Face ID', 'Try again before removing the note password.');
