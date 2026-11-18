@@ -29,6 +29,12 @@
           "supportsOpeningDocumentsInPlace": true,
           "enableFileSharing": true
         }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "Allow Bestpad to use Face ID to unlock your protected notes."
+        }
       ]
     ]
   }
