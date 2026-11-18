@@ -168,7 +168,7 @@ export function replaceParagraphText(blocks: Block[], id: string, value: string,
   const oldStyles = inlineStyles(block);
   const inherited: InlineStyle = typingStyle || oldStyles[Math.max(0, editStart - 1)] || oldStyles[editStart] || {};
   const styles = [...oldStyles.slice(0, editStart), ...Array.from({ length: insertedLength }, () => ({ ...inherited })), ...oldStyles.slice(editEnd)];
-  if (!text.includes('\\n')) return { blocks: blocks.map(item => item.id === id ? { ...item, text, runs: styledRuns(text, styles) } : item) };
+  if (!text.includes('\n')) return { blocks: blocks.map(item => item.id === id ? { ...item, text, runs: styledRuns(text, styles) } : item) };
   // The caret lands after the inserted text, not after unchanged suffix text.
   const insertionEnd = editStart + insertedLength;
   const inserted = text.slice(0, insertionEnd).split('\n');
