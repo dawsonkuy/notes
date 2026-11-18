@@ -180,3 +180,20 @@ test('iOS Face ID stays opt-in, uses native biometric keychain, and keeps passwo
   assert.match(password, /Unlock with password/);
   assert.match(file('mobile/src/workspace.ts'), /unlockWithKey\(id: string/);
 });
+
+test('protected notes require confirmation before disabling encryption or sharing plaintext', () => {
+  const ios = file('mobile/src/app/editor/[id].tsx');
+  const web = file('app.js');
+  assert.match(ios, /function confirmRemovePassword\(\)/);
+  assert.match(ios, /Remove password protection\?/);
+  assert.match(ios, /This note will no longer be encrypted/);
+  assert.match(ios, /onPress: confirmRemovePassword/);
+  assert.match(ios, /function shareNoteContents\(\)/);
+  assert.match(ios, /Share protected note\?/);
+  assert.match(ios, /Share unencrypted copy/);
+  assert.match(ios, /onPress=\{shareNoteContents\}/);
+  assert.match(ios, /const visible = store\.visibleNote\(note\.id\)/);
+  assert.match(ios, /current\?\.sealed \|\| !visible \|\| visible\.sealed/);
+  assert.match(web, /Share protected note\? The shared or copied text will be unencrypted/);
+  assert.match(web, /if \(!confirm\('Remove password protection\?/);
+});
