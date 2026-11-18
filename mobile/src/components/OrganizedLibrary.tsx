@@ -41,7 +41,7 @@ export function OrganizedLibrary(props: Props) {
     if (commit && id && destination) { latest.current.store.move(id, destination.parent, destination.before); if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => undefined); }
     setExpanded(current => { const next = new Set(current); if (restore) next.add(restore); if (commit && destination?.parent) next.add(destination.parent); return next; });
     dragY.stopAnimation(); dragY.setValue(0); setShifts({}); previousShifts.current = ''; setDragId(null); setHover(null);
-  }, [dragY]);
+  }, [dragY, setDragId]);
   // PanResponder registers these event callbacks; it does not execute them during render.
   // eslint-disable-next-line react-hooks/refs
   const responder = useMemo(() => PanResponder.create({
