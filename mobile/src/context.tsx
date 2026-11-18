@@ -25,6 +25,11 @@ function useBestpadValue() {
   const dragFeedback = useCallback(() => {
     if (hapticsEnabled && Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
   }, [hapticsEnabled]);
+  // Switching OFF is deliberately silent; switching ON gives one confirmation tick.
+  const toggleHaptics = useCallback(() => {
+    if (!hapticsEnabled && Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => undefined);
+    setHapticsEnabled(enabled => !enabled);
+  }, [hapticsEnabled]);
   const appearanceWrites = useRef(Promise.resolve());
   const hapticWrites = useRef(Promise.resolve());
   useEffect(() => {
@@ -87,7 +92,7 @@ function useBestpadValue() {
     return () => { clearInterval(timer); void supabase.removeChannel(channel); };
   }, [authReady, userId, store]);
   return { store, snapshot, session, authReady, appearance, appearanceReady, appearanceError, setAppearance,
-    hapticsEnabled, setHapticsEnabled, hapticsReady, hapticsError, tapFeedback, dragFeedback,
+    hapticsEnabled, setHapticsEnabled, hapticsReady, hapticsError, tapFeedback, dragFeedback, toggleHaptics,
     colors: palette(appearance) };
 }
 type Value = ReturnType<typeof useBestpadValue>;

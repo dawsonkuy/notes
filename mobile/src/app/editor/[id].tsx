@@ -4,6 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router, useLocalSearchParams } from 'expo-router';
 import { randomUUID } from 'expo-crypto';
 import { useBestpad } from '../../context';
+import { noteFontFamily } from '../../appearance';
 import { Pressable } from '../../components/HapticPressable';
 import { applyInlineStyle, inlineStyles, inferTextEditRange, sliceInlineRuns, breakParagraph, joinBackward, replaceParagraphText, fromBlocks, isTrashed, noteName, toBlocks, type Block, type InlineRun, type InlineStyle, type Note } from '../../model';
 import { Button, Icon, IconButton, SaveStatus, ui } from '../../components/ui';
@@ -70,7 +71,7 @@ function NoteEditor({ note, focusOnOpen = false }: { note: Note; focusOnOpen?: b
   const typingStyle = useRef<{ id: string; flags: InlineStyle } | null>(null);
   const expectedCaret = useRef<Cursor | null>(null);
   const [toolbarTypingStyle, setToolbarTypingStyle] = useState<{ id: string; flags: InlineStyle } | null>(null);
-  const fontFamily = appearance.font === 'serif' ? Platform.OS === 'ios' ? 'Georgia' : 'serif' : appearance.font === 'mono' ? Platform.OS === 'ios' ? 'Menlo' : 'monospace' : appearance.font === 'rounded' ? Platform.OS === 'ios' ? 'Avenir Next' : 'sans-serif' : undefined;
+  const fontFamily = noteFontFamily(appearance.font, Platform.OS === 'ios');
   function emit(next: Block[], origin: EditOrigin = { kind: 'command' }, at = 0) {
     if (next === blocksRef.current) return;
     history.current = recordEditorEdit(history.current, { blocks: blocksRef.current, selection: { ...cursor.current } }, origin, at);

@@ -175,6 +175,15 @@ test('seven built-in BestPad themes have strong text contrast and survive prefer
   assert.equal(restored.selected, 'my-custom');
 });
 
+test('Handwritten and Elegant fonts survive settings restore without altering existing fonts', () => {
+  for (const font of ['handwritten', 'elegant'] as const) {
+    const original = { ...initialAppearance('light'), font };
+    const restored = restoreAppearance(JSON.parse(JSON.stringify(original)));
+    assert.equal(restored.font, font);
+  }
+  assert.equal(restoreAppearance({ ...initialAppearance('dark'), font: 'unavailable-font' }).font, 'sans');
+});
+
 test('mobile typing after Bold and Italic activation saves actual styled characters, not only toolbar state', () => {
   const original = [{ id: 'line', text: '' }];
   const start = replaceParagraphText(original, 'line', 'Bold', id, { start: 0, end: 0 }, { bold: true });
