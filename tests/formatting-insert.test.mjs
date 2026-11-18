@@ -48,7 +48,8 @@ test('both platforms preserve numbered, bullet and checklist styles in existing 
 test('iOS bottom formatting bar and native inline serialization exist', () => {
   for (const label of ['Add', 'H1', 'H2', 'H3', 'B', 'I', 'U']) assert.ok(mobile.includes('<ToolbarAction label="' + label + '"'), label);
   assert.match(mobile, /applyInlineStyle\(/);
-  assert.match(mobile, /block\.runs\.map\(/);
+  assert.match(mobile, /block\\.runs\\?\\.length/);
+  assert.match(mobile, /\\.map\\(\\(run, i\\)/);
   assert.match(model, /styledRuns\(/);
   assert.match(js, /formats: \['header', 'list', 'divider', 'bold', 'italic', 'underline'\]/);
 });
