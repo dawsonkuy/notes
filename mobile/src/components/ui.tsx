@@ -1,7 +1,8 @@
 import React, { type ComponentProps } from 'react';
-import { Pressable, StyleSheet, Text, View, type ColorValue } from 'react-native';
+import { StyleSheet, Text, View, type ColorValue } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useBestpad } from '../context';
+import { Pressable } from './HapticPressable';
 import type { Status } from '../workspace';
 export type IconName = ComponentProps<typeof Ionicons>['name'];
 export function Icon({ name, size = 21, color }: { name: IconName; size?: number; color?: ColorValue }) { const { colors } = useBestpad(); return <Ionicons name={name} size={size} color={typeof color === 'number' || color == null ? colors.font : color} />; }
