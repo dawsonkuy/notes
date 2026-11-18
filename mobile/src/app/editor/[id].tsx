@@ -4,7 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router, useLocalSearchParams } from 'expo-router';
 import { randomUUID } from 'expo-crypto';
 import { useBestpad } from '../../context';
-import { applyInlineStyle, inlineStyles, inferTextEditRange, sliceInlineRuns, breakParagraph, joinBackward, replaceParagraphText, fromBlocks, isTrashed, noteName, toBlocks, type Block, type InlineStyle, type Note } from '../../model';
+import { applyInlineStyle, inlineStyles, inferTextEditRange, sliceInlineRuns, breakParagraph, joinBackward, replaceParagraphText, fromBlocks, isTrashed, noteName, toBlocks, type Block, type InlineRun, type InlineStyle, type Note } from '../../model';
 import { Button, Icon, IconButton, SaveStatus, ui } from '../../components/ui';
 import { NotePassword } from '../../components/NotePassword';
 type Cursor = { id: string; start: number; end: number };
@@ -232,7 +232,7 @@ function NoteEditor({ note }: { note: Note }) {
         }}>
         {Platform.OS === 'ios' ? (
           <Text>
-            {(block.runs?.length ? block.runs : [{ text: block.text }]).map((run, i) => (
+            {(block.runs?.length ? block.runs : ([{ text: block.text }] as InlineRun[])).map((run, i) => (
               <Text key={i} style={{
                 fontWeight: run.bold || block.heading ? '700' : '400',
                 fontStyle: run.italic ? 'italic' : 'normal',
