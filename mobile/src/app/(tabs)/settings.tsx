@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Linking, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Linking, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { randomUUID } from 'expo-crypto';
 import { File } from 'expo-file-system';
@@ -9,6 +9,7 @@ import { parseWorkspaceBackup } from '../../backupData';
 import { router } from 'expo-router';
 import { builtInThemes, defaults, saveTheme, type Colors } from '../../appearance';
 import { useBestpad } from '../../context';
+import { Pressable } from '../../components/HapticPressable';
 import { supabase } from '../../supabase';
 import { clearAccountFaceIdKeys } from '../../biometric';
 import { ColorEditor } from '../../components/ColorEditor';
