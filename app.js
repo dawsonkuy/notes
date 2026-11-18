@@ -100,7 +100,6 @@ const closeMenus = () => {
   if (richEditor) { richEditor.root.removeAttribute('aria-activedescendant'); richEditor.root.removeAttribute('aria-expanded'); }
   tabMenu.hidden = true;
   $('add-menu').hidden = true;
-  $('open-add').setAttribute('aria-expanded', 'false');
 };
 function renameTab(tab) {
   closeMenus();
@@ -170,7 +169,7 @@ async function shareTab(tab) {
 }
 function openTabMenu(tab, anchor) {
   closeMenus(); tabMenu.replaceChildren();
-  [['✎', 'Rename', () => renameTab(tab)], ['↓', 'Save as…', () => downloadTab(tab)], ['↗', 'Share', () => shareTab(tab)], ['⌖', tab.pinned ? 'Unpin note' : 'Pin note', () => togglePin(tab.id)], ...(tab.sealed ? [['🔒', 'Open protected note', () => { switchTab(tab.id); void passwordAction(); }]] : []), ['⌫', 'Move to Trash', () => deleteTab(tab)]].forEach(([icon, label, action]) => {
+  [['✎', 'Rename', () => renameTab(tab)], ['↓', 'Save as…', () => downloadTab(tab)], ['↗', 'Share', () => shareTab(tab)], ['⌖', tab.pinned ? 'Unpin note' : 'Pin note', () => togglePin(tab.id)], ['⌫', 'Move to Trash', () => deleteTab(tab)]].forEach(([icon, label, action]) => {
     const button = document.createElement('button'); button.setAttribute('role', 'menuitem');
     const glyph = document.createElement('span'); glyph.textContent = icon; glyph.setAttribute('aria-hidden', 'true');
     button.append(glyph, document.createTextNode(label)); button.onclick = action; tabMenu.append(button);
@@ -339,7 +338,7 @@ function addTab(text = '', filename = 'Untitled') {
   showTab(); save(); closeMenus(); setNotesDrawer(false);
 }
 $('add-tab').onclick = () => addTab();
-document.addEventListener('click', event => { if (!event.target.closest('.edit-tab, .tab-menu, #open-add, .add-menu')) closeMenus(); });
+document.addEventListener('click', event => { if (!event.target.closest('.edit-tab, .tab-menu, .add-menu')) closeMenus(); });
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') { closeMenus(); setNotesDrawer(false, true); }
   if (tabMenu.contains(event.target) && ['ArrowDown', 'ArrowUp'].includes(event.key)) {
@@ -717,7 +716,7 @@ function renderRichNote() {
 }
 function setEditorEnabled(enabled) {
   if (richEditor) richEditor.enable(enabled);
-  document.querySelectorAll('[data-heading], [data-insert], [data-inline-format], #open-add').forEach(button => { button.disabled = !enabled; });
+  document.querySelectorAll('[data-heading], [data-insert], [data-inline-format]').forEach(button => { button.disabled = !enabled; });
   if (!enabled) closeMenus();
 }
 function updateHeadingButtons() {
@@ -741,14 +740,13 @@ if (window.Quill) {
     static value() { return true; }
   }
   window.Quill.register(Divider);
-  richEditor = new window.Quill('#rich-editor', { formats: ['header', 'list', 'divider', 'bold', 'italic', 'underline'], modules: { toolbar: false }, placeholder: 'Start writing… Type /add for lists, date, or time.' });
+  richEditor = new window.Quill('#rich-editor', { formats: ['header', 'list', 'divider', 'bold', 'italic', 'underline'], modules: { toolbar: false }, placeholder: 'Start writing… Use the toolbar for lists, date, or time.' });
   richEditor.root.setAttribute('role', 'textbox');
   richEditor.root.setAttribute('aria-label', 'Note text');
   richEditor.root.setAttribute('aria-multiline', 'true');
   richEditor.root.setAttribute('aria-describedby', 'save-status');
   richEditor.root.setAttribute('spellcheck', 'true');
   $('rich-editor').hidden = false;
-  $('heading-toolbar').hidden = false;
   $('editor-format-toolbar').hidden = false;
   $('editor').hidden = true;
   document.querySelectorAll('[role="tab"]').forEach(button => button.setAttribute('aria-controls', 'rich-editor'));
@@ -785,19 +783,6 @@ document.querySelectorAll('[data-inline-format]').forEach(button => {
     updateHeadingButtons();
     closeMenus();
   });
-});
-$('open-add').addEventListener('pointerdown', event => event.preventDefault());
-$('open-add').addEventListener('click', event => {
-  const opening = $('add-menu').hidden;
-  closeMenus();
-  if (!opening) return;
-  $('add-menu').hidden = false;
-  $('open-add').setAttribute('aria-expanded', 'true');
-  const anchor = $('open-add').getBoundingClientRect();
-  const menu = $('add-menu');
-  menu.style.left = `${Math.max(8, Math.min(anchor.left, innerWidth - menu.offsetWidth - 8))}px`;
-  menu.style.top = `${Math.max(8, Math.min(anchor.bottom + 4, innerHeight - menu.offsetHeight - 8))}px`;
-  if (event.detail === 0) menu.firstElementChild.focus({ preventScroll: true });
 });
 function insertNoteItem(kind) {
   const command = slashCommand;
@@ -842,7 +827,7 @@ document.querySelectorAll('[data-insert]').forEach(button => {
 });
 $('add-menu').addEventListener('keydown', event => {
   if (event.key === 'Escape') {
-    event.preventDefault(); closeMenus(); $('open-add').focus({ preventScroll: true }); return;
+    event.preventDefault(); closeMenus(); richEditor?.focus(); return;
   }
   if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
   event.preventDefault();
@@ -950,7 +935,6 @@ function updateSlashCommand() {
   }
   const menu = $('add-menu');
   menu.hidden = false;
-  $('open-add').setAttribute('aria-expanded', 'true');
   richEditor.root.setAttribute('aria-controls', 'add-menu');
   richEditor.root.setAttribute('aria-expanded', 'true');
   highlightSlashOption(slashCommand.selected);
@@ -1025,47 +1009,63 @@ function clearNoteKeys() { noteKeyEpoch++; unlockedNotes.forEach(session => sess
 function renderLockState() {
   const locked = isLocked(); $('locked-note').hidden = !locked; $('rich-editor').hidden = locked || !richEditor; $('editor').hidden = locked || Boolean(richEditor);
   setEditorEnabled(!locked); ['rename-current','download-current','share-current'].forEach(id => { $(id).disabled = locked || (id === 'rename-current' && Boolean(storedActive()?.sealed)); });
-  $('password-note').textContent = locked ? 'Unlock note' : 'Remove password'; $('password-note').hidden = !storedActive()?.sealed; $('lock-note').hidden = !storedActive()?.sealed || locked;
+  const isLegacyProtected = Boolean(storedActive()?.sealed);
+  $('legacy-note-tools').hidden = !isLegacyProtected || locked;
+  $('password-note').textContent = 'Remove old password';
+  $('lock-note').hidden = !isLegacyProtected || locked;
 }
-function askNotePassword(protect) {
+function askNotePassword() {
+  // Only retained to recover notes created before note protection was disabled.
   return new Promise(resolve => {
-    const dialog = $('note-password-dialog'), password = $('note-password'), confirm = $('note-password-confirm'); password.value = ''; confirm.value = ''; $('note-password-error').textContent = '';
-    $('note-password-title').textContent = protect ? 'Protect note' : 'Unlock note'; $('note-password-help').textContent = protect ? 'The title and contents will be encrypted. Forgotten note passwords cannot be recovered. Use at least 8 characters.' : 'Enter this note’s password. It may differ from your account password.'; $('note-password-confirm-label').hidden = !protect;
-    const finish = value => { dialog.oncancel = null; $('note-password-form').onsubmit = null; dialog.close(); password.value = ''; confirm.value = ''; resolve(value); };
-    $('note-password-form').onsubmit = event => { event.preventDefault(); if (protect && (password.value.length < 8 || password.value !== confirm.value)) { $('note-password-error').textContent = 'Use at least 8 characters and matching passwords.'; return; } finish(password.value); };
-    $('note-password-cancel').onclick = () => finish(null); dialog.oncancel = event => { event.preventDefault(); finish(null); }; dialog.showModal(); password.focus();
+    const dialog = $('note-password-dialog'), password = $('note-password');
+    password.value = '';
+    $('note-password-error').textContent = '';
+    $('note-password-title').textContent = 'Unlock existing note';
+    $('note-password-help').textContent = 'Enter this note’s original password to access it. You can then remove the old password from the recovery controls.';
+    const finish = value => { dialog.oncancel = null; $('note-password-form').onsubmit = null; dialog.close(); password.value = ''; resolve(value); };
+    $('note-password-form').onsubmit = event => { event.preventDefault(); finish(password.value); };
+    $('note-password-cancel').onclick = () => finish(null);
+    dialog.oncancel = event => { event.preventDefault(); finish(null); };
+    dialog.showModal(); password.focus();
   });
 }
 async function passwordAction() {
   const id = activeId, original = storedActive();
-  // New note protection is temporarily disabled. Existing encrypted notes remain accessible.
+  // No new protection or encryption. Existing protected notes remain recoverable.
   if (!original?.sealed) return;
-  if (original.sealed && unlockedNotes.has(id)) {
+  if (unlockedNotes.has(id)) {
     if (!confirm('Remove password protection? This note will be saved without encryption.')) return;
-    const session = unlockedNotes.get(id); const plain = { ...original, text: session.note.text, content: session.note.content, filename: session.note.filename, customName: session.note.customName }; delete plain.sealed; tabs = tabs.map(note => note.id === id ? plain : note); session.key.fill(0); unlockedNotes.delete(id); showTab(); save(); return;
+    const session = unlockedNotes.get(id);
+    const plain = { ...original, text: session.note.text, content: session.note.content, filename: session.note.filename, customName: session.note.customName };
+    delete plain.sealed;
+    tabs = tabs.map(note => note.id === id ? plain : note);
+    session.key.fill(0);
+    unlockedNotes.delete(id);
+    showTab();
+    save();
+    return;
   }
   save();
-  if (!original.sealed && !cloudUser && !cacheNotes()) { alert('This browser cannot save local notes right now. Your note is unchanged. Export a backup or sign in before protecting it.'); return; }
-  const password = await askNotePassword(!original.sealed); if (password === null) return;
+  const password = await askNotePassword();
+  if (password === null) return;
   const keyEpoch = noteKeyEpoch;
-  $('password-note').disabled = true; $('save-status').textContent = original.sealed ? 'Unlocking note…' : 'Encrypting note…';
+  $('unlock-note').disabled = true;
+  $('save-status').textContent = 'Unlocking note…';
   try {
-    const result = original.sealed ? await features.unlockNote(original, password) : await features.protectNote(original, password);
-    if (keyEpoch !== noteKeyEpoch || document.hidden || activeId !== id || storedActive() !== original) { result.key.fill(0); throw new Error('Note changed. Please try again.'); }
-    if (original.sealed) unlockedNotes.set(id, { key: result.key, note: result.note, lastPlainPayload: protectedPlainPayload(result.note) });
-    else { unlockedNotes.set(id, { key: result.key, note: { ...original }, lastPlainPayload: protectedPlainPayload(original) }); tabs = tabs.map(note => note.id === id ? result.note : note); }
-    showTab(); save();
-    if (!original.sealed && !cloudUser && !localRecoveryAvailable) {
-      // A guest has no cloud fallback: don't leave the editor showing a
-      // protected state if its encrypted version failed to persist locally.
-      unlockedNotes.get(id)?.key.fill(0);
-      unlockedNotes.delete(id);
-      tabs = tabs.map(note => note.id === id ? original : note);
-      showTab(); save();
-      throw new Error('Could not save the protected note in this browser. The original note remains open; download a backup before closing this tab.');
+    const result = await features.unlockNote(original, password);
+    if (keyEpoch !== noteKeyEpoch || document.hidden || activeId !== id || storedActive() !== original) {
+      result.key.fill(0);
+      throw new Error('Note changed. Please try again.');
     }
-  } catch (error) { alert(error.message || 'Could not open note.'); renderLockState(); }
-  finally { $('password-note').disabled = false; }
+    unlockedNotes.set(id, { key: result.key, note: result.note, lastPlainPayload: protectedPlainPayload(result.note) });
+    showTab();
+    save();
+  } catch (error) {
+    alert(error.message || 'Could not unlock note.');
+    renderLockState();
+  } finally {
+    $('unlock-note').disabled = false;
+  }
 }
 $('password-note').onclick = () => { void passwordAction(); };
 $('unlock-note').onclick = () => { void passwordAction(); };
