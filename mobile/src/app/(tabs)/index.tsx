@@ -27,9 +27,9 @@ export default function Notes() {
     // Remount the library to reset scrolling and folder expansion, like returning Home.
     setHomeRevision(version => version + 1);
   }
-  function open(id: string) {
+  function open(id: string, focus = false) {
     store.activate(id);
-    router.push({ pathname: '/editor/[id]', params: { id } });
+    router.push({ pathname: '/editor/[id]', params: { id, ...(focus ? { focus: '1' } : {}) } });
   }
   function beginRename(id: string) {
     const note = snapshot.workspace.tabs.find(item => item.id === id && !isTrashed(item));
@@ -79,7 +79,7 @@ export default function Notes() {
         </View>
       </View>
       <View style={[ui.row, { gap: 6, marginTop: 8, marginBottom: 5 }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="New note" disabled={snapshot.loading} onPress={() => { setShowTrash(false); open(starterNoteId(store.getSnapshot().workspace) ?? store.add()); }} style={({ pressed }) => [styles.action, { flex: 1, backgroundColor: colors.font, opacity: snapshot.loading ? .4 : pressed ? .87 : 1, transform: [{ scale: pressed ? .985 : 1 }] }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="New note" disabled={snapshot.loading} onPress={() => { setShowTrash(false); open(starterNoteId(store.getSnapshot().workspace) ?? store.add(), true); }} style={({ pressed }) => [styles.action, { flex: 1, backgroundColor: colors.font, opacity: snapshot.loading ? .4 : pressed ? .87 : 1, transform: [{ scale: pressed ? .985 : 1 }] }]}>
           <Icon name="add" size={17} color={colors.primary} /><Text numberOfLines={1} style={{ color: colors.primary, fontSize: 12, fontWeight: '600' }}>New note</Text>
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="New folder" disabled={snapshot.loading} onPress={() => { setShowTrash(false); setFolderName(''); setNewFolder(true); }} style={({ pressed }) => [styles.action, { flex: 1, backgroundColor: pressed ? colors.selected : colors.secondary, opacity: snapshot.loading ? .4 : pressed ? .9 : 1, transform: [{ scale: pressed ? .985 : 1 }] }]}>
@@ -92,7 +92,7 @@ export default function Notes() {
       {['pending', 'offline'].includes(snapshot.status) && <Pressable onPress={() => { void store.retry(); }} accessibilityRole="button" style={{ paddingVertical: 10, minHeight: 44, justifyContent: 'center' }}><Text style={{ color: colors.font, fontSize: 12 }}>Retry sync</Text></Pressable>}
       {snapshot.status === 'conflict' && <Pressable accessibilityRole="button" disabled={exporting} onPress={() => { void backupThenUseCloud(); }} style={{ paddingVertical: 10, minHeight: 44, justifyContent: 'center' }}><Text style={{ color: colors.font, fontSize: 12 }}>Back up local notes, then use cloud copy…</Text></Pressable>}
     </View>
-    {snapshot.loading || !authReady ? <ActivityIndicator style={{ marginTop: 45 }} color={colors.font} /> : <OrganizedLibrary key={`home-${homeRevision}-${showTrash ? 'trash' : 'notes'}`} trash={showTrash} bottomSpace={Boolean(canUndo)} onOpen={open} onCreate={() => { open(starterNoteId(store.getSnapshot().workspace) ?? store.add()); }} onRename={beginRename} onRemove={remove} onDelete={permanentlyDelete} />}
+    {snapshot.loading || !authReady ? <ActivityIndicator style={{ marginTop: 45 }} color={colors.font} /> : <OrganizedLibrary key={`home-${homeRevision}-${showTrash ? 'trash' : 'notes'}`} trash={showTrash} bottomSpace={Boolean(canUndo)} onOpen={open} onCreate={() => { open(starterNoteId(store.getSnapshot().workspace) ?? store.add(), true); }} onRename={beginRename} onRemove={remove} onDelete={permanentlyDelete} />}
     {canUndo && <View accessibilityLiveRegion="polite" style={[styles.undo, { backgroundColor: colors.secondary, borderColor: colors.border }]}><Text style={{ color: colors.font, flex: 1, fontSize: 14 }}>Moved to Trash</Text><Pressable accessibilityRole="button" accessibilityLabel="Undo move to Trash" onPress={() => { if (lastRemoved) store.restore(lastRemoved); setLastRemoved(null); }} style={{ minHeight: 44, paddingHorizontal: 12, justifyContent: 'center' }}><Text style={{ color: colors.font, fontWeight: '700', fontSize: 14 }}>Undo</Text></Pressable><IconButton name="close" label="Dismiss undo" onPress={() => setLastRemoved(null)} /></View>}
     <Modal visible={newFolder} transparent animationType="fade" onRequestClose={() => setNewFolder(false)}><KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><View style={styles.modalBackdrop}><View style={[styles.modalPanel, { backgroundColor: colors.secondary, borderColor: colors.border }]}><Text style={{ color: colors.font, fontSize: 20, fontWeight: '600' }}>New folder</Text><TextInput accessibilityLabel="Folder name" autoFocus maxLength={80} value={folderName} onChangeText={setFolderName} style={[ui.input, { color: colors.font, borderColor: colors.border }]} /><Button label="Save folder" disabled={!folderName.trim()} onPress={() => { store.addFolder(folderName); setNewFolder(false); }} /><Button label="Cancel" onPress={() => setNewFolder(false)} /></View></View></KeyboardAvoidingView></Modal>
     <Modal visible={renameId !== null} animationType="fade" transparent onRequestClose={() => setRenameId(null)}>

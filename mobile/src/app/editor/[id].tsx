@@ -7,6 +7,8 @@ import { useBestpad } from '../../context';
 import { applyInlineStyle, inlineStyles, inferTextEditRange, sliceInlineRuns, breakParagraph, joinBackward, replaceParagraphText, fromBlocks, isTrashed, noteName, toBlocks, type Block, type InlineRun, type InlineStyle, type Note } from '../../model';
 import { Button, Icon, IconButton, SaveStatus, ui } from '../../components/ui';
 import { NotePassword } from '../../components/NotePassword';
+import { recordEditorEdit, travelEditorHistory, type EditorHistory, type EditOrigin } from '../../editorHistory';
+import * as Haptics from 'expo-haptics';
 type Cursor = { id: string; start: number; end: number };
 type InsertKind = 'heading-1' | 'heading-2' | 'heading-3' | 'bullet-list' | 'numbered-list' | 'checklist' | 'time' | 'date';
 function orderedNumber(blocks: Block[], index: number) {
@@ -23,16 +25,23 @@ function ToolbarAction({ label, active, onPress }: { label: ToolbarLabel; active
     <Text style={{ color: colors.font, fontSize: 14, fontWeight: label === 'B' || label.startsWith('H') ? '700' : '500', fontStyle: label === 'I' ? 'italic' : 'normal', textDecorationLine: label === 'U' ? 'underline' : 'none' }}>{label}</Text>
   </Pressable>;
 }
-function NoteEditor({ note }: { note: Note }) {
+function NoteEditor({ note, focusOnOpen = false }: { note: Note; focusOnOpen?: boolean }) {
   const { colors, appearance, snapshot, store } = useBestpad(), insets = useSafeAreaInsets();
   const [protectOpen, setProtectOpen] = useState(false);
   const [blocks, setBlocks] = useState(() => toBlocks(note, randomUUID)), [insertOpen, setInsertOpen] = useState(false);
   const blocksRef = useRef(blocks); const noteRef = useRef(note);
   const displayed = useRef(JSON.stringify([note.text, note.content]));
+  const history = useRef<EditorHistory>({ past: [], future: [] });
+  const [historyCounts, setHistoryCounts] = useState({ undo: 0, redo: 0 });
   useLayoutEffect(() => {
     noteRef.current = note;
     const signature = JSON.stringify([note.text, note.content]);
-    if (signature !== displayed.current) { const next = toBlocks(note, randomUUID); blocksRef.current = next; setBlocks(next); displayed.current = signature; }
+    if (signature !== displayed.current) {
+      const next = toBlocks(note, randomUUID);
+      blocksRef.current = next; setBlocks(next); displayed.current = signature;
+      // Do not allow undo to overwrite newer content received from another device.
+      history.current = { past: [], future: [] }; setHistoryCounts({ undo: 0, redo: 0 });
+    }
   }, [note]);
   const inputs = useRef<Record<string, React.ComponentRef<typeof TextInput> | null>>({});
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
@@ -40,9 +49,15 @@ function NoteEditor({ note }: { note: Note }) {
   const layouts = useRef<Record<string, { y: number; height: number }>>({});
   function keepCaretVisible() {
     const selection = cursor.current, block = blocksRef.current.find(item => item.id === selection.id), layout = layouts.current[selection.id];
-    if (!block || !layout || !inputs.current[selection.id]?.isFocused() || selection.start !== selection.end || selection.end < block.text.length) return;
-    const bottom = layout.y + layout.height + 24;
-    if (viewport.current.height && bottom > viewport.current.offset + viewport.current.height) scroll.current?.scrollTo({ y: Math.max(0, bottom - viewport.current.height), animated: false });
+    if (!block || !layout || !inputs.current[selection.id]?.isFocused() || selection.start !== selection.end || !viewport.current.height) return;
+    // Keep short paragraphs completely visible. In a long paragraph, never
+    // jump to its bottom while the user is editing near the beginning.
+    const tall = layout.height > viewport.current.height - 48;
+    if (tall && selection.end < block.text.length) return;
+    const top = layout.y - 12, bottom = layout.y + layout.height + 24;
+    const visibleBottom = viewport.current.offset + viewport.current.height;
+    if (bottom > visibleBottom) scroll.current?.scrollTo({ y: Math.max(0, bottom - viewport.current.height), animated: false });
+    else if (top < viewport.current.offset) scroll.current?.scrollTo({ y: Math.max(0, top), animated: false });
   }
   const cursor = useRef<Cursor>({ id: blocks[0].id, start: 0, end: 0 });
   // Rendering uses state, while event handlers retain the immediately-current
@@ -54,7 +69,32 @@ function NoteEditor({ note }: { note: Note }) {
   const expectedCaret = useRef<Cursor | null>(null);
   const [toolbarTypingStyle, setToolbarTypingStyle] = useState<{ id: string; flags: InlineStyle } | null>(null);
   const fontFamily = appearance.font === 'serif' ? Platform.OS === 'ios' ? 'Georgia' : 'serif' : appearance.font === 'mono' ? Platform.OS === 'ios' ? 'Menlo' : 'monospace' : appearance.font === 'rounded' ? Platform.OS === 'ios' ? 'Avenir Next' : 'sans-serif' : undefined;
-  function emit(next: Block[]) { if (next === blocksRef.current) return; blocksRef.current = next; setBlocks(next); const updated = fromBlocks(noteRef.current, next); displayed.current = JSON.stringify([updated.text, updated.content]); store.updateNote(updated); }
+  function emit(next: Block[], origin: EditOrigin = { kind: 'command' }, at = 0) {
+    if (next === blocksRef.current) return;
+    history.current = recordEditorEdit(history.current, { blocks: blocksRef.current, selection: { ...cursor.current } }, origin, at);
+    setHistoryCounts({ undo: history.current.past.length, redo: history.current.future.length });
+    blocksRef.current = next; setBlocks(next);
+    const updated = fromBlocks(noteRef.current, next);
+    displayed.current = JSON.stringify([updated.text, updated.content]); store.updateNote(updated);
+  }
+  function travel(direction: 'undo' | 'redo') {
+    const result = travelEditorHistory(history.current, { blocks: blocksRef.current, selection: { ...cursor.current } }, direction);
+    if (!result) return;
+    history.current = result.history;
+    setHistoryCounts({ undo: history.current.past.length, redo: history.current.future.length });
+    typingStyle.current = null; setToolbarTypingStyle(null);
+    expectedCaret.current = null; slash.current = null; setInsertOpen(false);
+    const { blocks: restored, selection } = result.checkpoint;
+    blocksRef.current = restored; setBlocks(restored);
+    const updated = fromBlocks(noteRef.current, restored);
+    displayed.current = JSON.stringify([updated.text, updated.content]); store.updateNote(updated);
+    const target = restored.find(block => block.id === selection.id && !block.divider) || restored.find(block => !block.divider);
+    if (target) {
+      const next = { id: target.id, start: Math.min(selection.start, target.text.length), end: Math.min(selection.end, target.text.length) };
+      cursor.current = next; setToolbarCursor(next); setPendingFocus(next);
+    }
+    if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => undefined);
+  }
   useEffect(() => {
     if (!pendingFocus) return;
     let frame: number;
@@ -82,19 +122,21 @@ function NoteEditor({ note }: { note: Note }) {
     const range = { id: block.id, start: selection.start - match[1].length, end: selection.start };
     if (`${range.id}:${range.start}` !== dismissedSlash.current) { slash.current = range; setInsertOpen(true); }
   }
-  function change(block: Block, text: string) {
+  function change(block: Block, text: string, at: number) {
     const current = blocksRef.current.find(item => item.id === block.id && !item.divider);
     if (!current || text === current.text) return;
     const selection = cursor.current.id === block.id ? cursor.current : undefined;
-    if (typingStyle.current?.id === block.id && selection) {
+    if (selection) {
       const edit = inferTextEditRange(current.text, text.replace(/\r\n?/g, '\n'), selection);
       const position = edit.start + edit.insertedLength;
+      // Native typing, Backspace and autocorrect move the selection themselves;
+      // don't treat that movement as a deliberate change of formatting mode.
       expectedCaret.current = { id: block.id, start: position, end: position };
     }
     const result = replaceParagraphText(blocksRef.current, block.id, text, randomUUID, selection, typingStyle.current?.id === block.id ? typingStyle.current.flags : undefined);
     if (!result) return;
-    emit(result.blocks);
-    if (result.focus) { expectedCaret.current = null; setPendingFocus(result.focus); }
+    emit(result.blocks, { kind: 'typing', id: block.id }, at);
+    if (result.focus) { expectedCaret.current = null; history.current.lastTyping = undefined; setPendingFocus(result.focus); }
   }
   function returnFromParagraph(block: Block) {
     const selection = cursor.current.id === block.id ? cursor.current : { id: block.id, start: block.text.length, end: block.text.length };
@@ -138,6 +180,7 @@ function NoteEditor({ note }: { note: Note }) {
       typingStyle.current = null;
       setToolbarTypingStyle(null);
     } else {
+      history.current.lastTyping = undefined;
       const flags = typingStyle.current?.id === block.id ? typingStyle.current.flags : inlineStyles(block)[Math.max(0, selection.start - 1)] || {};
       typingStyle.current = { id: block.id, flags: { ...flags, [kind]: flags[kind] ? undefined : (true as const) } };
       setToolbarTypingStyle(typingStyle.current);
@@ -190,6 +233,7 @@ function NoteEditor({ note }: { note: Note }) {
         ref={input => { inputs.current[block.id] = input; }}
         accessibilityLabel={block.heading ? `Heading ${block.heading}` : block.list === 'bullet' ? `Bulleted list item ${index + 1}` : block.list === 'ordered' ? `Numbered list item ${orderedNumber(blocks, index)}` : block.list ? `Checklist item ${index + 1}` : `Note paragraph ${index + 1}`}
         multiline autoCorrect spellCheck autoCapitalize="sentences"
+        autoFocus={focusOnOpen && index === 0}
         keyboardAppearance={colors.dark ? 'dark' : 'light'}
         selectionColor={colors.font} scrollEnabled={false}
         submitBehavior="submit" returnKeyType="default"
@@ -203,7 +247,7 @@ function NoteEditor({ note }: { note: Note }) {
             typingStyle.current = null; setToolbarTypingStyle(null);
           }
         }}
-        onChangeText={text => change(block, text)}
+        onChangeText={text => change(block, text, Date.now())}
         onSubmitEditing={() => returnFromParagraph(block)}
         onSelectionChange={event => {
           if (!inputs.current[block.id]?.isFocused()) return;
@@ -215,6 +259,7 @@ function NoteEditor({ note }: { note: Note }) {
           if (matchesTyping) expectedCaret.current = null;
           else if (changed) {
             expectedCaret.current = null;
+            history.current.lastTyping = undefined;
             if (typingStyle.current) { typingStyle.current = null; setToolbarTypingStyle(null); }
           }
           cursor.current = next;
@@ -249,6 +294,8 @@ function NoteEditor({ note }: { note: Note }) {
     <View style={{ paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
       <View style={[ui.row, { justifyContent: 'space-between', marginBottom: 6 }]}><SaveStatus status={snapshot.status} /><Text style={{ color: colors.muted, fontSize: 10 }}>{note.text.trim().split(/\s+/).filter(Boolean).length} words</Text></View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="always" contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 2 }}>
+        <IconButton label="Undo edit" name="arrow-undo-outline" disabled={!historyCounts.undo} onPress={() => travel('undo')} />
+        <IconButton label="Redo edit" name="arrow-redo-outline" disabled={!historyCounts.redo} onPress={() => travel('redo')} />
         <ToolbarAction label="Add" active={false} onPress={() => setInsertOpen(true)} />
         <ToolbarAction label="H1" active={blocks.some(b => b.id === toolbarCursor.id && b.heading === 1)} onPress={() => setHeading(1)} />
         <ToolbarAction label="H2" active={blocks.some(b => b.id === toolbarCursor.id && b.heading === 2)} onPress={() => setHeading(2)} />
@@ -264,11 +311,11 @@ function NoteEditor({ note }: { note: Note }) {
   </KeyboardAvoidingView></SafeAreaView>;
 }
 export default function Editor() {
-  const { id } = useLocalSearchParams<{ id: string }>(); const { snapshot, colors } = useBestpad();
+  const { id, focus } = useLocalSearchParams<{ id: string; focus?: string }>(); const { snapshot, colors } = useBestpad();
   const { store } = useBestpad();
   const note = store.visibleNote(id);
   if (snapshot.loading) return <View style={[ui.container, { backgroundColor: colors.primary, justifyContent: 'center' }]}><ActivityIndicator color={colors.font} /></View>;
   if (!note || isTrashed(note)) return <View style={[ui.container, { padding: 24, justifyContent: 'center', backgroundColor: colors.primary }]}><Button label="Back to notes" onPress={() => router.replace('/')} /></View>;
   if (note.sealed) return <NotePassword id={note.id} onCancel={() => { if (store.visibleNote(note.id)?.sealed) router.replace('/'); }} />;
-  return <NoteEditor key={`${snapshot.user || 'guest'}:${note.id}`} note={note} />;
+  return <NoteEditor key={`${snapshot.user || 'guest'}:${note.id}`} note={note} focusOnOpen={focus === '1'} />;
 }
