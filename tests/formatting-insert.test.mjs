@@ -6,22 +6,25 @@ const js = read('app.js');
 const html = read('index.html');
 const mobile = read('mobile/src/app/editor/[id].tsx');
 const model = read('mobile/src/model.ts');
-test('web Add menu keeps lists while heading controls live in the format bar', () => {
-  assert.match(html, />Add <svg/);
-  const addMenu = html.match(/<div id="add-menu"[\s\S]*?<\/div>/)?.[0];
-  assert.ok(addMenu, 'web Add menu exists');
+test('web directly shows headings, inline styles and insertion tools in one toolbar without Add dropdown', () => {
+  const toolbar = html.match(/<div id="editor-format-toolbar"[\s\S]*?<\/div>/)?.[0];
+  assert.ok(toolbar, 'web editor formatting bar exists');
+  assert.doesNotMatch(html, /id="open-add"|id="heading-toolbar"/);
+  assert.doesNotMatch(js, /\$\('open-add'\)/);
   for (const kind of ['bold', 'italic', 'underline']) {
-    assert.ok(html.includes('data-inline-format="' + kind + '"'), kind);
-    assert.ok(js.includes("'"+kind+"'"), kind);
-    assert.ok(!addMenu.includes('data-inline-format="' + kind + '"'), kind + ' must not be in Add');
+    assert.ok(toolbar.includes('data-inline-format="' + kind + '"'), kind + ' visible on toolbar');
   }
-  for (const level of [1, 2, 3]) assert.ok(html.includes('data-heading="' + level + '"'), 'heading ' + level + ' in persistent formatting toolbar');
-  for (const level of [1, 2, 3]) assert.ok(!html.includes('data-insert="heading-' + level + '"'), 'heading ' + level + ' should not appear in Add');
-  for (const kind of ['bullet-list', 'numbered-list', 'checklist']) {
-    assert.ok(html.includes('data-insert="' + kind + '"'), kind);
+  for (const level of [1, 2, 3]) assert.ok(toolbar.includes('data-heading="' + level + '"'), 'heading ' + level + ' visible on toolbar');
+  for (const kind of ['bullet-list', 'numbered-list', 'checklist', 'divider', 'date', 'time']) {
+    assert.ok(toolbar.includes('data-insert="' + kind + '"'), kind + ' directly on toolbar');
   }
-  assert.match(js, /kind\.startsWith\('heading-'\)|heading-\[123\]/);
+  // Hidden menu remains available only for the optional /add slash shortcut.
+  const slashMenu = html.match(/<div id="add-menu"[\s\S]*?<\/div>/)?.[0];
+  assert.ok(slashMenu && slashMenu.includes('hidden'), 'legacy slash palette remains hidden unless invoked');
+  assert.match(js, /document\.querySelectorAll\('\[data-insert\]'\)/);
   assert.match(js, /listType = kind === 'checklist'/);
+  const css = read('style.css');
+  assert.match(css, /\.editor-format-toolbar\{[^\n]*overflow-x:auto/);
 });
 test('mobile Add sheet keeps lists while all headings are in the formatting bar', () => {
   for (const kind of ['bullet-list', 'numbered-list', 'checklist']) {
