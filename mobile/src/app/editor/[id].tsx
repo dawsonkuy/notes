@@ -227,9 +227,12 @@ function NoteEditor({ note, focusOnOpen = false }: { note: Note; focusOnOpen?: b
     try {
       await saveFaceIdKey(snapshot.user, note.id, secured.salt, key);
       const latest = store.getSnapshot().workspace.tabs.find(item => item.id === note.id)?.sealed;
-      if (latest?.salt !== secured.salt || store.getSnapshot().user !== snapshot.user) {
+      const stillUnlocked = store.getUnlockedKey(note.id);
+      const wasUnlocked = Boolean(stillUnlocked);
+      stillUnlocked?.fill(0);
+      if (latest?.salt !== secured.salt || store.getSnapshot().user !== snapshot.user || !wasUnlocked) {
         await clearFaceIdKey(snapshot.user, note.id);
-        throw new Error('This note changed. Unlock it and enable Face ID again.');
+        throw new Error('This note was locked or changed. Unlock it and enable Face ID again.');
       }
       Alert.alert('Face ID enabled', 'You can now unlock this note with Face ID on this iPhone. Keep your note password as a fallback.');
     } catch (error) {
