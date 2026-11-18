@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { breakParagraph, fromBlocks, inlineStyles, newNote, replaceParagraphText, safeOps, starterNoteId, toBlocks, validWorkspace } from '../src/model';
+import { applyInlineStyle, breakParagraph, fromBlocks, inlineStyles, newNote, replaceParagraphText, safeOps, starterNoteId, toBlocks, validWorkspace } from '../src/model';
 import { builtInThemes, fromHSV, initialAppearance, restoreAppearance, saveTheme, toHSV } from '../src/appearance';
 let counter = 0; const id = () => `block-${++counter}`;
 test('legacy text and trailing newlines round-trip without loss', () => {
