@@ -7,13 +7,21 @@ import Constants from 'expo-constants';
 import { saveWorkspaceBackup } from '../../backup';
 import { parseWorkspaceBackup } from '../../backupData';
 import { router } from 'expo-router';
-import { builtInThemes, defaults, noteFonts, noteFontFamily, saveTheme, type Colors } from '../../appearance';
+import { builtInThemes, defaults, effectiveCursorColor, noteFonts, noteFontFamily, saveTheme, type Colors } from '../../appearance';
 import { useBestpad } from '../../context';
 import { Pressable } from '../../components/HapticPressable';
 import { supabase } from '../../supabase';
 import { clearAccountFaceIdKeys } from '../../biometric';
 import { ColorEditor } from '../../components/ColorEditor';
 import { Button, Icon, IconButton, SaveStatus, ui } from '../../components/ui';
+const cursorPresets = [
+  { name: 'Blue', color: '#3478f6' },
+  { name: 'Purple', color: '#9957dc' },
+  { name: 'Pink', color: '#e44c91' },
+  { name: 'Orange', color: '#e68a24' },
+  { name: 'Green', color: '#2c9874' },
+  { name: 'White', color: '#ffffff' },
+] as const;
 function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
   const { colors } = useBestpad();
   return <View style={{ marginBottom: 12 }}>
@@ -24,7 +32,7 @@ function SettingsSection({ title, children }: { title: string; children: React.R
 export default function Settings() {
   const { appearance, appearanceReady, appearanceError, setAppearance, colors, session, snapshot, store,
     hapticsEnabled, toggleHaptics, hapticsReady, hapticsError } = useBestpad();
-  const [part, setPart] = useState<keyof Colors | null>(null), [name, setName] = useState(''), [customOpen, setCustomOpen] = useState(false), [busy, setBusy] = useState(false), [deleting, setDeleting] = useState(false), [importing, setImporting] = useState(false), [exporting, setExporting] = useState(false);
+  const [part, setPart] = useState<keyof Colors | null>(null), [cursorOpen, setCursorOpen] = useState(false), [name, setName] = useState(''), [customOpen, setCustomOpen] = useState(false), [busy, setBusy] = useState(false), [deleting, setDeleting] = useState(false), [importing, setImporting] = useState(false), [exporting, setExporting] = useState(false);
   const names = { font: 'Font', primary: 'Primary', secondary: 'Secondary' };
   const selectedSavedTheme = appearance.themes.find(theme => theme.id === appearance.selected);
   const selectedThemeMatches = (theme: { mode: string; colors: Colors }) => appearance.mode === theme.mode && (['font', 'primary', 'secondary'] as const).every(key => appearance.colors[key] === theme.colors[key]);
@@ -217,6 +225,40 @@ export default function Settings() {
     </SettingsSection>
     <SettingsSection title="Note font"><View style={{ gap: 8 }}>{noteFonts.map(font => <Pressable key={font.key} accessibilityRole="radio" accessibilityState={{ checked: appearance.font === font.key }} onPress={() => setAppearance(current => ({ ...current, font: font.key }))} style={({ pressed }) => ({ padding: 14, borderRadius: 12, borderWidth: 1, backgroundColor: pressed ? colors.selected : colors.secondary, borderColor: appearance.font === font.key ? colors.font : colors.border, alignItems: 'center', opacity: pressed ? .9 : 1, transform: [{ scale: pressed ? .99 : 1 }] })}><Text style={{ color: colors.font, fontFamily: noteFontFamily(font.key, Platform.OS === 'ios'), fontSize: 16, textAlign: 'center' }}>{font.name}</Text></Pressable>)}</View></SettingsSection>
     <SettingsSection title="Text size"><View style={ui.row}>{([{ size: 16, label: 'Small' }, { size: 18, label: 'Medium' }, { size: 22, label: 'Large' }] as const).map(item => <View key={item.size} style={{ flex: 1 }}><Button label={item.label} primary={appearance.size === item.size} onPress={() => setAppearance(current => ({ ...current, size: item.size }))} /></View>)}</View></SettingsSection>
+
+    <SettingsSection title="Cursor color">
+      <View style={{ gap: 9 }}>
+        <Text style={{ color: colors.muted, fontSize: 12, textAlign: 'center' }}>Choose the note editor cursor color, or follow your current theme.</Text>
+        <Button label="Theme default" primary={appearance.cursorColor === null} disabled={!appearanceReady} onPress={() => { setAppearance(current => ({ ...current, cursorColor: null })); setCursorOpen(false); }} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 5 }}>
+          {cursorPresets.map(preset => <Pressable key={preset.name} accessibilityRole="button"
+            accessibilityLabel={`Cursor color ${preset.name}`} accessibilityState={{ selected: appearance.cursorColor === preset.color }}
+            disabled={!appearanceReady}
+            onPress={() => { setAppearance(current => ({ ...current, cursorColor: preset.color })); setCursorOpen(false); }}
+            style={({ pressed }) => ({ flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center',
+              borderRadius: 12, borderWidth: appearance.cursorColor === preset.color ? 2 : 1,
+              borderColor: appearance.cursorColor === preset.color ? colors.font : colors.border,
+              backgroundColor: pressed ? colors.selected : colors.secondary })}>
+            <View style={{ backgroundColor: preset.color, width: 21, height: 27, borderRadius: 6,
+              borderWidth: 1, borderColor: colors.border }} />
+          </Pressable>)}
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Custom cursor color"
+          accessibilityState={{ expanded: cursorOpen }} disabled={!appearanceReady}
+          onPress={() => setCursorOpen(open => !open)}
+          style={({ pressed }) => ({ padding: 12, minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 10,
+            backgroundColor: pressed ? colors.selected : colors.secondary, borderColor: colors.border,
+            borderRadius: 12, borderWidth: 1 })}>
+          <View style={{ width: 22, height: 28, borderRadius: 5, backgroundColor: effectiveCursorColor(appearance),
+            borderWidth: 1, borderColor: colors.border }} />
+          <Text style={{ flex: 1, color: colors.font, fontSize: 14, fontWeight: '600' }}>Custom color</Text>
+          <Icon name={cursorOpen ? 'chevron-up' : 'chevron-down'} size={20} />
+        </Pressable>
+        {cursorOpen && <ColorEditor label="Cursor" value={effectiveCursorColor(appearance)}
+          onClose={() => setCursorOpen(false)}
+          onChange={value => setAppearance(current => ({ ...current, cursorColor: value }))} />}
+      </View>
+    </SettingsSection>
     <SettingsSection title="Legal & privacy"><View style={{ gap: 0, borderWidth: 1, borderColor: colors.border, borderRadius: 13, backgroundColor: colors.secondary, overflow: 'hidden' }}>{legalLinks.map((item, index) => <Pressable key={item.url} accessibilityRole="link" accessibilityLabel={item.title} onPress={() => openLegalPage(item.url)} style={({ pressed }) => ({ padding: 15, flexDirection: 'row', alignItems: 'center', borderBottomWidth: index === legalLinks.length - 1 ? 0 : 1, borderBottomColor: colors.border, opacity: pressed ? .88 : 1, transform: [{ scale: pressed ? .99 : 1 }] })}><View style={{ flex: 1, gap: 4, alignItems: 'center' }}><Text style={{ color: colors.font, fontSize: 14, fontWeight: '600', textAlign: 'center' }}>{item.title}</Text><Text style={{ color: colors.muted, fontSize: 11, lineHeight: 17, textAlign: 'center' }}>{item.description}</Text></View><Icon name="open-outline" size={17} color={colors.muted} /></Pressable>)}</View><Text style={{ color: colors.muted, fontSize: 11, lineHeight: 17, marginTop: 9, textAlign: 'center' }}>These pages open on bestpad.app. Account deletion itself happens inside Bestpad.</Text></SettingsSection>
     {!!appearanceError && <Text style={{ color: colors.muted, textAlign: 'center' }}>{appearanceError}</Text>}
     <SettingsSection title="Account deletion"><Text style={{ color: colors.muted, fontSize: 12, lineHeight: 19, marginBottom: 10, textAlign: 'center' }}>Deleting your account permanently removes its cloud notes, including Trash. Export anything important first.</Text>{session ? <Button label={deleting ? 'Deleting account…' : 'Delete account'} icon="trash-outline" danger disabled={busy || deleting} onPress={confirmDelete} /> : <Text style={{ color: colors.muted, fontSize: 12, textAlign: 'center' }}>Sign in to delete an account. Guest notes are stored on this device.</Text>}</SettingsSection>

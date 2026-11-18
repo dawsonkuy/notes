@@ -4,7 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router, useLocalSearchParams } from 'expo-router';
 import { randomUUID } from 'expo-crypto';
 import { useBestpad } from '../../context';
-import { noteFontFamily } from '../../appearance';
+import { effectiveCursorColor, noteFontFamily } from '../../appearance';
 import { Pressable } from '../../components/HapticPressable';
 import { applyInlineStyle, inlineStyles, inferTextEditRange, sliceInlineRuns, breakParagraph, joinBackward, replaceParagraphText, fromBlocks, isTrashed, noteName, toBlocks, type Block, type InlineRun, type InlineStyle, type Note } from '../../model';
 import { Button, Icon, IconButton, SaveStatus, ui } from '../../components/ui';
@@ -327,7 +327,7 @@ function NoteEditor({ note, focusOnOpen = false }: { note: Note; focusOnOpen?: b
         multiline autoCorrect spellCheck autoCapitalize="sentences"
         autoFocus={focusOnOpen && index === 0}
         keyboardAppearance={colors.dark ? 'dark' : 'light'}
-        selectionColor={colors.font} scrollEnabled={false}
+        selectionColor={effectiveCursorColor(appearance)} scrollEnabled={false}
         submitBehavior="submit" returnKeyType="default"
         placeholder={block.heading ? 'Heading' : blocks.length === 1 ? 'Start writing…' : ''}
         placeholderTextColor={colors.muted}

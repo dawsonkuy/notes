@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { applyInlineStyle, breakParagraph, fromBlocks, inlineStyles, newNote, replaceParagraphText, safeOps, starterNoteId, toBlocks, validWorkspace } from '../src/model';
-import { builtInThemes, fromHSV, initialAppearance, restoreAppearance, saveTheme, toHSV } from '../src/appearance';
+import { builtInThemes, effectiveCursorColor, fromHSV, initialAppearance, restoreAppearance, saveTheme, toHSV } from '../src/appearance';
 let counter = 0; const id = () => `block-${++counter}`;
 test('legacy text and trailing newlines round-trip without loss', () => {
   for (const text of ['', 'One line', 'One\nTwo', 'One\n\n', '\n\n']) { const note = { ...newNote('note'), text }; assert.equal(fromBlocks(note, toBlocks(note, id)).text, text); }
@@ -173,6 +173,21 @@ test('seven built-in BestPad themes have strong text contrast and survive prefer
   const restored = restoreAppearance(JSON.parse(JSON.stringify(saved)));
   assert.equal(restored.themes[0].name, 'My custom');
   assert.equal(restored.selected, 'my-custom');
+});
+
+test('cursor color defaults to theme text, persists independently and rejects invalid stored values', () => {
+  const appearance = initialAppearance('dark');
+  assert.equal(appearance.cursorColor, null);
+  assert.equal(effectiveCursorColor(appearance), appearance.colors.font);
+  const customized = restoreAppearance(JSON.parse(JSON.stringify({ ...appearance, cursorColor: '#3478f6' })));
+  assert.equal(customized.cursorColor, '#3478f6');
+  assert.equal(effectiveCursorColor({ ...customized, colors: { ...customized.colors, font: '#ff4400' } }), '#3478f6');
+  assert.equal(effectiveCursorColor({ ...customized, cursorColor: null }), customized.colors.font);
+  assert.equal(restoreAppearance({ ...appearance, cursorColor: 'not-a-color' }).cursorColor, null);
+  assert.equal(restoreAppearance({ ...appearance, cursorColor: '#abc' }).cursorColor, null);
+  const legacy = { ...appearance } as Omit<typeof appearance, 'cursorColor'> & { cursorColor?: string | null };
+  delete legacy.cursorColor;
+  assert.equal(restoreAppearance(legacy).cursorColor, null);
 });
 
 test('Handwritten and Elegant fonts survive settings restore without altering existing fonts', () => {

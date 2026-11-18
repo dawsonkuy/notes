@@ -294,3 +294,20 @@ test('both password and confirm fields center placeholder and cursor alike', () 
     assert.match(field.slice(0, 500), /textAlign: 'center', textAlignVertical: 'center'/);
   }
 });
+
+test('iOS cursor color selection works throughout note editor and is customizable in Settings', () => {
+  const appearance = file('mobile/src/appearance.ts');
+  const settings = file('mobile/src/app/(tabs)/settings.tsx');
+  const editor = file('mobile/src/app/editor/[id].tsx');
+  assert.match(appearance, /cursorColor: string \| null/);
+  assert.match(appearance, /cursorColor: null/);
+  assert.match(appearance, /effectiveCursorColor\(appearance: Appearance\)/);
+  assert.match(appearance, /typeof value\.cursorColor === 'string' && \/\^#\[0-9a-f\]\{6\}\$\/i\.test/);
+  assert.match(settings, /<SettingsSection title="Cursor color">/);
+  assert.match(settings, /label="Theme default"/);
+  assert.match(settings, /cursorColor: null/);
+  assert.match(settings, /Custom cursor color/);
+  assert.match(settings, /<ColorEditor label="Cursor"/);
+  assert.match(settings, /cursorColor: value/);
+  assert.match(editor, /selectionColor=\{effectiveCursorColor\(appearance\)\}/);
+});
