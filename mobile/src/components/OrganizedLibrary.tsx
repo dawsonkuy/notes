@@ -16,7 +16,10 @@ export function OrganizedLibrary(props: Props) {
     setExpanded(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   }
   const starterId = props.trash ? null : starterNoteId(workspace);
-  const data: TreeEntry[] = props.trash ? workspace.tabs.filter(isTrashed).map(note => ({ id: note.id, kind: 'note', name: noteName(note), pinned: false, order: 0, depth: 0, parentId: null })) : starterId ? [] : treeEntries(workspace, expanded);
+  const data = useMemo<TreeEntry[]>(() => props.trash
+    ? workspace.tabs.filter(isTrashed).map(note => ({ id: note.id, kind: 'note', name: noteName(note), pinned: false, order: 0, depth: 0, parentId: null }))
+    : starterId ? [] : treeEntries(workspace, expanded),
+  [props.trash, workspace, expanded, starterId]);
   const [menu, setMenu] = useState<Entry | null>(null), [editing, setEditing] = useState<{ id?: string; name: string } | null>(null);
   const [dragId, setDragId] = useState<string | null>(null), [hover, setHover] = useState<string | null>(null);
   const [dragY] = useState(() => new Animated.Value(0)), [shifts, setShifts] = useState<Record<string, number>>({});
