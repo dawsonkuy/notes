@@ -286,13 +286,11 @@ test('Handwritten and Elegant font choices persist and render in real editor', (
   assert.match(editor, /const fontFamily = noteFontFamily\(appearance\.font, Platform\.OS === 'ios'\)/);
 });
 
-test('both password and confirm fields center placeholder and cursor alike', () => {
+test('legacy note unlock field centers the password text and caret', () => {
   const password = file('mobile/src/components/NotePassword.tsx');
-  for (const label of ['Note password', 'Confirm note password']) {
-    const field = password.slice(password.indexOf('accessibilityLabel="' + label + '"'));
-    assert.ok(field.startsWith('accessibilityLabel="' + label + '"'));
-    assert.match(field.slice(0, 500), /textAlign: 'center', textAlignVertical: 'center'/);
-  }
+  const field = password.slice(password.indexOf('accessibilityLabel="Note password"'));
+  assert.ok(field.startsWith('accessibilityLabel="Note password"'));
+  assert.match(field.slice(0, 500), /textAlign: 'center', textAlignVertical: 'center'/);
 });
 
 test('iOS Sign out is displayed only for signed-in users at the bottom above account deletion', () => {
@@ -305,4 +303,31 @@ test('iOS Sign out is displayed only for signed-in users at the bottom above acc
   assert.equal(settings.split("label={busy ? 'Signing out…' : 'Sign out'}").length - 1, 1);
   assert.match(settings.slice(signOut, deletion), /onPress=\{\(\) => \{ void signOut\(\); \}\}/);
   assert.match(settings.slice(account, legal), /<SaveStatus status=\{snapshot\.status\}/);
+});
+
+test('new note protection is unavailable in iOS while existing protected notes can still unlock', () => {
+  const editor = file('mobile/src/app/editor/[id].tsx');
+  const unlock = file('mobile/src/components/NotePassword.tsx');
+  const workspace = file('mobile/src/workspace.ts');
+  assert.doesNotMatch(editor, /setProtectOpen|protectOpen|<NotePassword[^>]* protect/);
+  assert.match(editor, /if \(!secured\) return;/);
+  assert.match(editor, /snapshot\.workspace\.tabs\.some\(item => item\.id === note\.id && Boolean\(item\.sealed\)\)/);
+  assert.match(editor, /if \(note\.sealed\) return <NotePassword/);
+  assert.match(editor, /onPress: confirmRemovePassword/);
+  assert.doesNotMatch(unlock, /store\.protect\(|Confirm note password|Create note password/);
+  assert.match(unlock, /await store\.unlock\(id, password\)/);
+  assert.match(workspace, /visibleNote\(id: string\)/);
+});
+
+test('web disables creation of protected notes without hiding existing encrypted notes', () => {
+  const browser = file('app.js');
+  const html = file('index.html');
+  const tabMenu = browser.match(/function openTabMenu\(tab, anchor\) \{([\s\S]*?)\n\}/)?.[1];
+  assert.ok(tabMenu);
+  assert.doesNotMatch(tabMenu, /Password protect…/);
+  assert.match(tabMenu, /tab\.sealed \? \[\['🔒', 'Open protected note'/);
+  assert.match(browser, /\$\('password-note'\)\.hidden = !storedActive\(\)\?\.sealed/);
+  assert.match(browser, /if \(!original\?\.sealed\) return;/);
+  assert.match(html, /<button id="password-note" type="button" hidden>Unlock note<\/button>/);
+  assert.match(browser, /const password = await askNotePassword\(!original\.sealed\)/);
 });

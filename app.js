@@ -170,7 +170,7 @@ async function shareTab(tab) {
 }
 function openTabMenu(tab, anchor) {
   closeMenus(); tabMenu.replaceChildren();
-  [['✎', 'Rename', () => renameTab(tab)], ['↓', 'Save as…', () => downloadTab(tab)], ['↗', 'Share', () => shareTab(tab)], ['⌖', tab.pinned ? 'Unpin note' : 'Pin note', () => togglePin(tab.id)], ['🔒', tab.sealed ? 'Open protected note' : 'Password protect…', () => { switchTab(tab.id); void passwordAction(); }], ['⌫', 'Move to Trash', () => deleteTab(tab)]].forEach(([icon, label, action]) => {
+  [['✎', 'Rename', () => renameTab(tab)], ['↓', 'Save as…', () => downloadTab(tab)], ['↗', 'Share', () => shareTab(tab)], ['⌖', tab.pinned ? 'Unpin note' : 'Pin note', () => togglePin(tab.id)], ...(tab.sealed ? [['🔒', 'Open protected note', () => { switchTab(tab.id); void passwordAction(); }]] : []), ['⌫', 'Move to Trash', () => deleteTab(tab)]].forEach(([icon, label, action]) => {
     const button = document.createElement('button'); button.setAttribute('role', 'menuitem');
     const glyph = document.createElement('span'); glyph.textContent = icon; glyph.setAttribute('aria-hidden', 'true');
     button.append(glyph, document.createTextNode(label)); button.onclick = action; tabMenu.append(button);
@@ -1025,7 +1025,7 @@ function clearNoteKeys() { noteKeyEpoch++; unlockedNotes.forEach(session => sess
 function renderLockState() {
   const locked = isLocked(); $('locked-note').hidden = !locked; $('rich-editor').hidden = locked || !richEditor; $('editor').hidden = locked || Boolean(richEditor);
   setEditorEnabled(!locked); ['rename-current','download-current','share-current'].forEach(id => { $(id).disabled = locked || (id === 'rename-current' && Boolean(storedActive()?.sealed)); });
-  $('password-note').textContent = storedActive()?.sealed ? locked ? 'Unlock note' : 'Remove password' : 'Protect note'; $('lock-note').hidden = !storedActive()?.sealed || locked;
+  $('password-note').textContent = locked ? 'Unlock note' : 'Remove password'; $('password-note').hidden = !storedActive()?.sealed; $('lock-note').hidden = !storedActive()?.sealed || locked;
 }
 function askNotePassword(protect) {
   return new Promise(resolve => {
@@ -1038,6 +1038,8 @@ function askNotePassword(protect) {
 }
 async function passwordAction() {
   const id = activeId, original = storedActive();
+  // New note protection is temporarily disabled. Existing encrypted notes remain accessible.
+  if (!original?.sealed) return;
   if (original.sealed && unlockedNotes.has(id)) {
     if (!confirm('Remove password protection? This note will be saved without encryption.')) return;
     const session = unlockedNotes.get(id); const plain = { ...original, text: session.note.text, content: session.note.content, filename: session.note.filename, customName: session.note.customName }; delete plain.sealed; tabs = tabs.map(note => note.id === id ? plain : note); session.key.fill(0); unlockedNotes.delete(id); showTab(); save(); return;

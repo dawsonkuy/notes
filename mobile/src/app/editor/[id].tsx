@@ -30,7 +30,6 @@ function ToolbarAction({ label, active, onPress }: { label: ToolbarLabel; active
 }
 function NoteEditor({ note, focusOnOpen = false }: { note: Note; focusOnOpen?: boolean }) {
   const { colors, appearance, snapshot, store } = useBestpad(), insets = useSafeAreaInsets();
-  const [protectOpen, setProtectOpen] = useState(false);
   const [blocks, setBlocks] = useState(() => toBlocks(note, randomUUID)), [insertOpen, setInsertOpen] = useState(false);
   const blocksRef = useRef(blocks); const noteRef = useRef(note);
   const displayed = useRef(JSON.stringify([note.text, note.content]));
@@ -299,7 +298,8 @@ function NoteEditor({ note, focusOnOpen = false }: { note: Note; focusOnOpen?: b
   }
   async function securityOptions() {
     const secured = store.getSnapshot().workspace.tabs.find(item => item.id === note.id)?.sealed;
-    if (!secured) { setProtectOpen(true); return; }
+    // New note protection is temporarily unavailable; legacy encrypted notes remain manageable.
+    if (!secured) return;
     const actions: AlertButton[] = [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Lock now', onPress: () => store.lock(note.id) },
@@ -316,9 +316,8 @@ function NoteEditor({ note, focusOnOpen = false }: { note: Note; focusOnOpen?: b
     Alert.alert('Protected note', 'Choose an action.', actions);
   }
   const close = () => { void store.flush(); if (router.canGoBack()) router.back(); else router.replace('/'); };
-  if (protectOpen) return <NotePassword id={note.id} protect onCancel={() => setProtectOpen(false)} />;
   return <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={[ui.container, { backgroundColor: colors.primary }]}><KeyboardAvoidingView style={ui.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-    <View style={[ui.row, { justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 6 }]}><Pressable accessibilityRole="button" accessibilityLabel="Notes" onPress={close} style={[ui.row, { minHeight: 44 }]}><Icon name="chevron-back" /><Text style={{ color: colors.font, fontSize: 15 }}>Notes</Text></Pressable><View style={ui.row}><IconButton name="lock-closed-outline" label="Note password protection" onPress={securityOptions} /><IconButton name="share-outline" label="Share note" onPress={shareNoteContents} /></View></View>
+    <View style={[ui.row, { justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 6 }]}><Pressable accessibilityRole="button" accessibilityLabel="Notes" onPress={close} style={[ui.row, { minHeight: 44 }]}><Icon name="chevron-back" /><Text style={{ color: colors.font, fontSize: 15 }}>Notes</Text></Pressable><View style={ui.row}>{snapshot.workspace.tabs.some(item => item.id === note.id && Boolean(item.sealed)) && <IconButton name="lock-closed-outline" label="Protected note options" onPress={securityOptions} />}<IconButton name="share-outline" label="Share note" onPress={shareNoteContents} /></View></View>
     <ScrollView ref={scroll} onLayout={event => { viewport.current.height = event.nativeEvent.layout.height; keepCaretVisible(); }} onScroll={event => { viewport.current.offset = event.nativeEvent.contentOffset.y; }} scrollEventThrottle={16} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} contentContainerStyle={{ padding: 24, paddingTop: 20, paddingBottom: 24, flexGrow: 1 }}>
       {blocks.map((block, index) => block.divider ? <View key={block.id} style={[ui.row, { marginVertical: 10 }]}><View style={{ height: 1, flex: 1, backgroundColor: colors.border }} /><IconButton name="close" label="Remove divider" onPress={() => { const next = blocks.filter(item => item.id !== block.id); emit(next.length ? next : [{ id: randomUUID(), text: '' }]); }} /></View> : <View key={block.id} onLayout={event => { layouts.current[block.id] = event.nativeEvent.layout; keepCaretVisible(); }} style={{ flexDirection: 'row', alignItems: 'flex-start' }}>{(block.list === 'checked' || block.list === 'unchecked') ? <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: block.list === 'checked' }} accessibilityLabel={block.text || 'Task'} onPress={() => emit(blocks.map(item => item.id === block.id ? { ...item, list: item.list === 'checked' ? 'unchecked' : 'checked' } : item))} style={{ minWidth: 38, minHeight: 40, paddingTop: 4 }}><Icon name={block.list === 'checked' ? 'checkbox-outline' : 'square-outline'} /></Pressable> : (block.list === 'bullet' || block.list === 'ordered') ? <View accessible={false} style={{ width: 38, paddingTop: 2, alignItems: 'flex-start' }}><Text style={{ color: colors.font, fontSize: appearance.size, lineHeight: appearance.size * 1.55 }}>{block.list === 'bullet' ? '•' : `${orderedNumber(blocks, index)}.`}</Text></View> : null}
       <TextInput
