@@ -61,14 +61,15 @@ test('underline is supported on both clients without removing existing inline st
   assert.ok(mobile.includes("inlineActive('underline')"));
   assert.ok(mobile.includes("toggleInline('underline')"));
 });
-test('folder menus omit move controls while note actions still allow moving', () => {
+test('note and folder menus omit manual movement controls; drag still moves items', () => {
   const folderMenu = js.slice(js.indexOf('function openFolderMenu('), js.indexOf('function isLocked()'));
   assert.doesNotMatch(folderMenu, /Move up|Move down|Move to folder/);
   const noteMenu = js.slice(js.indexOf('function openTabMenu('), js.indexOf('function renderTabs('));
-  assert.match(noteMenu, /Move to folder/);
+  assert.doesNotMatch(noteMenu, /Move up|Move down|Move to folder/);
   const nativeLibrary = read('mobile/src/components/OrganizedLibrary.tsx');
-  assert.match(nativeLibrary, /menu\.kind === 'note' &&/);
-  assert.match(nativeLibrary, /Haptics\.impactAsync/);
+  assert.doesNotMatch(nativeLibrary, /label="Move up"|label="Move down"|label="Move…"/);
+  assert.match(nativeLibrary, /onLongPress=\{event => startDrag/);
+  assert.match(nativeLibrary, /dragFeedback\(\)/);
   assert.match(read('mobile/src/components/AnimatedLibraryRow.tsx'), /scale: lift/);
 });
 
@@ -86,7 +87,8 @@ test('drag tick fires on distinct crossed items, rather than every pointer movem
   const library = read('mobile/src/components/OrganizedLibrary.tsx');
   assert.match(library, /crossedItem !== lastPassedItem\.current/);
   assert.match(library, /Math\.abs\(gesture\.moveY - lastPassFeedbackY\.current\) >= 12/);
-  assert.match(library, /Haptics\.selectionAsync\(\)/);
+  assert.match(library, /latest\.current\.tapFeedback\(\)/);
+  assert.match(read('mobile/src/context.tsx'), /hapticsEnabled && Platform\.OS !== 'web'/);
   assert.match(js, /crossedItem !== drag\.lastPassedItem/);
   assert.match(js, /navigator\.vibrate\(6\)/);
 });
