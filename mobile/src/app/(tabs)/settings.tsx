@@ -7,7 +7,7 @@ import Constants from 'expo-constants';
 import { saveWorkspaceBackup } from '../../backup';
 import { parseWorkspaceBackup } from '../../backupData';
 import { router } from 'expo-router';
-import { builtInThemes, defaults, saveTheme, type Colors } from '../../appearance';
+import { builtInThemes, defaults, noteFonts, noteFontFamily, saveTheme, type Colors } from '../../appearance';
 import { useBestpad } from '../../context';
 import { Pressable } from '../../components/HapticPressable';
 import { supabase } from '../../supabase';
@@ -23,7 +23,7 @@ function SettingsSection({ title, children }: { title: string; children: React.R
 }
 export default function Settings() {
   const { appearance, appearanceReady, appearanceError, setAppearance, colors, session, snapshot, store,
-    hapticsEnabled, setHapticsEnabled, hapticsReady, hapticsError } = useBestpad();
+    hapticsEnabled, toggleHaptics, hapticsReady, hapticsError } = useBestpad();
   const [part, setPart] = useState<keyof Colors | null>(null), [name, setName] = useState(''), [customOpen, setCustomOpen] = useState(false), [busy, setBusy] = useState(false), [deleting, setDeleting] = useState(false), [importing, setImporting] = useState(false), [exporting, setExporting] = useState(false);
   const names = { font: 'Font', primary: 'Primary', secondary: 'Secondary' };
   const selectedSavedTheme = appearance.themes.find(theme => theme.id === appearance.selected);
@@ -195,7 +195,7 @@ export default function Settings() {
     </SettingsSection>
     <SettingsSection title="Haptics">
       <Pressable accessibilityRole="switch" accessibilityLabel="Haptic feedback" accessibilityState={{ checked: hapticsEnabled, disabled: !hapticsReady }}
-        disabled={!hapticsReady} onPress={() => setHapticsEnabled(current => !current)}
+        disabled={!hapticsReady} haptic={false} onPress={toggleHaptics}
         style={({ pressed }) => ({ minHeight: 52, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 12,
           backgroundColor: pressed ? colors.selected : colors.secondary, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 })}>
         <View style={{ flex: 1 }}>
@@ -215,7 +215,7 @@ export default function Settings() {
       </View>
       <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 18, marginTop: 8, textAlign: 'center' }}>Imports add missing notes; they never replace existing notes. Protected notes keep their original IDs so passwords still work. Export a backup here before major recovery operations.</Text>
     </SettingsSection>
-    <SettingsSection title="Note font"><View style={{ gap: 8 }}>{([{ key: 'sans', name: 'Clean', family: undefined }, { key: 'serif', name: 'Book', family: Platform.OS === 'ios' ? 'Georgia' : 'serif' }, { key: 'mono', name: 'Typewriter', family: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }, { key: 'rounded', name: 'Rounded', family: Platform.OS === 'ios' ? 'Avenir Next' : 'sans-serif' }] as const).map(font => <Pressable key={font.key} accessibilityRole="radio" accessibilityState={{ checked: appearance.font === font.key }} onPress={() => setAppearance(current => ({ ...current, font: font.key }))} style={({ pressed }) => ({ padding: 14, borderRadius: 12, borderWidth: 1, backgroundColor: pressed ? colors.selected : colors.secondary, borderColor: appearance.font === font.key ? colors.font : colors.border, alignItems: 'center', opacity: pressed ? .9 : 1, transform: [{ scale: pressed ? .99 : 1 }] })}><Text style={{ color: colors.font, fontFamily: font.family, fontSize: 16, textAlign: 'center' }}>{font.name}</Text></Pressable>)}</View></SettingsSection>
+    <SettingsSection title="Note font"><View style={{ gap: 8 }}>{noteFonts.map(font => <Pressable key={font.key} accessibilityRole="radio" accessibilityState={{ checked: appearance.font === font.key }} onPress={() => setAppearance(current => ({ ...current, font: font.key }))} style={({ pressed }) => ({ padding: 14, borderRadius: 12, borderWidth: 1, backgroundColor: pressed ? colors.selected : colors.secondary, borderColor: appearance.font === font.key ? colors.font : colors.border, alignItems: 'center', opacity: pressed ? .9 : 1, transform: [{ scale: pressed ? .99 : 1 }] })}><Text style={{ color: colors.font, fontFamily: noteFontFamily(font.key, Platform.OS === 'ios'), fontSize: 16, textAlign: 'center' }}>{font.name}</Text></Pressable>)}</View></SettingsSection>
     <SettingsSection title="Text size"><View style={ui.row}>{([{ size: 16, label: 'Small' }, { size: 18, label: 'Medium' }, { size: 22, label: 'Large' }] as const).map(item => <View key={item.size} style={{ flex: 1 }}><Button label={item.label} primary={appearance.size === item.size} onPress={() => setAppearance(current => ({ ...current, size: item.size }))} /></View>)}</View></SettingsSection>
     <SettingsSection title="Legal & privacy"><View style={{ gap: 0, borderWidth: 1, borderColor: colors.border, borderRadius: 13, backgroundColor: colors.secondary, overflow: 'hidden' }}>{legalLinks.map((item, index) => <Pressable key={item.url} accessibilityRole="link" accessibilityLabel={item.title} onPress={() => openLegalPage(item.url)} style={({ pressed }) => ({ padding: 15, flexDirection: 'row', alignItems: 'center', borderBottomWidth: index === legalLinks.length - 1 ? 0 : 1, borderBottomColor: colors.border, opacity: pressed ? .88 : 1, transform: [{ scale: pressed ? .99 : 1 }] })}><View style={{ flex: 1, gap: 4, alignItems: 'center' }}><Text style={{ color: colors.font, fontSize: 14, fontWeight: '600', textAlign: 'center' }}>{item.title}</Text><Text style={{ color: colors.muted, fontSize: 11, lineHeight: 17, textAlign: 'center' }}>{item.description}</Text></View><Icon name="open-outline" size={17} color={colors.muted} /></Pressable>)}</View><Text style={{ color: colors.muted, fontSize: 11, lineHeight: 17, marginTop: 9, textAlign: 'center' }}>These pages open on bestpad.app. Account deletion itself happens inside Bestpad.</Text></SettingsSection>
     {!!appearanceError && <Text style={{ color: colors.muted, textAlign: 'center' }}>{appearanceError}</Text>}
