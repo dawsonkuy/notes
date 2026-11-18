@@ -44,6 +44,54 @@ test('protected edits stay encrypted in local cache and remote writes; lock clea
   } finally { store.dispose(); }
 });
 
+test('guest note protection persists encrypted text locally and unlocks after restart', async () => {
+  const cache = new Map<string, string>();
+  const storage = { getItem: async (key: string) => cache.get(key) || null, setItem: async (key: string, value: string) => { cache.set(key, value); } };
+  const remote: Remote = { read: async () => { throw new Error('Guest must not use cloud'); }, write: async () => { throw new Error('Guest must not use cloud'); } };
+  const first = new WorkspaceStore(storage, remote, () => 'guest-note', bytes);
+  try {
+    await first.connect(null);
+    first.updateNote({ ...first.getSnapshot().workspace.tabs[0], text: 'Private guest content', customName: 'Guest secret' });
+    await first.protect('guest-note', 'a secure guest password');
+    assert.equal(first.getSnapshot().user, null);
+    assert.equal(first.getSnapshot().status, 'local');
+    assert.doesNotMatch(cache.get('bestpad:mobile:workspace:guest')!, /Private guest content|Guest secret/);
+    assert.ok(first.getSnapshot().workspace.tabs[0].sealed);
+    first.lockAll(); assert.ok(first.visibleNote('guest-note')?.sealed);
+  } finally { first.dispose(); }
+  const second = new WorkspaceStore(storage, remote, () => 'new-starter', bytes);
+  try {
+    await second.connect(null);
+    assert.ok(second.visibleNote('guest-note')?.sealed);
+    await second.unlock('guest-note', 'a secure guest password');
+    assert.equal(second.visibleNote('guest-note')?.text, 'Private guest content');
+    assert.equal(second.visibleNote('guest-note')?.customName, 'Guest secret');
+  } finally { second.dispose(); }
+});
+
+test('guest protection refuses storage failures without changing the original note', async () => {
+  let failProtected = false;
+  const cache = new Map<string, string>();
+  const storage = {
+    getItem: async (key: string) => cache.get(key) || null,
+    setItem: async (key: string, value: string) => {
+      if (failProtected && value.includes('"sealed"')) throw new Error('Disk full');
+      cache.set(key, value);
+    },
+  };
+  const remote: Remote = { read: async () => null, write: async () => 1 };
+  const store = new WorkspaceStore(storage, remote, () => 'guest', bytes);
+  try {
+    await store.connect(null);
+    store.updateNote({ ...store.getSnapshot().workspace.tabs[0], text: 'Original text' });
+    failProtected = true;
+    await assert.rejects(store.protect('guest', 'a secure guest password'), /original note is unchanged/);
+    assert.equal(store.getSnapshot().workspace.tabs[0].text, 'Original text');
+    assert.equal(store.getSnapshot().workspace.tabs[0].sealed, undefined);
+    assert.equal(store.visibleNote('guest')?.text, 'Original text');
+  } finally { store.dispose(); }
+});
+
 test('background locking cancels an in-flight password unlock', async () => {
   const result = await protectNote({ ...newNote('locked'), text: 'Hidden' }, 'long enough password', bytes);
   const remote: Remote = { read: async () => ({ workspace: { tabs: [result.note], activeId: 'locked' }, revision: 1 }), write: async () => 2 };
