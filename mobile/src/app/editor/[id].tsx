@@ -7,6 +7,8 @@ import { useBestpad } from '../../context';
 import { applyInlineStyle, inlineStyles, inferTextEditRange, sliceInlineRuns, breakParagraph, joinBackward, replaceParagraphText, fromBlocks, isTrashed, noteName, toBlocks, type Block, type InlineRun, type InlineStyle, type Note } from '../../model';
 import { Button, Icon, IconButton, SaveStatus, ui } from '../../components/ui';
 import { NotePassword } from '../../components/NotePassword';
+import { clearFaceIdKey, faceIdAvailable, faceIdEnabled, saveFaceIdKey } from '../../biometric';
+import type { AlertButton } from 'react-native';
 import { recordEditorEdit, travelEditorHistory, type EditorHistory, type EditOrigin } from '../../editorHistory';
 import * as Haptics from 'expo-haptics';
 type Cursor = { id: string; start: number; end: number };
@@ -218,10 +220,47 @@ function NoteEditor({ note, focusOnOpen = false }: { note: Note; focusOnOpen?: b
       setPendingFocus({ id: block.id, start: start + text.length, end: start + text.length });
     }
   }
-  function securityOptions() {
+  async function enableFaceId() {
+    const secured = store.getSnapshot().workspace.tabs.find(item => item.id === note.id)?.sealed;
+    const key = store.getUnlockedKey(note.id);
+    if (!secured || !key) { Alert.alert('Unlock note first', 'Use the note password to unlock before enabling Face ID.'); return; }
+    try {
+      await saveFaceIdKey(snapshot.user, note.id, secured.salt, key);
+      const latest = store.getSnapshot().workspace.tabs.find(item => item.id === note.id)?.sealed;
+      if (latest?.salt !== secured.salt || store.getSnapshot().user !== snapshot.user) {
+        await clearFaceIdKey(snapshot.user, note.id);
+        throw new Error('This note changed. Unlock it and enable Face ID again.');
+      }
+      Alert.alert('Face ID enabled', 'You can now unlock this note with Face ID on this iPhone. Keep your note password as a fallback.');
+    } catch (error) {
+      Alert.alert('Could not enable Face ID', error instanceof Error ? error.message : 'Use your note password instead.');
+    } finally { key.fill(0); }
+  }
+  async function unprotectWithCleanup() {
+    try {
+      if (await faceIdEnabled(snapshot.user, note.id)) await clearFaceIdKey(snapshot.user, note.id);
+      store.unprotect(note.id);
+    } catch {
+      Alert.alert('Could not remove Face ID', 'Try again before removing the note password.');
+    }
+  }
+  async function securityOptions() {
     const secured = store.getSnapshot().workspace.tabs.find(item => item.id === note.id)?.sealed;
     if (!secured) { setProtectOpen(true); return; }
-    Alert.alert('Protected note', 'Choose an action.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Lock now', onPress: () => store.lock(note.id) }, { text: 'Remove password', style: 'destructive', onPress: () => store.unprotect(note.id) }]);
+    const actions: AlertButton[] = [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Lock now', onPress: () => store.lock(note.id) },
+      { text: 'Remove password', style: 'destructive', onPress: () => { void unprotectWithCleanup(); } },
+    ];
+    if (faceIdAvailable()) {
+      try {
+        const enabled = await faceIdEnabled(snapshot.user, note.id);
+        actions.splice(2, 0, enabled
+          ? { text: 'Disable Face ID', onPress: () => { void clearFaceIdKey(snapshot.user, note.id).catch(() => Alert.alert('Could not disable Face ID', 'Try again.')); } }
+          : { text: 'Enable Face ID', onPress: () => { void enableFaceId(); } });
+      } catch { /* Password protection continues to work without biometrics. */ }
+    }
+    Alert.alert('Protected note', 'Choose an action.', actions);
   }
   const close = () => { void store.flush(); if (router.canGoBack()) router.back(); else router.replace('/'); };
   if (protectOpen) return <NotePassword id={note.id} protect onCancel={() => setProtectOpen(false)} />;
