@@ -294,3 +294,15 @@ test('both password and confirm fields center placeholder and cursor alike', () 
     assert.match(field.slice(0, 500), /textAlign: 'center', textAlignVertical: 'center'/);
   }
 });
+
+test('iOS Sign out is displayed only for signed-in users at the bottom above account deletion', () => {
+  const settings = file('mobile/src/app/(tabs)/settings.tsx');
+  const account = settings.indexOf('<SettingsSection title="Account">');
+  const legal = settings.indexOf('<SettingsSection title="Legal & privacy">');
+  const signOut = settings.indexOf("{session && <View style={{ marginBottom: 12 }}><Button label={busy ? 'Signing out…' : 'Sign out'}");
+  const deletion = settings.indexOf('<SettingsSection title="Account deletion">');
+  assert.ok(account >= 0 && legal > account && signOut > legal && deletion > signOut);
+  assert.equal(settings.split("label={busy ? 'Signing out…' : 'Sign out'}").length - 1, 1);
+  assert.match(settings.slice(signOut, deletion), /onPress=\{\(\) => \{ void signOut\(\); \}\}/);
+  assert.match(settings.slice(account, legal), /<SaveStatus status=\{snapshot\.status\}/);
+});
