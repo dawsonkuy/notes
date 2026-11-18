@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { backupFilename, makeBackupPayload, mergeWorkspaceNotes, parseWorkspaceBackup, serializeWorkspaceBackup } from '../src/backupData';
 import { newNote, type Workspace } from '../src/model';
+import { decryptNote, encryptNote } from '../src/security';
+import { randomBytes } from 'node:crypto';
 test('full backup includes all notes, deleted notes, custom names and rich formatting', () => {
   const note = { ...newNote('a'), text: 'Heading\nTask', customName: 'Named note', content: [
     { insert: 'Heading' }, { insert: '\n', attributes: { header: 2 as const } },
@@ -104,4 +106,53 @@ test('a folder ID colliding with an existing note ID is remapped without losing 
   assert.equal(result.foldersAdded, 1);
   assert.equal(result.workspace.folders?.[0].id, 'remapped-folder');
   assert.equal(result.workspace.tabs[1].folderId, 'remapped-folder');
+});
+
+test('export and import round-trip restores encrypted content, rich formatting, folders and Trash', () => {
+  const secretKey = new Uint8Array(randomBytes(32));
+  const privateNote = {
+    ...newNote('protected-note'),
+    text: 'Private heading\\nImportant details',
+    filename: 'Private note',
+    customName: 'Private note',
+    folderId: 'secure-folder',
+    content: [
+      { insert: 'Private heading' },
+      { insert: '\\n', attributes: { header: 2 as const } },
+      { insert: 'Important details' },
+      { insert: '\\n', attributes: { bold: true } },
+    ],
+  };
+  const protectedNote = encryptNote(
+    privateNote, secretKey,
+    { salt: 'ab'.repeat(16), iterations: 600000 },
+    length => new Uint8Array(randomBytes(length)),
+  );
+  const deletedNote = { ...newNote('trashed-note'), text: 'Recover this too', deletedAt: '2026-11-11T00:00:00.000Z' };
+  const exported: Workspace = {
+    tabs: [protectedNote, deletedNote],
+    folders: [{ id: 'secure-folder', name: 'Private', pinned: true }],
+    activeId: protectedNote.id,
+  };
+  const serialized = serializeWorkspaceBackup(exported);
+  assert.doesNotMatch(serialized, /Private heading|Important details/);
+  const parsed = parseWorkspaceBackup(serialized);
+  const restored = mergeWorkspaceNotes(
+    { tabs: [newNote('original')], activeId: 'original' },
+    parsed,
+    () => 'unused',
+  );
+  assert.equal(restored.added, 2);
+  assert.equal(restored.foldersAdded, 1);
+  assert.equal(restored.workspace.folders?.[0].name, 'Private');
+  assert.equal(restored.workspace.folders?.[0].pinned, true);
+  assert.equal(restored.workspace.tabs.find(note => note.id === 'trashed-note')?.deletedAt, deletedNote.deletedAt);
+  const recovered = restored.workspace.tabs.find(note => note.id === 'protected-note')!;
+  assert.ok(recovered.sealed, 'import must not accidentally remove encryption');
+  assert.equal(recovered.text, '', 'encrypted plaintext must not appear in the imported workspace');
+  const opened = decryptNote(recovered, secretKey);
+  assert.equal(opened.text, privateNote.text);
+  assert.equal(opened.customName, privateNote.customName);
+  assert.deepEqual(opened.content, privateNote.content);
+  assert.equal(opened.folderId, 'secure-folder');
 });
