@@ -112,6 +112,24 @@ export class WorkspaceStore {
     if (epoch !== this.keyEpoch || user !== this.snapshot.user || this.snapshot.workspace.tabs.find(item => item.id === id)?.sealed !== original.sealed) { result.key.fill(0); throw new Error('Note changed. Try unlocking again.'); }
     this.keys.get(id)?.fill(0); this.keys.set(id, result.key); this.emit({});
   }
+  getUnlockedKey(id: string): Uint8Array | null {
+    const note = this.snapshot.workspace.tabs.find(item => item.id === id);
+    const key = note?.sealed ? this.keys.get(id) : null;
+    return key ? key.slice() : null;
+  }
+  unlockWithKey(id: string, key: Uint8Array) {
+    const original = this.snapshot.workspace.tabs.find(item => item.id === id);
+    if (!original?.sealed) throw new Error('Note is no longer protected.');
+    const user = this.snapshot.user, epoch = this.keyEpoch, generation = this.generation;
+    try { decryptNote(original, key); }
+    catch { throw new Error('Face ID could not unlock this note. Use your note password.'); }
+    if (epoch !== this.keyEpoch || generation !== this.generation || user !== this.snapshot.user ||
+        this.snapshot.workspace.tabs.find(item => item.id === id)?.sealed !== original.sealed) {
+      throw new Error('Note changed. Try unlocking again.');
+    }
+    this.keys.get(id)?.fill(0);
+    this.keys.set(id, key.slice()); this.emit({});
+  }
   async protect(id: string, password: string) {
     const original = this.snapshot.workspace.tabs.find(item => item.id === id); if (!original || original.sealed) return;
     const user = this.snapshot.user, epoch = this.keyEpoch, generation = this.generation;

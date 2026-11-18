@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { useBestpad } from '../../context';
 import { saveWorkspaceBackup } from '../../backup';
 import { isTrashed, noteName, starterNoteId } from '../../model';
+import { clearFaceIdKey } from '../../biometric';
 import { Button, Icon, IconButton, SaveStatus, ui } from '../../components/ui';
 
 import { OrganizedLibrary } from '../../components/OrganizedLibrary';
@@ -63,7 +64,7 @@ export default function Notes() {
   function permanentlyDelete(id: string) {
     Alert.alert('Permanently delete note?', 'This removes the note from Trash on all synced devices. This cannot be undone.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete permanently', style: 'destructive', onPress: () => store.deletePermanently(id) },
+      { text: 'Delete permanently', style: 'destructive', onPress: () => { store.deletePermanently(id); void clearFaceIdKey(snapshot.user, id).catch(() => undefined); } },
     ]);
   }
   return <SafeAreaView edges={['top', 'left', 'right']} style={[ui.container, { backgroundColor: colors.primary }]}>

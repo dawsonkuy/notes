@@ -39,7 +39,16 @@ test('protected edits stay encrypted in local cache and remote writes; lock clea
     const visible = store.visibleNote('test')!; assert.equal(visible.text, 'Secret original');
     store.updateNote({ ...visible, text: 'Secret changed' }); await store.flush();
     assert.doesNotMatch(JSON.stringify(remoteValue), /Secret/); assert.doesNotMatch(cache.get('bestpad:mobile:workspace:account')!, /Secret/);
-    store.lockAll(); assert.ok(store.visibleNote('test')!.sealed); await store.unlock('test', 'a long password'); assert.equal(store.visibleNote('test')!.text, 'Secret changed');
+    const biometricCopy = store.getUnlockedKey('test')!;
+    assert.equal(biometricCopy.length, 32);
+    store.lockAll(); assert.ok(store.visibleNote('test')!.sealed);
+    assert.throws(() => store.unlockWithKey('test', bytes(32)), /Face ID could not unlock/);
+    assert.ok(store.visibleNote('test')!.sealed, 'invalid Face ID key must not unlock notes');
+    store.unlockWithKey('test', biometricCopy);
+    biometricCopy.fill(0);
+    assert.equal(store.visibleNote('test')!.text, 'Secret changed');
+    store.lockAll(); assert.ok(store.visibleNote('test')!.sealed);
+    await store.unlock('test', 'a long password'); assert.equal(store.visibleNote('test')!.text, 'Secret changed');
     store.unprotect('test'); assert.equal(store.getSnapshot().workspace.tabs[0].text, 'Secret changed'); assert.equal(store.getSnapshot().workspace.tabs[0].sealed, undefined);
   } finally { store.dispose(); }
 });
