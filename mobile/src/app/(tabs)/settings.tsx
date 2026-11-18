@@ -16,13 +16,14 @@ import { ColorEditor } from '../../components/ColorEditor';
 import { Button, Icon, IconButton, SaveStatus, ui } from '../../components/ui';
 function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
   const { colors } = useBestpad();
-  return <View style={{ marginBottom: 24 }}>
-    <Text style={{ color: colors.muted, fontSize: 13, fontWeight: '700', letterSpacing: 1, marginBottom: 14, textAlign: 'center' }}>{title.toUpperCase()}</Text>
+  return <View style={{ marginBottom: 12 }}>
+    <Text style={{ color: colors.font, fontSize: 16, fontWeight: '700', letterSpacing: .6, marginBottom: 9, textAlign: 'center' }}>{title.toUpperCase()}</Text>
     {children}
   </View>;
 }
 export default function Settings() {
-  const { appearance, appearanceReady, appearanceError, setAppearance, colors, session, snapshot, store } = useBestpad();
+  const { appearance, appearanceReady, appearanceError, setAppearance, colors, session, snapshot, store,
+    hapticsEnabled, setHapticsEnabled, hapticsReady, hapticsError } = useBestpad();
   const [part, setPart] = useState<keyof Colors | null>(null), [name, setName] = useState(''), [customOpen, setCustomOpen] = useState(false), [busy, setBusy] = useState(false), [deleting, setDeleting] = useState(false), [importing, setImporting] = useState(false), [exporting, setExporting] = useState(false);
   const names = { font: 'Font', primary: 'Primary', secondary: 'Secondary' };
   const selectedSavedTheme = appearance.themes.find(theme => theme.id === appearance.selected);
@@ -143,9 +144,9 @@ export default function Settings() {
       ? `Your account and cloud notes were deleted. ${warnings.join(' ')}`
       : 'Your account, cloud notes, and local Face ID credentials have been removed.');
   }
-  return <SafeAreaView edges={['top', 'left', 'right']} style={[ui.container, { backgroundColor: colors.primary }]}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ui.content}>
+  return <SafeAreaView edges={['top', 'left', 'right']} style={[ui.container, { backgroundColor: colors.primary }]}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[ui.content, { gap: 9, paddingTop: 16, paddingBottom: 28 }]}>
     <Text style={[ui.title, { color: colors.font, marginBottom: 8, textAlign: 'center', fontSize: 38 }]}>Settings</Text>
-    <SettingsSection title="Account">{session ? <View style={{ gap: 12 }}><Text style={{ color: colors.font, textAlign: 'center' }}>{session.user.email}</Text><View style={{ alignItems: 'center' }}><SaveStatus status={snapshot.status} /></View><Button label={busy ? 'Signing out…' : 'Sign out'} disabled={busy || deleting} onPress={() => { void signOut(); }} /></View> : <Button label="Login / Create account" icon="person-outline" onPress={() => router.push('/login')} />}<Text style={{ color: colors.muted, fontSize: 11, lineHeight: 18, marginTop: 10, textAlign: 'center' }}>{session ? 'Notes sync with your Bestpad account.' : 'Notes stay on this device until you use an account. Guest and account workspaces are separate.'}</Text>
+    <SettingsSection title="Account">{session ? <View style={{ gap: 8 }}><Text style={{ color: colors.font, textAlign: 'center' }}>{session.user.email}</Text><View style={{ alignItems: 'center' }}><SaveStatus status={snapshot.status} /></View><Button label={busy ? 'Signing out…' : 'Sign out'} disabled={busy || deleting} onPress={() => { void signOut(); }} /></View> : <Button label="Login / Create account" icon="person-outline" onPress={() => router.push('/login')} />}<Text style={{ color: colors.muted, fontSize: 11, lineHeight: 18, marginTop: 10, textAlign: 'center' }}>{session ? 'Notes sync with your Bestpad account.' : 'Notes stay on this device until you use an account. Guest and account workspaces are separate.'}</Text>
       <Pressable accessibilityRole="link" accessibilityLabel="Open Bestpad on the web at bestpad.app" onPress={() => openLegalPage('https://bestpad.app')} style={({ pressed }) => ({ marginTop: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 13, backgroundColor: colors.secondary, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, opacity: pressed ? .88 : 1, transform: [{ scale: pressed ? .99 : 1 }] })}>
         <Icon name="globe-outline" size={20} color={colors.font} />
         <View style={{ flex: 1, gap: 4, alignItems: 'center' }}>
@@ -156,16 +157,16 @@ export default function Settings() {
       </Pressable>
     </SettingsSection>
     <SettingsSection title="Themes">
-      <View style={{ gap: 9 }}>
-        {builtInThemes.map(theme => <Pressable key={theme.id} accessibilityRole="button" accessibilityLabel={`Apply ${theme.name} theme`} accessibilityState={{ selected: selectedThemeMatches(theme) }} disabled={!appearanceReady} onPress={() => { setAppearance(current => ({ ...current, mode: theme.mode, colors: { ...theme.colors }, selected: theme.id })); setName(''); }} style={({ pressed }) => ({ minHeight: 54, borderRadius: 12, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: pressed ? colors.selected : colors.secondary, borderWidth: 1, borderColor: selectedThemeMatches(theme) ? colors.font : colors.border, opacity: pressed ? .9 : 1, transform: [{ scale: pressed ? .99 : 1 }] })}>
+      <View style={{ gap: 7 }}>
+        {builtInThemes.map(theme => <Pressable key={theme.id} accessibilityRole="button" accessibilityLabel={`Apply ${theme.name} theme`} accessibilityState={{ selected: selectedThemeMatches(theme) }} disabled={!appearanceReady} onPress={() => { setAppearance(current => ({ ...current, mode: theme.mode, colors: { ...theme.colors }, selected: theme.id })); setName(''); }} style={({ pressed }) => ({ minHeight: 50, borderRadius: 12, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: pressed ? colors.selected : colors.secondary, borderWidth: 1, borderColor: selectedThemeMatches(theme) ? colors.font : colors.border, opacity: pressed ? .9 : 1, transform: [{ scale: pressed ? .99 : 1 }] })}>
           <View style={{ flexDirection: 'row' }}>{(['primary', 'secondary', 'font'] as const).map(key => <View key={key} style={{ width: 18, height: 24, backgroundColor: theme.colors[key], borderWidth: .5, borderColor: colors.border }} />)}</View>
           <Text style={{ color: colors.font, flex: 1, fontSize: 14, textAlign: 'center', fontWeight: selectedThemeMatches(theme) ? '700' : '500' }}>{theme.name}</Text>
           {selectedThemeMatches(theme) && <Icon name="checkmark" size={19} color={colors.font} />}
         </Pressable>)}
-        <Text style={{ color: colors.muted, fontSize: 11, marginTop: 10, marginBottom: 2, textAlign: 'center' }}>{`SAVED THEMES · ${appearance.themes.length}/4`}</Text>
-        {appearance.themes.length === 0 && <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: 'center' }}>Themes you save in Custom theme appear here.</Text>}
+        <Text style={{ color: colors.muted, fontSize: 11, marginTop: 6, marginBottom: 0, textAlign: 'center' }}>{`SAVED THEMES · ${appearance.themes.length}/4`}</Text>
+        {appearance.themes.length === 0 && <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: 'center' }}>Your custom themes will appear here.</Text>}
         {appearance.themes.map(theme => <View key={theme.id} style={ui.row}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Apply ${theme.name}`} accessibilityState={{ selected: selectedThemeMatches(theme) }} onPress={() => { setAppearance(current => ({ ...current, mode: theme.mode, colors: { ...theme.colors }, selected: theme.id })); setName(theme.name); }} style={({ pressed }) => ({ flex: 1, minHeight: 54, borderRadius: 12, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: pressed ? colors.selected : colors.secondary, borderWidth: 1, borderColor: selectedThemeMatches(theme) ? colors.font : colors.border, opacity: pressed ? .9 : 1, transform: [{ scale: pressed ? .99 : 1 }] })}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Apply ${theme.name}`} accessibilityState={{ selected: selectedThemeMatches(theme) }} onPress={() => { setAppearance(current => ({ ...current, mode: theme.mode, colors: { ...theme.colors }, selected: theme.id })); setName(theme.name); }} style={({ pressed }) => ({ flex: 1, minHeight: 50, borderRadius: 12, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: pressed ? colors.selected : colors.secondary, borderWidth: 1, borderColor: selectedThemeMatches(theme) ? colors.font : colors.border, opacity: pressed ? .9 : 1, transform: [{ scale: pressed ? .99 : 1 }] })}>
             <View style={{ flexDirection: 'row' }}>{(['primary', 'secondary', 'font'] as const).map(key => <View key={key} style={{ width: 18, height: 24, backgroundColor: theme.colors[key], borderWidth: .5, borderColor: colors.border }} />)}</View>
             <Text numberOfLines={1} style={{ color: colors.font, flex: 1, fontSize: 14, textAlign: 'center' }}>{theme.name}</Text>
             {selectedThemeMatches(theme) && <Icon name="checkmark" size={19} color={colors.font} />}
@@ -173,26 +174,38 @@ export default function Settings() {
           <IconButton label={`Delete theme ${theme.name}`} name="close" onPress={() => setAppearance(current => ({ ...current, themes: current.themes.filter(t => t.id !== theme.id), selected: current.selected === theme.id ? null : current.selected }))} />
         </View>)}
       </View>
-    </SettingsSection>
-    <SettingsSection title="Custom theme">
-      <Pressable accessibilityRole="button" accessibilityLabel="Custom theme" accessibilityState={{ expanded: customOpen }} onPress={() => { setCustomOpen(value => !value); if (customOpen) setPart(null); }} style={({ pressed }) => ({ minHeight: 58, padding: 14, borderRadius: 13, backgroundColor: pressed ? colors.selected : colors.secondary, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 10, opacity: pressed ? .9 : 1, transform: [{ scale: pressed ? .99 : 1 }] })}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Custom theme" accessibilityState={{ expanded: customOpen }} onPress={() => { setCustomOpen(value => !value); if (customOpen) setPart(null); }} style={({ pressed }) => ({ minHeight: 50, padding: 11, borderRadius: 12, backgroundColor: pressed ? colors.selected : colors.secondary, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 10, opacity: pressed ? .9 : 1, transform: [{ scale: pressed ? .99 : 1 }] })}>
         <View style={{ flex: 1, gap: 4, alignItems: 'center' }}>
           <Text style={{ color: colors.font, fontWeight: '700', fontSize: 14, textAlign: 'center' }}>Customize your colors</Text>
           <Text style={{ color: colors.muted, fontSize: 11, textAlign: 'center' }}>Pick colors and save your own theme</Text>
         </View>
         <Icon name={customOpen ? 'chevron-up' : 'chevron-down'} size={21} />
       </Pressable>
-      {customOpen && <View style={{ marginTop: 12, padding: 12, borderRadius: 13, borderWidth: 1, borderColor: colors.border, gap: 12 }}>
+      {customOpen && <View style={{ marginTop: 8, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.border, gap: 9 }}>
         <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '600', textAlign: 'center' }}>STARTING COLORS</Text>
         <View style={ui.row}>{(['light', 'dark'] as const).map(mode => <View key={mode} style={{ flex: 1 }}><Button disabled={!appearanceReady} label={mode === 'light' ? 'Light' : 'Dark'} primary={appearance.mode === mode} icon={mode === 'light' ? 'sunny-outline' : 'moon-outline'} onPress={() => { setAppearance(current => ({ ...current, mode, colors: { ...defaults[mode] }, selected: mode === 'light' ? 'preset-paper' : 'preset-midnight' })); setName(''); }} /></View>)}</View>
         <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '600', marginTop: 6, textAlign: 'center' }}>CUSTOMIZE COLORS</Text>
-        <View style={ui.row}>{(['font', 'primary', 'secondary'] as const).map(key => <Pressable key={key} accessibilityRole="button" accessibilityLabel={`Edit ${names[key]} color`} accessibilityState={{ selected: part === key }} disabled={!appearanceReady} onPress={() => setPart(key)} style={({ pressed }) => ({ flex: 1, padding: 12, minHeight: 95, borderRadius: 13, backgroundColor: pressed ? colors.selected : colors.secondary, borderWidth: 1, borderColor: part === key ? colors.font : colors.border, alignItems: 'center', opacity: pressed ? .9 : 1, transform: [{ scale: pressed ? .99 : 1 }] })}><View style={{ width: 24, height: 24, borderRadius: 7, backgroundColor: appearance.colors[key], borderWidth: 1, borderColor: colors.muted, marginBottom: 12 }} /><Text style={{ color: colors.font, fontSize: 12, textAlign: 'center' }}>{names[key]}</Text></Pressable>)}</View>
+        <View style={ui.row}>{(['font', 'primary', 'secondary'] as const).map(key => <Pressable key={key} accessibilityRole="button" accessibilityLabel={`Edit ${names[key]} color`} accessibilityState={{ selected: part === key }} disabled={!appearanceReady} onPress={() => setPart(key)} style={({ pressed }) => ({ flex: 1, padding: 12, minHeight: 82, borderRadius: 12, backgroundColor: pressed ? colors.selected : colors.secondary, borderWidth: 1, borderColor: part === key ? colors.font : colors.border, alignItems: 'center', opacity: pressed ? .9 : 1, transform: [{ scale: pressed ? .99 : 1 }] })}><View style={{ width: 24, height: 24, borderRadius: 7, backgroundColor: appearance.colors[key], borderWidth: 1, borderColor: colors.muted, marginBottom: 12 }} /><Text style={{ color: colors.font, fontSize: 12, textAlign: 'center' }}>{names[key]}</Text></Pressable>)}</View>
         {part && <ColorEditor key={part} value={appearance.colors[part]} label={names[part]} onClose={() => setPart(null)} onChange={value => setAppearance(current => ({ ...current, selected: builtInThemes.some(theme => theme.id === current.selected) ? null : current.selected, colors: { ...current.colors, [part]: value } }))} />}
         <TextInput accessibilityLabel="Theme name" placeholder="Name your theme" placeholderTextColor={colors.muted} maxLength={24} value={name} onChangeText={setName} style={[ui.input, { color: colors.font, backgroundColor: colors.secondary, borderColor: colors.border, textAlign: 'center' }]} />
         <Button label="Save theme" primary disabled={!appearanceReady || appearance.themes.length >= 4} onPress={() => setAppearance(current => saveTheme(current, name, randomUUID()))} />
         {selectedSavedTheme && <Button label="Update selected theme" onPress={() => setAppearance(current => ({ ...current, themes: current.themes.map(t => t.id === current.selected ? { ...t, name: name.trim().slice(0, 24) || t.name, mode: current.mode, colors: { ...current.colors } } : t) }))} />}
-        <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 17, textAlign: 'center' }}>{appearance.themes.length >= 4 ? 'Four themes saved. Delete one above to save another, or update the selected theme.' : 'Save up to four custom themes. Saved themes appear above with the built-in choices.'}</Text>
+        <Text style={{ color: colors.muted, fontSize: 11, lineHeight: 17, textAlign: 'center' }}>{appearance.themes.length >= 4 ? 'Four themes saved. Delete one above to save another, or update the selected theme.' : 'Save up to four custom themes in this section.'}</Text>
       </View>}
+    </SettingsSection>
+    <SettingsSection title="Haptics">
+      <Pressable accessibilityRole="switch" accessibilityLabel="Haptic feedback" accessibilityState={{ checked: hapticsEnabled, disabled: !hapticsReady }}
+        disabled={!hapticsReady} onPress={() => setHapticsEnabled(current => !current)}
+        style={({ pressed }) => ({ minHeight: 52, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 12,
+          backgroundColor: pressed ? colors.selected : colors.secondary, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 })}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: colors.font, fontSize: 15, fontWeight: '600' }}>Haptic feedback</Text>
+          <Text style={{ color: colors.muted, fontSize: 11, marginTop: 3 }}>Vibrations for taps, buttons and dragging</Text>
+        </View>
+        <Text style={{ color: colors.font, fontSize: 13, fontWeight: '600' }}>{hapticsEnabled ? 'On' : 'Off'}</Text>
+        <Icon name={hapticsEnabled ? 'checkmark-circle' : 'ellipse-outline'} size={23} />
+      </Pressable>
+      {!!hapticsError && <Text style={{ color: colors.muted, fontSize: 12 }}>{hapticsError}</Text>}
     </SettingsSection>
     <SettingsSection title="Backups & recovery">
       <View style={{ gap: 10 }}>
