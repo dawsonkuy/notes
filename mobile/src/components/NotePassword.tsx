@@ -4,20 +4,19 @@ import { useBestpad } from '../context';
 import { currentBackgroundEpoch, faceIdEnabled, loadFaceIdKey } from '../biometric';
 import { Button, Icon, ui } from './ui';
 
-export function NotePassword({ id, protect = false, onCancel }: { id: string; protect?: boolean; onCancel: () => void }) {
+export function NotePassword({ id, onCancel }: { id: string; onCancel: () => void }) {
   const { colors, store, snapshot } = useBestpad();
   const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [error, setError] = useState('');
-  const [faceId, setFaceId] = useState<'checking' | 'enabled' | 'disabled'>(protect ? 'disabled' : 'checking');
+  const [faceId, setFaceId] = useState<'checking' | 'enabled' | 'disabled'>('checking');
   const [passwordFallback, setPasswordFallback] = useState(false);
   const autoPrompted = useRef(false);
   const input = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   const unlockWithFaceId = useCallback(async () => {
-    if (busyRef.current || protect) return;
+    if (busyRef.current) return;
     busyRef.current = true;
     setPasswordFallback(false);
     setBusy(true); setError('');
@@ -50,10 +49,9 @@ export function NotePassword({ id, protect = false, onCancel }: { id: string; pr
       secret?.fill(0);
       busyRef.current = false; setBusy(false);
     }
-  }, [id, onCancel, protect, snapshot.user, store]);
+  }, [id, onCancel, snapshot.user, store]);
 
   useEffect(() => {
-    if (protect) return;
     let active = true;
     void faceIdEnabled(snapshot.user, id).then(enabled => {
       if (!active) return;
@@ -64,24 +62,19 @@ export function NotePassword({ id, protect = false, onCancel }: { id: string; pr
       }
     }).catch(() => { if (active) setFaceId('disabled'); });
     return () => { active = false; };
-  }, [id, protect, snapshot.user, unlockWithFaceId]);
+  }, [id, snapshot.user, unlockWithFaceId]);
 
   useEffect(() => {
-    if (!protect && !busy && (faceId === 'disabled' || passwordFallback)) input.current?.focus();
-  }, [busy, faceId, passwordFallback, protect]);
+    if (!busy && (faceId === 'disabled' || passwordFallback)) input.current?.focus();
+  }, [busy, faceId, passwordFallback]);
 
   async function submit() {
     if (busyRef.current) return;
-    if (protect && (password.length < 8 || password !== confirm)) {
-      setError('Use at least 8 characters and enter the same password twice.');
-      return;
-    }
     busyRef.current = true;
     setBusy(true); setError('');
     try {
-      if (protect) await store.protect(id, password);
-      else await store.unlock(id, password);
-      setPassword(''); setConfirm(''); onCancel();
+      await store.unlock(id, password);
+      setPassword(''); onCancel();
     } catch (value) {
       setError(value instanceof Error ? value.message : 'Could not open note.');
     } finally {
@@ -93,33 +86,23 @@ export function NotePassword({ id, protect = false, onCancel }: { id: string; pr
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}>
       <View style={{ gap: 18 }}>
         <Icon name="lock-closed-outline" size={32} />
-        <Text style={{ color: colors.font, fontSize: 23, fontWeight: '700' }}>{protect ? 'Protect note' : 'Locked note'}</Text>
+        <Text style={{ color: colors.font, fontSize: 23, fontWeight: '700' }}>Locked note</Text>
         <Text style={{ color: colors.muted, lineHeight: 21 }}>
-          {protect
-            ? 'The title and contents will be encrypted. This password cannot be recovered. Use a unique password of at least 8 characters.'
-            : 'Use Face ID if you enabled it for this note, or enter the note’s password to unlock.'}
+          Use Face ID if you enabled it for this note, or enter the note’s password to unlock.
         </Text>
-        {protect && !snapshot.user && <Text style={{ color: colors.muted, lineHeight: 21 }}>
-          You are signed out. This protected note is saved only on this device and will not sync or be recoverable if app data is cleared. Sign in first if you want a cloud backup.
-        </Text>}
-        {!protect && faceId === 'enabled' && <Button
+        {faceId === 'enabled' && <Button
           label={busy ? 'Checking Face ID…' : 'Unlock with Face ID'}
           icon="scan-outline" primary disabled={busy} onPress={() => { void unlockWithFaceId(); }}
         />}
-        <TextInput ref={input} accessibilityLabel="Note password" autoFocus={protect} secureTextEntry
+        <TextInput ref={input} accessibilityLabel="Note password" secureTextEntry
           autoCapitalize="none" autoCorrect={false} value={password} onChangeText={setPassword}
-          editable={!busy} placeholder={protect ? 'Create note password' : 'Use note password instead'}
+          editable={!busy} placeholder="Use note password instead"
           placeholderTextColor={colors.muted}
           style={[ui.input, { color: colors.font, borderColor: colors.border, backgroundColor: colors.secondary, textAlign: 'center', textAlignVertical: 'center' }]} />
-        {protect && <TextInput accessibilityLabel="Confirm note password" returnKeyType="done"
-          onSubmitEditing={() => { void submit(); }} secureTextEntry autoCapitalize="none" autoCorrect={false}
-          value={confirm} onChangeText={setConfirm} editable={!busy} placeholder="Confirm note password"
-          placeholderTextColor={colors.muted}
-          style={[ui.input, { color: colors.font, borderColor: colors.border, backgroundColor: colors.secondary, textAlign: 'center', textAlignVertical: 'center' }]} />}
         {!!error && <Text accessibilityLiveRegion="polite" style={{ color: colors.font }}>{error}</Text>}
         {busy && <ActivityIndicator color={colors.font} />}
-        <Button disabled={busy} label={busy ? 'Please wait…' : protect ? 'Protect note' : 'Unlock with password'}
-          primary={protect || faceId !== 'enabled'} onPress={() => { void submit(); }} />
+        <Button disabled={busy} label={busy ? 'Please wait…' : 'Unlock with password'}
+          primary={faceId !== 'enabled'} onPress={() => { void submit(); }} />
         <Button label="Cancel" disabled={busy} onPress={onCancel} />
       </View>
     </ScrollView>
