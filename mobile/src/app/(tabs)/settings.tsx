@@ -10,6 +10,7 @@ import { router } from 'expo-router';
 import { builtInThemes, defaults, saveTheme, type Colors } from '../../appearance';
 import { useBestpad } from '../../context';
 import { supabase } from '../../supabase';
+import { clearAccountFaceIdKeys } from '../../biometric';
 import { ColorEditor } from '../../components/ColorEditor';
 import { Button, Icon, IconButton, SaveStatus, ui } from '../../components/ui';
 function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
@@ -115,18 +116,31 @@ export default function Settings() {
   }
   async function deleteAccount() {
     if (!session || busy || deleting) return;
-    const userId = session.user.id; setDeleting(true);
+    const userId = session.user.id;
+    // Capture IDs before the server revokes the auth session and the
+    // workspace switches to guest notes.
+    const protectedIds = store.getSnapshot().workspace.tabs.filter(note => Boolean(note.sealed)).map(note => note.id);
+    setDeleting(true);
     try {
       const { data, error } = await supabase.functions.invoke('delete-account', { body: { confirmation: 'DELETE' } });
       if (error || data?.deleted !== true) throw new Error('Could not delete your account. Check your connection and try again.');
     } catch (error) {
       Alert.alert('Account deletion failed', error instanceof Error ? error.message : 'Please try again.'); setDeleting(false); return;
     }
+    let biometricCleared = true;
+    try { await clearAccountFaceIdKeys(userId, protectedIds); }
+    catch { biometricCleared = false; }
     let cleared = true;
     try { await store.forgetAccount(userId); } catch { cleared = false; }
     await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
     setDeleting(false);
-    Alert.alert('Account deleted', cleared ? 'Your account and cloud notes have been permanently deleted.' : 'Your account and cloud notes were deleted. A local recovery copy could not be removed from this device.');
+    const warnings = [
+      !cleared ? 'A local recovery copy could not be removed from this device.' : '',
+      !biometricCleared ? 'Some Face ID credentials could not be cleared from this iPhone. Contact support for help.' : '',
+    ].filter(Boolean);
+    Alert.alert('Account deleted', warnings.length
+      ? `Your account and cloud notes were deleted. ${warnings.join(' ')}`
+      : 'Your account, cloud notes, and local Face ID credentials have been removed.');
   }
   return <SafeAreaView edges={['top', 'left', 'right']} style={[ui.container, { backgroundColor: colors.primary }]}><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ui.content}>
     <Text style={[ui.title, { color: colors.font, marginBottom: 8, textAlign: 'center', fontSize: 38 }]}>Settings</Text>
