@@ -114,10 +114,33 @@ export class WorkspaceStore {
   }
   async protect(id: string, password: string) {
     const original = this.snapshot.workspace.tabs.find(item => item.id === id); if (!original || original.sealed) return;
-    const user = this.snapshot.user, epoch = this.keyEpoch, result = await protectNote(original, password, this.random);
-    if (epoch !== this.keyEpoch || user !== this.snapshot.user || this.snapshot.workspace.tabs.find(item => item.id === id) !== original) { result.key.fill(0); throw new Error('Note changed. Please try again.'); }
+    const user = this.snapshot.user, epoch = this.keyEpoch, generation = this.generation;
+    const result = await protectNote(original, password, this.random);
+    const unchanged = () => epoch === this.keyEpoch && generation === this.generation && user === this.snapshot.user &&
+      this.snapshot.workspace.tabs.find(item => item.id === id) === original;
+    if (!unchanged()) { result.key.fill(0); throw new Error('Note changed. Please try again.'); }
+    const next = { ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(note => note.id === id ? result.note : note) };
+    if (!user) {
+      // Guest notes have no cloud backup. Persist ciphertext successfully before
+      // replacing the plaintext editor state, so storage failures cannot leave
+      // the user thinking an unsaved encrypted note is safe.
+      try {
+        await this.cacheQueue;
+        if (!unchanged()) throw new Error('Note changed. Please try again.');
+        await withDeadline(this.storage.setItem(this.key(), JSON.stringify({ ...next, revision: this.revision, dirty: false })), 7000);
+      } catch (error) {
+        result.key.fill(0);
+        if (!unchanged()) { void this.cache(); throw new Error('Note changed. Please try again.'); }
+        throw new Error('Could not save the protected note on this device. Your original note is unchanged. Check available storage and try again.', { cause: error });
+      }
+      if (!unchanged()) { result.key.fill(0); void this.cache(); throw new Error('Note changed. Please try again.'); }
+      this.keys.get(id)?.fill(0); this.keys.set(id, result.key);
+      this.version++;
+      this.emit({ workspace: next, status: 'local' });
+      return;
+    }
     this.keys.get(id)?.fill(0); this.keys.set(id, result.key);
-    this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(note => note.id === id ? result.note : note) }); await this.cacheQueue;
+    this.update(next); await this.cacheQueue;
   }
   unprotect(id: string) {
     const plain = this.visibleNote(id); if (!plain || plain.sealed) return;
