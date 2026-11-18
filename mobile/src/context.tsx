@@ -26,6 +26,7 @@ function useBestpadValue() {
     if (hapticsEnabled && Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
   }, [hapticsEnabled]);
   const appearanceWrites = useRef(Promise.resolve());
+  const hapticWrites = useRef(Promise.resolve());
   useEffect(() => {
     let alive = true;
     AsyncStorage.getItem('bestpad:mobile:haptics').then(value => {
@@ -36,9 +37,13 @@ function useBestpadValue() {
   }, []);
   useEffect(() => {
     if (!hapticsReady) return;
-    void AsyncStorage.setItem('bestpad:mobile:haptics', hapticsEnabled ? '1' : '0')
-      .then(() => setHapticsError(''))
-      .catch(() => setHapticsError('Haptic preference could not be saved.'));
+    // Serialize writes so quick on/off toggles cannot persist an older value last.
+    hapticWrites.current = hapticWrites.current.then(async () => {
+      try {
+        await AsyncStorage.setItem('bestpad:mobile:haptics', hapticsEnabled ? '1' : '0');
+        setHapticsError('');
+      } catch { setHapticsError('Haptic preference could not be saved.'); }
+    });
   }, [hapticsEnabled, hapticsReady]);
   useEffect(() => {
     let alive = true;
