@@ -9,7 +9,10 @@ import { decodeBiometricKey } from './biometricData';
 // iOS briefly enters 'inactive' during a Face ID sheet. Only that transition
 // may bypass the normal background locking rule; actual background always locks.
 let biometricRequests = 0;
+let backgroundEpoch = 0;
 export function biometricPromptInProgress(): boolean { return biometricRequests > 0; }
+export function noteAppBackgrounded(): void { backgroundEpoch++; }
+export function currentBackgroundEpoch(): number { return backgroundEpoch; }
 async function duringBiometricPrompt<T>(operation: () => Promise<T>): Promise<T> {
   biometricRequests++;
   try { return await operation(); }
