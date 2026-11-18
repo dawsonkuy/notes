@@ -6,6 +6,8 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase, remote } from './supabase';
 import { WorkspaceStore } from './workspace';
 import { initialAppearance, palette, restoreAppearance, type Appearance } from './appearance';
+import { biometricPromptInProgress, noteAppBackgrounded } from './biometric';
+import { shouldLockNotes } from './appLockPolicy';
 function useBestpadValue() {
   const systemMode = useColorScheme() === 'light' ? 'light' : 'dark';
   const store = useMemo(() => new WorkspaceStore(AsyncStorage, remote, randomUUID, getRandomBytes), []);
@@ -33,7 +35,15 @@ function useBestpadValue() {
     if (AppState.currentState === 'active') supabase.auth.startAutoRefresh();
     const listener = AppState.addEventListener('change', state => {
       if (state === 'active') { supabase.auth.startAutoRefresh(); void store.retry(); }
-      else { store.lockAll(); supabase.auth.stopAutoRefresh(); void store.flush(); }
+      else {
+        // Face ID temporarily changes iOS to 'inactive'. Keep the already
+        // unlocked note available for that system sheet; real backgrounding
+        // always locks it and clears its in-memory decryption key.
+        if (state === 'background') noteAppBackgrounded();
+        if (shouldLockNotes(state, biometricPromptInProgress())) store.lockAll();
+        supabase.auth.stopAutoRefresh();
+        void store.flush();
+      }
     });
     return () => { alive = false; subscription.unsubscribe(); listener.remove(); supabase.auth.stopAutoRefresh(); };
   }, [store]);
