@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import { useBestpad } from '../context';
-import { faceIdEnabled, loadFaceIdKey } from '../biometric';
+import { currentBackgroundEpoch, faceIdEnabled, loadFaceIdKey } from '../biometric';
 import { Button, Icon, ui } from './ui';
 
 export function NotePassword({ id, protect = false, onCancel }: { id: string; protect?: boolean; onCancel: () => void }) {
@@ -23,11 +23,16 @@ export function NotePassword({ id, protect = false, onCancel }: { id: string; pr
     setBusy(true); setError('');
     Keyboard.dismiss();
     let secret: Uint8Array | null = null;
+    const startingBackgroundEpoch = currentBackgroundEpoch();
     try {
       const sealed = store.getSnapshot().workspace.tabs.find(note => note.id === id)?.sealed;
       if (!sealed) throw new Error('Note is no longer protected.');
       secret = await loadFaceIdKey(snapshot.user, id, sealed.salt);
       if (!secret) throw new Error('Face ID is no longer enabled. Use your note password.');
+      // Backgrounding the app always invalidates this unlock, even if iOS
+      // returns from the biometric sheet after the user comes back.
+      if (currentBackgroundEpoch() !== startingBackgroundEpoch)
+        throw new Error('Face ID unlock was interrupted. Use your note password or try again.');
       store.unlockWithKey(id, secret);
       onCancel();
     } catch (value) {
