@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Dimensions, FlatList, KeyboardAvoidingView, Modal, Platform, PanResponder, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, Dimensions, FlatList, KeyboardAvoidingView, Modal, Platform, PanResponder, ScrollView, Text, TextInput, View } from 'react-native';
 import { useBestpad } from '../context';
+import { Pressable } from './HapticPressable';
 import * as Haptics from 'expo-haptics';
 import { entries, treeEntries, canMove, type Entry, type TreeEntry } from '../organization';
 import { isTrashed, noteName, starterNoteId } from '../model';
