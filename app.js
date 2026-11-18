@@ -145,7 +145,16 @@ function downloadTab(tab) {
 async function shareTab(tab) {
   closeMenus(); save();
   $('action-status').textContent = '';
-  if (tab.sealed) { const session = unlockedNotes.get(tab.id); if (!session) { alert('Unlock this note before sharing it.'); return; } tab = session.note; }
+  if (tab.sealed) {
+    const session = unlockedNotes.get(tab.id);
+    if (!session) { alert('Unlock this note before sharing it.'); return; }
+    if (!confirm('Share protected note? The shared or copied text will be unencrypted and readable by anyone who receives it.')) return;
+    // A lock, tab switch or account change may have happened while confirming.
+    const current = tabs.find(note => note.id === tab.id);
+    const latest = unlockedNotes.get(tab.id);
+    if (!current?.sealed || !latest || document.hidden) { alert('Unlock this note again before sharing.'); return; }
+    tab = latest.note;
+  }
   const data = { title: noteName(tab), text: tab.text };
   try {
     if (navigator.share) {

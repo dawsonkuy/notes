@@ -240,14 +240,62 @@ function NoteEditor({ note, focusOnOpen = false }: { note: Note; focusOnOpen?: b
     } finally { key.fill(0); }
   }
   async function unprotectWithCleanup() {
+    const user = snapshot.user;
+    const original = store.getSnapshot().workspace.tabs.find(item => item.id === note.id);
+    if (!original?.sealed || store.visibleNote(note.id)?.sealed) {
+      Alert.alert('Unlock note first', 'Unlock this note before removing its password.');
+      return;
+    }
     try {
-      // Delete the Keychain entry even if biometrics were disabled or changed.
-      // A stale credential must not survive removal of note encryption.
-      await clearFaceIdKey(snapshot.user, note.id);
+      // The old Keychain credential must go even if Face ID was disabled.
+      await clearFaceIdKey(user, note.id);
+      const current = store.getSnapshot().workspace.tabs.find(item => item.id === note.id);
+      if (store.getSnapshot().user !== user || !current?.sealed ||
+          current.sealed.salt !== original.sealed.salt || store.visibleNote(note.id)?.sealed) {
+        Alert.alert('Note changed', 'Unlock the note and try removing its password again.');
+        return;
+      }
       store.unprotect(note.id);
     } catch {
-      Alert.alert('Could not remove Face ID', 'Try again before removing the note password.');
+      Alert.alert('Could not remove Face ID', 'The note remains encrypted. Try again before removing its password.');
     }
+  }
+  function confirmRemovePassword() {
+    Alert.alert(
+      'Remove password protection?',
+      'This note will no longer be encrypted. Its contents could be read by anyone who can access your notes on this device or a synced account.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove protection', style: 'destructive', onPress: () => { void unprotectWithCleanup(); } },
+      ],
+    );
+  }
+  function shareNoteContents() {
+    const stored = store.getSnapshot().workspace.tabs.find(item => item.id === note.id);
+    if (!stored) return;
+    if (!stored.sealed) {
+      const visible = store.visibleNote(note.id);
+      if (visible) void Share.share({ title: noteName(visible), message: `${noteName(visible)}\n\n${visible.text}` }).catch(() => undefined);
+      return;
+    }
+    // Never copy the plaintext into a Share payload until consent is given.
+    if (store.visibleNote(note.id)?.sealed) {
+      Alert.alert('Note locked', 'Unlock this note before sharing it.');
+      return;
+    }
+    Alert.alert('Share protected note?', 'Sharing creates an unencrypted copy of this note. Anyone you share it with may be able to read its contents.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Share unencrypted copy', onPress: () => {
+        // The app may have been backgrounded/locked while the warning was open.
+        const current = store.getSnapshot().workspace.tabs.find(item => item.id === note.id);
+        const visible = store.visibleNote(note.id);
+        if (!current?.sealed || !visible || visible.sealed) {
+          Alert.alert('Note unavailable', 'Unlock the protected note again before sharing.');
+          return;
+        }
+        void Share.share({ title: noteName(visible), message: `${noteName(visible)}\n\n${visible.text}` }).catch(() => undefined);
+      } },
+    ]);
   }
   async function securityOptions() {
     const secured = store.getSnapshot().workspace.tabs.find(item => item.id === note.id)?.sealed;
@@ -255,7 +303,7 @@ function NoteEditor({ note, focusOnOpen = false }: { note: Note; focusOnOpen?: b
     const actions: AlertButton[] = [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Lock now', onPress: () => store.lock(note.id) },
-      { text: 'Remove password', style: 'destructive', onPress: () => { void unprotectWithCleanup(); } },
+      { text: 'Remove password', style: 'destructive', onPress: confirmRemovePassword },
     ];
     if (faceIdAvailable()) {
       try {
@@ -270,7 +318,7 @@ function NoteEditor({ note, focusOnOpen = false }: { note: Note; focusOnOpen?: b
   const close = () => { void store.flush(); if (router.canGoBack()) router.back(); else router.replace('/'); };
   if (protectOpen) return <NotePassword id={note.id} protect onCancel={() => setProtectOpen(false)} />;
   return <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={[ui.container, { backgroundColor: colors.primary }]}><KeyboardAvoidingView style={ui.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-    <View style={[ui.row, { justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 6 }]}><Pressable accessibilityRole="button" accessibilityLabel="Notes" onPress={close} style={[ui.row, { minHeight: 44 }]}><Icon name="chevron-back" /><Text style={{ color: colors.font, fontSize: 15 }}>Notes</Text></Pressable><View style={ui.row}><IconButton name="lock-closed-outline" label="Note password protection" onPress={securityOptions} /><IconButton name="share-outline" label="Share note" onPress={() => { void Share.share({ title: noteName(note), message: `${noteName(note)}\n\n${note.text}` }).catch(() => undefined); }} /></View></View>
+    <View style={[ui.row, { justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 6 }]}><Pressable accessibilityRole="button" accessibilityLabel="Notes" onPress={close} style={[ui.row, { minHeight: 44 }]}><Icon name="chevron-back" /><Text style={{ color: colors.font, fontSize: 15 }}>Notes</Text></Pressable><View style={ui.row}><IconButton name="lock-closed-outline" label="Note password protection" onPress={securityOptions} /><IconButton name="share-outline" label="Share note" onPress={shareNoteContents} /></View></View>
     <ScrollView ref={scroll} onLayout={event => { viewport.current.height = event.nativeEvent.layout.height; keepCaretVisible(); }} onScroll={event => { viewport.current.offset = event.nativeEvent.contentOffset.y; }} scrollEventThrottle={16} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} contentContainerStyle={{ padding: 24, paddingTop: 20, paddingBottom: 24, flexGrow: 1 }}>
       {blocks.map((block, index) => block.divider ? <View key={block.id} style={[ui.row, { marginVertical: 10 }]}><View style={{ height: 1, flex: 1, backgroundColor: colors.border }} /><IconButton name="close" label="Remove divider" onPress={() => { const next = blocks.filter(item => item.id !== block.id); emit(next.length ? next : [{ id: randomUUID(), text: '' }]); }} /></View> : <View key={block.id} onLayout={event => { layouts.current[block.id] = event.nativeEvent.layout; keepCaretVisible(); }} style={{ flexDirection: 'row', alignItems: 'flex-start' }}>{(block.list === 'checked' || block.list === 'unchecked') ? <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: block.list === 'checked' }} accessibilityLabel={block.text || 'Task'} onPress={() => emit(blocks.map(item => item.id === block.id ? { ...item, list: item.list === 'checked' ? 'unchecked' : 'checked' } : item))} style={{ minWidth: 38, minHeight: 40, paddingTop: 4 }}><Icon name={block.list === 'checked' ? 'checkbox-outline' : 'square-outline'} /></Pressable> : (block.list === 'bullet' || block.list === 'ordered') ? <View accessible={false} style={{ width: 38, paddingTop: 2, alignItems: 'flex-start' }}><Text style={{ color: colors.font, fontSize: appearance.size, lineHeight: appearance.size * 1.55 }}>{block.list === 'bullet' ? '•' : `${orderedNumber(blocks, index)}.`}</Text></View> : null}
       <TextInput
