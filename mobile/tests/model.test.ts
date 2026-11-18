@@ -244,3 +244,47 @@ test('only an untouched starter note is treated as an empty library', () => {
   assert.equal(starterNoteId({ ...workspace, folders: [{ id: 'folder', name: 'Folder' }] }), null);
   assert.equal(starterNoteId({ ...workspace, tabs: [starter, { ...newNote('old'), deletedAt: new Date().toISOString() }] }), starter.id);
 });
+
+test('typing inside repeated characters preserves styles at the selected position', () => {
+  const original = [{
+    id: 'repeated', text: 'aaaa',
+    runs: [{ text: 'aa', bold: true as const }, { text: 'aa' }],
+  }];
+  // The fifth 'a' belongs *between* the two bold and two plain characters,
+  // not at the end just because a prefix diff cannot distinguish the 'a's.
+  const inserted = replaceParagraphText(original, 'repeated', 'aaaaa', id, { start: 2, end: 2 }, { italic: true })!;
+  const styles = inlineStyles(inserted.blocks[0]);
+  assert.deepEqual(styles.map(style => [Boolean(style.bold), Boolean(style.italic)]), [
+    [true, false], [true, false], [false, true], [false, false], [false, false],
+  ]);
+  const saved = fromBlocks(newNote('persist'), inserted.blocks);
+  assert.ok(safeOps(saved));
+  assert.deepEqual(inlineStyles(toBlocks(saved, id)[0]), styles);
+});
+
+test('Backspace inside repeated characters deletes the character before the caret', () => {
+  const original = [{
+    id: 'repeated', text: 'aaaa',
+    runs: [{ text: 'a', bold: true as const }, { text: 'aaa' }],
+  }];
+  // Caret at index 1 deletes the bold character at index 0, not the final 'a'.
+  const deleted = replaceParagraphText(original, 'repeated', 'aaa', id, { start: 1, end: 1 })!;
+  assert.equal(deleted.blocks[0].text, 'aaa');
+  assert.deepEqual(inlineStyles(deleted.blocks[0]), [{}, {}, {}]);
+  // A multi-character native Backspace works the same way.
+  const many = replaceParagraphText(original, 'repeated', 'aa', id, { start: 2, end: 2 })!;
+  assert.deepEqual(inlineStyles(many.blocks[0]), [{}, {}]);
+});
+
+test('selected inline formatting and subsequent plain typing never restyle an entire paragraph', () => {
+  const start = [{ id: 'line', text: 'one two three' }];
+  const marked = applyInlineStyle(start, 'line', { start: 4, end: 7 }, 'underline')!.blocks;
+  const typed = replaceParagraphText(marked, 'line', 'one two! three', id, { start: 7, end: 7 }, { underline: false as never })!;
+  const saved = fromBlocks(newNote('format'), typed.blocks);
+  const styles = inlineStyles(toBlocks(saved, id)[0]);
+  assert.equal(styles[0].underline, undefined);
+  assert.equal(styles[4].underline, true);
+  assert.equal(styles[6].underline, true);
+  assert.equal(styles[7].underline, undefined);
+  assert.equal(styles.at(-1)?.underline, undefined);
+});
