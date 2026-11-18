@@ -209,7 +209,7 @@ test('all iOS pressable buttons and navigation honor the saved haptics toggle', 
   assert.match(haptics, /tapFeedback\(\)/);
   assert.match(nav, /listeners=\{\{ tabPress: tapFeedback \}\}/);
   assert.match(settings, /accessibilityRole="switch" accessibilityLabel="Haptic feedback"/);
-  assert.match(settings, /disabled=\{!hapticsReady\} onPress=\{\(\) => setHapticsEnabled/);
+  assert.match(settings, /disabled=\{!hapticsReady\} haptic=\{false\} onPress=\{toggleHaptics\}/);
   for (const path of [
     'mobile/src/components/ui.tsx',
     'mobile/src/components/OrganizedLibrary.tsx',
@@ -256,5 +256,41 @@ test('native and browser password inputs have no maximum character restriction',
     const element = html.match(new RegExp('<input[^>]*id="' + id + '"[^>]*>'))?.[0];
     assert.ok(element, `Missing password input ${id}`);
     assert.doesNotMatch(element, /maxlength\s*=/i);
+  }
+});
+
+test('switching haptics ON ticks, switching OFF stays silent', () => {
+  const context = file('mobile/src/context.tsx');
+  const pressable = file('mobile/src/components/HapticPressable.tsx');
+  const settings = file('mobile/src/app/(tabs)/settings.tsx');
+  const toggle = context.match(/const toggleHaptics = useCallback\(\(\) => \{([\s\S]*?)\}, \[hapticsEnabled\]\);/)?.[1];
+  assert.ok(toggle, 'toggle must be able to access current preference');
+  assert.match(toggle, /if \(!hapticsEnabled && Platform\.OS !== 'web'\) void Haptics\.selectionAsync\(\)/);
+  assert.match(toggle, /setHapticsEnabled\(enabled => !enabled\)/);
+  assert.match(pressable, /haptic = true/);
+  assert.match(pressable, /if \(haptic && props\.accessibilityRole !== 'none'\) tapFeedback\(\)/);
+  assert.match(settings, /haptic=\{false\} onPress=\{toggleHaptics\}/);
+});
+
+test('Handwritten and Elegant font choices persist and render in real editor', () => {
+  const appearance = file('mobile/src/appearance.ts');
+  const settings = file('mobile/src/app/(tabs)/settings.tsx');
+  const editor = file('mobile/src/app/editor/[id].tsx');
+  assert.match(appearance, /key: 'handwritten', name: 'Handwritten'/);
+  assert.match(appearance, /key: 'elegant', name: 'Elegant'/);
+  assert.match(appearance, /'Noteworthy'/);
+  assert.match(appearance, /'Didot'/);
+  assert.match(appearance, /noteFonts\.some\(option => option\.key === value\.font\)/);
+  assert.match(settings, /noteFonts\.map\(font => <Pressable/);
+  assert.match(settings, /fontFamily: noteFontFamily\(font\.key, Platform\.OS === 'ios'\)/);
+  assert.match(editor, /const fontFamily = noteFontFamily\(appearance\.font, Platform\.OS === 'ios'\)/);
+});
+
+test('both password and confirm fields center placeholder and cursor alike', () => {
+  const password = file('mobile/src/components/NotePassword.tsx');
+  for (const label of ['Note password', 'Confirm note password']) {
+    const field = password.slice(password.indexOf('accessibilityLabel="' + label + '"'));
+    assert.ok(field.startsWith('accessibilityLabel="' + label + '"'));
+    assert.match(field.slice(0, 500), /textAlign: 'center', textAlignVertical: 'center'/);
   }
 });
