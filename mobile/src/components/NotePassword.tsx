@@ -12,12 +12,14 @@ export function NotePassword({ id, protect = false, onCancel }: { id: string; pr
   const busyRef = useRef(false);
   const [error, setError] = useState('');
   const [faceId, setFaceId] = useState<'checking' | 'enabled' | 'disabled'>(protect ? 'disabled' : 'checking');
+  const [passwordFallback, setPasswordFallback] = useState(false);
   const autoPrompted = useRef(false);
   const input = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   const unlockWithFaceId = useCallback(async () => {
     if (busyRef.current || protect) return;
     busyRef.current = true;
+    setPasswordFallback(false);
     setBusy(true); setError('');
     Keyboard.dismiss();
     let secret: Uint8Array | null = null;
@@ -35,6 +37,9 @@ export function NotePassword({ id, protect = false, onCancel }: { id: string; pr
         message.startsWith('Face ID') || message.startsWith('Note ')
           ? message : 'Face ID was unavailable. Use your note password or retry.'
       );
+      // Once the native sheet closes, bring up the keyboard for immediate
+      // password entry rather than leaving a dead-looking unlock screen.
+      setPasswordFallback(true);
       void faceIdEnabled(snapshot.user, id).then(enabled => setFaceId(enabled ? 'enabled' : 'disabled')).catch(() => setFaceId('disabled'));
     } finally {
       secret?.fill(0);
@@ -57,8 +62,8 @@ export function NotePassword({ id, protect = false, onCancel }: { id: string; pr
   }, [id, protect, snapshot.user, unlockWithFaceId]);
 
   useEffect(() => {
-    if (!protect && faceId === 'disabled') input.current?.focus();
-  }, [faceId, protect]);
+    if (!protect && !busy && (faceId === 'disabled' || passwordFallback)) input.current?.focus();
+  }, [busy, faceId, passwordFallback, protect]);
 
   async function submit() {
     if (busyRef.current) return;
