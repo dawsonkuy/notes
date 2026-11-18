@@ -152,8 +152,8 @@ test('splitting and rejoining formatted paragraphs preserves exact inline text',
   assert.deepEqual(toBlocks(saved, id)[0].runs?.find(run => run.bold), { text: 'world', bold: true });
 });
 
-test('four built-in BestPad themes have strong text contrast and survive preference restoration', () => {
-  assert.deepEqual(builtInThemes.map(t => t.name), ['Paper', 'Cloud', 'Midnight', 'Evergreen']);
+test('seven built-in BestPad themes have strong text contrast and survive preference restoration', () => {
+  assert.deepEqual(builtInThemes.map(t => t.name), ['Paper', 'Cloud', 'Midnight', 'Evergreen', 'Amber Hour', 'Deep Sea', 'Violet']);
   function luminance(hex: string) {
     const channels = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16) / 255)
       .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);

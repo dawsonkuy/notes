@@ -1,16 +1,16 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Share, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, Share, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { randomUUID } from 'expo-crypto';
 import { useBestpad } from '../../context';
+import { Pressable } from '../../components/HapticPressable';
 import { applyInlineStyle, inlineStyles, inferTextEditRange, sliceInlineRuns, breakParagraph, joinBackward, replaceParagraphText, fromBlocks, isTrashed, noteName, toBlocks, type Block, type InlineRun, type InlineStyle, type Note } from '../../model';
 import { Button, Icon, IconButton, SaveStatus, ui } from '../../components/ui';
 import { NotePassword } from '../../components/NotePassword';
 import { clearFaceIdKey, faceIdAvailable, faceIdEnabled, saveFaceIdKey } from '../../biometric';
 import type { AlertButton } from 'react-native';
 import { recordEditorEdit, travelEditorHistory, type EditorHistory, type EditOrigin } from '../../editorHistory';
-import * as Haptics from 'expo-haptics';
 type Cursor = { id: string; start: number; end: number };
 type InsertKind = 'heading-1' | 'heading-2' | 'heading-3' | 'bullet-list' | 'numbered-list' | 'checklist' | 'time' | 'date';
 function orderedNumber(blocks: Block[], index: number) {
@@ -95,7 +95,6 @@ function NoteEditor({ note, focusOnOpen = false }: { note: Note; focusOnOpen?: b
       const next = { id: target.id, start: Math.min(selection.start, target.text.length), end: Math.min(selection.end, target.text.length) };
       cursor.current = next; setToolbarCursor(next); setPendingFocus(next);
     }
-    if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => undefined);
   }
   useEffect(() => {
     if (!pendingFocus) return;

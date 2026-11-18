@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useBestpad } from '../../context';
+import { Pressable } from '../../components/HapticPressable';
 import { saveWorkspaceBackup } from '../../backup';
 import { isTrashed, noteName, starterNoteId } from '../../model';
 import { clearFaceIdKey } from '../../biometric';

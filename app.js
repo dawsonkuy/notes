@@ -170,7 +170,7 @@ async function shareTab(tab) {
 }
 function openTabMenu(tab, anchor) {
   closeMenus(); tabMenu.replaceChildren();
-  [['✎', 'Rename', () => renameTab(tab)], ['↓', 'Save as…', () => downloadTab(tab)], ['↗', 'Share', () => shareTab(tab)], ['↑', 'Move up', () => moveRelative(tab.id, -1)], ['↓', 'Move down', () => moveRelative(tab.id, 1)], ['⌖', tab.pinned ? 'Unpin note' : 'Pin note', () => togglePin(tab.id)], ['↪', 'Move to folder…', () => chooseMove(tab.id)], ['🔒', tab.sealed ? 'Open protected note' : 'Password protect…', () => { switchTab(tab.id); void passwordAction(); }], ['⌫', 'Move to Trash', () => deleteTab(tab)]].forEach(([icon, label, action]) => {
+  [['✎', 'Rename', () => renameTab(tab)], ['↓', 'Save as…', () => downloadTab(tab)], ['↗', 'Share', () => shareTab(tab)], ['⌖', tab.pinned ? 'Unpin note' : 'Pin note', () => togglePin(tab.id)], ['🔒', tab.sealed ? 'Open protected note' : 'Password protect…', () => { switchTab(tab.id); void passwordAction(); }], ['⌫', 'Move to Trash', () => deleteTab(tab)]].forEach(([icon, label, action]) => {
     const button = document.createElement('button'); button.setAttribute('role', 'menuitem');
     const glyph = document.createElement('span'); glyph.textContent = icon; glyph.setAttribute('aria-hidden', 'true');
     button.append(glyph, document.createTextNode(label)); button.onclick = action; tabMenu.append(button);

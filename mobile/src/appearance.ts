@@ -8,6 +8,9 @@ export const builtInThemes: Theme[] = [
   { id: 'preset-cloud', name: 'Cloud', mode: 'light', colors: { font: '#202b3a', primary: '#f5f7fa', secondary: '#e8edf3' } },
   { id: 'preset-midnight', name: 'Midnight', mode: 'dark', colors: { ...defaults.dark } },
   { id: 'preset-evergreen', name: 'Evergreen', mode: 'dark', colors: { font: '#f1f6ef', primary: '#13271f', secondary: '#234034' } },
+  { id: 'preset-amber-hour', name: 'Amber Hour', mode: 'light', colors: { font: '#332818', primary: '#fff3d9', secondary: '#f1e0bb' } },
+  { id: 'preset-deep-sea', name: 'Deep Sea', mode: 'dark', colors: { font: '#e8f7fa', primary: '#0c2635', secondary: '#173f50' } },
+  { id: 'preset-violet', name: 'Violet', mode: 'dark', colors: { font: '#f5eeff', primary: '#21192f', secondary: '#37294e' } },
 ];
 export const validColors = (value: unknown): value is Colors => Boolean(value && ['font', 'primary', 'secondary'].every(key => /^#[0-9a-f]{6}$/i.test((value as Record<string, string>)[key])));
 export function initialAppearance(mode: Mode = 'dark'): Appearance { return { mode, colors: { ...defaults[mode] }, themes: [], selected: mode === 'dark' ? 'preset-midnight' : 'preset-paper', font: 'sans', size: 16 }; }

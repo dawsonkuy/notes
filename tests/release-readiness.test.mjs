@@ -197,3 +197,64 @@ test('protected notes require confirmation before disabling encryption or sharin
   assert.match(web, /Share protected note\? The shared or copied text will be unencrypted/);
   assert.match(web, /if \(!confirm\('Remove password protection\?/);
 });
+
+test('all iOS pressable buttons and navigation honor the saved haptics toggle', () => {
+  const context = file('mobile/src/context.tsx');
+  const haptics = file('mobile/src/components/HapticPressable.tsx');
+  const settings = file('mobile/src/app/(tabs)/settings.tsx');
+  const nav = file('mobile/src/app/(tabs)/_layout.tsx');
+  assert.match(context, /bestpad:mobile:haptics/);
+  assert.match(context, /hapticsEnabled, setHapticsEnabled, hapticsReady/);
+  assert.match(context, /hapticsEnabled && Platform\.OS !== 'web'/);
+  assert.match(haptics, /tapFeedback\(\)/);
+  assert.match(nav, /listeners=\{\{ tabPress: tapFeedback \}\}/);
+  assert.match(settings, /accessibilityRole="switch" accessibilityLabel="Haptic feedback"/);
+  assert.match(settings, /disabled=\{!hapticsReady\} onPress=\{\(\) => setHapticsEnabled/);
+  for (const path of [
+    'mobile/src/components/ui.tsx',
+    'mobile/src/components/OrganizedLibrary.tsx',
+    'mobile/src/app/editor/[id].tsx',
+    'mobile/src/app/(tabs)/settings.tsx',
+    'mobile/src/app/(tabs)/index.tsx',
+  ]) assert.match(file(path), /import \{ Pressable \} from .*HapticPressable/);
+  const library = file('mobile/src/components/OrganizedLibrary.tsx');
+  assert.doesNotMatch(library, /Haptics\.(?:selection|impact)Async/);
+});
+
+test('iOS settings have seven built-in themes and inline custom theme at the end', () => {
+  const config = file('mobile/src/appearance.ts');
+  for (const theme of ['Amber Hour', 'Deep Sea', 'Violet']) assert.ok(config.includes(`name: '${theme}'`));
+  assert.equal((config.match(/id: 'preset-/g) || []).length, 7);
+  const settings = file('mobile/src/app/(tabs)/settings.tsx');
+  assert.match(settings, /fontSize: 16, fontWeight: '700', letterSpacing: \.6/);
+  assert.ok(settings.indexOf('builtInThemes.map') < settings.indexOf('accessibilityLabel="Custom theme"'));
+  assert.ok(settings.indexOf('appearance.themes.map') < settings.indexOf('accessibilityLabel="Custom theme"'));
+  assert.doesNotMatch(settings, /<SettingsSection title="Custom theme">/);
+  assert.ok(settings.indexOf('accessibilityLabel="Custom theme"') < settings.indexOf('<SettingsSection title="Haptics">'));
+});
+
+test('pinned notes and folders show iOS pin emoji; three-dot note menu omits redundant movement', () => {
+  const library = file('mobile/src/components/OrganizedLibrary.tsx');
+  assert.match(library, /\{item\.pinned && <Text accessibilityLabel="Pinned"[^>]*>📌<\/Text>\}/);
+  assert.doesNotMatch(library, /label="Move up"|label="Move down"|label="Move…"/);
+  assert.doesNotMatch(library, /\{moving && sheet/);
+  assert.match(library, /onLongPress=\{event => startDrag/);
+  const webMenu = file('app.js').match(/function openTabMenu\(tab, anchor\) \{([\s\S]*?)\n\}/)?.[1];
+  assert.ok(webMenu);
+  assert.doesNotMatch(webMenu, /'Move up'|'Move down'|'Move to folder…'/);
+});
+
+test('native and browser password inputs have no maximum character restriction', () => {
+  const native = file('mobile/src/components/NotePassword.tsx');
+  const login = file('mobile/src/app/login.tsx');
+  const html = file('index.html');
+  assert.match(native, /accessibilityLabel="Note password"/);
+  assert.match(login, /accessibilityLabel="Password"/);
+  assert.doesNotMatch(native, /maxLength/);
+  assert.doesNotMatch(login, /maxLength/);
+  for (const id of ['auth-password', 'recovery-password', 'recovery-confirm', 'note-password', 'note-password-confirm']) {
+    const element = html.match(new RegExp('<input[^>]*id="' + id + '"[^>]*>'))?.[0];
+    assert.ok(element, `Missing password input ${id}`);
+    assert.doesNotMatch(element, /maxlength\s*=/i);
+  }
+});
