@@ -69,9 +69,9 @@ function NoteEditor({ note, focusOnOpen = false }: { note: Note; focusOnOpen?: b
   const expectedCaret = useRef<Cursor | null>(null);
   const [toolbarTypingStyle, setToolbarTypingStyle] = useState<{ id: string; flags: InlineStyle } | null>(null);
   const fontFamily = appearance.font === 'serif' ? Platform.OS === 'ios' ? 'Georgia' : 'serif' : appearance.font === 'mono' ? Platform.OS === 'ios' ? 'Menlo' : 'monospace' : appearance.font === 'rounded' ? Platform.OS === 'ios' ? 'Avenir Next' : 'sans-serif' : undefined;
-  function emit(next: Block[], origin: EditOrigin = { kind: 'command' }) {
+  function emit(next: Block[], origin: EditOrigin = { kind: 'command' }, at = 0) {
     if (next === blocksRef.current) return;
-    history.current = recordEditorEdit(history.current, { blocks: blocksRef.current, selection: { ...cursor.current } }, origin, Date.now());
+    history.current = recordEditorEdit(history.current, { blocks: blocksRef.current, selection: { ...cursor.current } }, origin, at);
     setHistoryCounts({ undo: history.current.past.length, redo: history.current.future.length });
     blocksRef.current = next; setBlocks(next);
     const updated = fromBlocks(noteRef.current, next);
@@ -122,7 +122,7 @@ function NoteEditor({ note, focusOnOpen = false }: { note: Note; focusOnOpen?: b
     const range = { id: block.id, start: selection.start - match[1].length, end: selection.start };
     if (`${range.id}:${range.start}` !== dismissedSlash.current) { slash.current = range; setInsertOpen(true); }
   }
-  function change(block: Block, text: string) {
+  function change(block: Block, text: string, at: number) {
     const current = blocksRef.current.find(item => item.id === block.id && !item.divider);
     if (!current || text === current.text) return;
     const selection = cursor.current.id === block.id ? cursor.current : undefined;
@@ -135,7 +135,7 @@ function NoteEditor({ note, focusOnOpen = false }: { note: Note; focusOnOpen?: b
     }
     const result = replaceParagraphText(blocksRef.current, block.id, text, randomUUID, selection, typingStyle.current?.id === block.id ? typingStyle.current.flags : undefined);
     if (!result) return;
-    emit(result.blocks, { kind: 'typing', id: block.id });
+    emit(result.blocks, { kind: 'typing', id: block.id }, at);
     if (result.focus) { expectedCaret.current = null; history.current.lastTyping = undefined; setPendingFocus(result.focus); }
   }
   function returnFromParagraph(block: Block) {
@@ -247,7 +247,7 @@ function NoteEditor({ note, focusOnOpen = false }: { note: Note; focusOnOpen?: b
             typingStyle.current = null; setToolbarTypingStyle(null);
           }
         }}
-        onChangeText={text => change(block, text)}
+        onChangeText={text => change(block, text, Date.now())}
         onSubmitEditing={() => returnFromParagraph(block)}
         onSelectionChange={event => {
           if (!inputs.current[block.id]?.isFocused()) return;
