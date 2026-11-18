@@ -159,3 +159,24 @@ test('folder pin controls and browser bundle support saved pinned folders', () =
   assert.match(browser, /'Unpin folder' : 'Pin folder'/);
   assert.match(browser, /folders = folders\.map\(folder => folder\.id === id \? \{ \.\.\.folder, pinned: !folder\.pinned \}/);
 });
+
+test('iOS Face ID stays opt-in, uses native biometric keychain, and keeps password fallback', () => {
+  const config = JSON.parse(file('mobile/app.json')).expo;
+  const securePlugin = config.plugins.find(plugin => Array.isArray(plugin) && plugin[0] === 'expo-secure-store');
+  assert.match(securePlugin?.[1]?.faceIDPermission || '', /Face ID/);
+  const pkg = JSON.parse(file('mobile/package.json'));
+  const lock = JSON.parse(file('mobile/package-lock.json'));
+  assert.equal(pkg.dependencies['expo-secure-store'], '~58.0.3');
+  assert.equal(lock.packages['node_modules/expo-secure-store'].version, '58.0.3');
+  const vault = file('mobile/src/biometric.ts');
+  assert.match(vault, /requireAuthentication: true/);
+  assert.match(vault, /WHEN_UNLOCKED_THIS_DEVICE_ONLY/);
+  assert.match(vault, /Constants\.appOwnership === 'expo'/);
+  const editor = file('mobile/src/app/editor/[id].tsx');
+  assert.match(editor, /Enable Face ID/);
+  assert.match(editor, /Disable Face ID/);
+  const password = file('mobile/src/components/NotePassword.tsx');
+  assert.match(password, /Unlock with Face ID/);
+  assert.match(password, /Unlock with password/);
+  assert.match(file('mobile/src/workspace.ts'), /unlockWithKey\(id: string/);
+});
