@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Dimensions, FlatList, KeyboardAvoidingView, Modal, Platform, PanResponder, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, Dimensions, FlatList, KeyboardAvoidingView, Modal, Platform, PanResponder, Text, TextInput, View } from 'react-native';
 import { useBestpad } from '../context';
 import { Pressable } from './HapticPressable';
 import { entries, treeEntries, canMove, type Entry, type TreeEntry } from '../organization';
