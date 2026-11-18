@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { AppState, useColorScheme } from 'react-native';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { AppState, Platform, useColorScheme } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { randomUUID, getRandomBytes } from 'expo-crypto';
 import type { Session } from '@supabase/supabase-js';
@@ -15,7 +16,30 @@ function useBestpadValue() {
   const [session, setSession] = useState<Session | null>(null), [authReady, setAuthReady] = useState(false);
   const [appearance, setAppearance] = useState<Appearance>(() => initialAppearance(systemMode));
   const [appearanceReady, setAppearanceReady] = useState(false), [appearanceError, setAppearanceError] = useState('');
+  const [hapticsEnabled, setHapticsEnabled] = useState(true);
+  const [hapticsReady, setHapticsReady] = useState(false);
+  const [hapticsError, setHapticsError] = useState('');
+  const tapFeedback = useCallback(() => {
+    if (hapticsEnabled && Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => undefined);
+  }, [hapticsEnabled]);
+  const dragFeedback = useCallback(() => {
+    if (hapticsEnabled && Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+  }, [hapticsEnabled]);
   const appearanceWrites = useRef(Promise.resolve());
+  useEffect(() => {
+    let alive = true;
+    AsyncStorage.getItem('bestpad:mobile:haptics').then(value => {
+      if (alive && value !== null) setHapticsEnabled(value !== '0');
+    }).catch(() => { if (alive) setHapticsError('Could not load haptic preference.'); })
+      .finally(() => { if (alive) setHapticsReady(true); });
+    return () => { alive = false; };
+  }, []);
+  useEffect(() => {
+    if (!hapticsReady) return;
+    void AsyncStorage.setItem('bestpad:mobile:haptics', hapticsEnabled ? '1' : '0')
+      .then(() => setHapticsError(''))
+      .catch(() => setHapticsError('Haptic preference could not be saved.'));
+  }, [hapticsEnabled, hapticsReady]);
   useEffect(() => {
     let alive = true;
     AsyncStorage.getItem('bestpad:mobile:appearance').then(raw => { if (alive && raw) setAppearance(restoreAppearance(JSON.parse(raw), systemMode)); }).catch(() => { if (alive) setAppearanceError('Could not restore appearance.'); }).finally(() => { if (alive) setAppearanceReady(true); });
@@ -57,7 +81,9 @@ function useBestpadValue() {
     const timer = setInterval(refresh, 10000);
     return () => { clearInterval(timer); void supabase.removeChannel(channel); };
   }, [authReady, userId, store]);
-  return { store, snapshot, session, authReady, appearance, appearanceReady, appearanceError, setAppearance, colors: palette(appearance) };
+  return { store, snapshot, session, authReady, appearance, appearanceReady, appearanceError, setAppearance,
+    hapticsEnabled, setHapticsEnabled, hapticsReady, hapticsError, tapFeedback, dragFeedback,
+    colors: palette(appearance) };
 }
 type Value = ReturnType<typeof useBestpadValue>;
 const Context = createContext<Value | null>(null);
