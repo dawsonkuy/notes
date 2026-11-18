@@ -128,8 +128,13 @@ test('iOS Notes home actions are in one row and folders keep left alignment', ()
 test('iOS inline typing style and web formatting toolbar remain selectable while typing', () => {
   const mobile = file('mobile/src/app/editor/[id].tsx');
   const web = file('app.js'), html = file('index.html');
-  assert.match(mobile, /currentTypingFormat\(block, toolbarCursor, toolbarTypingStyle\)\.bold/);
-  assert.match(mobile, /currentTypingFormat\(block, toolbarCursor, toolbarTypingStyle\)\.italic/);
+  // Individual text runs receive Bold/Italic/Underline; never the whole input.
+  assert.match(mobile, /Platform\.OS === 'ios' \? \(\s*<Text>/);
+  assert.match(mobile, /run\.bold/);
+  assert.match(mobile, /run\.italic/);
+  assert.match(mobile, /run\.underline/);
+  assert.doesNotMatch(mobile, /currentTypingFormat/);
+  assert.match(mobile, /inferTextEditRange/);
   assert.match(mobile, /setHeading\(1\)/);
   assert.match(mobile, /setHeading\(2\)/);
   assert.match(mobile, /setHeading\(3\)/);

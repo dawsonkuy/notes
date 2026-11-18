@@ -4,20 +4,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router, useLocalSearchParams } from 'expo-router';
 import { randomUUID } from 'expo-crypto';
 import { useBestpad } from '../../context';
-import { applyInlineStyle, inlineStyles, sliceInlineRuns, breakParagraph, joinBackward, replaceParagraphText, fromBlocks, isTrashed, noteName, toBlocks, type Block, type InlineStyle, type Note } from '../../model';
+import { applyInlineStyle, inlineStyles, inferTextEditRange, sliceInlineRuns, breakParagraph, joinBackward, replaceParagraphText, fromBlocks, isTrashed, noteName, toBlocks, type Block, type InlineRun, type InlineStyle, type Note } from '../../model';
 import { Button, Icon, IconButton, SaveStatus, ui } from '../../components/ui';
 import { NotePassword } from '../../components/NotePassword';
 type Cursor = { id: string; start: number; end: number };
 type InsertKind = 'heading-1' | 'heading-2' | 'heading-3' | 'bullet-list' | 'numbered-list' | 'checklist' | 'time' | 'date';
-// Native TextInput does not support mixed nested text formatting while typing.
-// Mirror the caret's current style on the active TextInput, and retain exact
-// per-character formatting in the saved runs / unfocused paragraph preview.
-function currentTypingFormat(block: Block, selection: Cursor, override: { id: string; flags: InlineStyle } | null): InlineStyle {
-  if (override?.id === block.id) return override.flags;
-  const styles = inlineStyles(block);
-  if (selection.id !== block.id) return {};
-  return styles[Math.max(0, selection.start - 1)] || styles[selection.start] || {};
-}
 function orderedNumber(blocks: Block[], index: number) {
   let number = 1;
   for (let i = index - 1; i >= 0 && blocks[i].list === 'ordered'; i--) number++;
@@ -35,7 +26,6 @@ function ToolbarAction({ label, active, onPress }: { label: ToolbarLabel; active
 function NoteEditor({ note }: { note: Note }) {
   const { colors, appearance, snapshot, store } = useBestpad(), insets = useSafeAreaInsets();
   const [protectOpen, setProtectOpen] = useState(false);
-  const [focusedBlock, setFocusedBlock] = useState<string | null>(null);
   const [blocks, setBlocks] = useState(() => toBlocks(note, randomUUID)), [insertOpen, setInsertOpen] = useState(false);
   const blocksRef = useRef(blocks); const noteRef = useRef(note);
   const displayed = useRef(JSON.stringify([note.text, note.content]));
@@ -61,9 +51,10 @@ function NoteEditor({ note }: { note: Note }) {
   const slash = useRef<Cursor | null>(null), dismissedSlash = useRef<string | null>(null);
   const [pendingFocus, setPendingFocus] = useState<Cursor | null>(null);
   const typingStyle = useRef<{ id: string; flags: InlineStyle } | null>(null);
+  const expectedCaret = useRef<Cursor | null>(null);
   const [toolbarTypingStyle, setToolbarTypingStyle] = useState<{ id: string; flags: InlineStyle } | null>(null);
   const fontFamily = appearance.font === 'serif' ? Platform.OS === 'ios' ? 'Georgia' : 'serif' : appearance.font === 'mono' ? Platform.OS === 'ios' ? 'Menlo' : 'monospace' : appearance.font === 'rounded' ? Platform.OS === 'ios' ? 'Avenir Next' : 'sans-serif' : undefined;
-  function emit(next: Block[]) { blocksRef.current = next; setBlocks(next); const updated = fromBlocks(noteRef.current, next); displayed.current = JSON.stringify([updated.text, updated.content]); store.updateNote(updated); }
+  function emit(next: Block[]) { if (next === blocksRef.current) return; blocksRef.current = next; setBlocks(next); const updated = fromBlocks(noteRef.current, next); displayed.current = JSON.stringify([updated.text, updated.content]); store.updateNote(updated); }
   useEffect(() => {
     if (!pendingFocus) return;
     let frame: number;
@@ -92,10 +83,18 @@ function NoteEditor({ note }: { note: Note }) {
     if (`${range.id}:${range.start}` !== dismissedSlash.current) { slash.current = range; setInsertOpen(true); }
   }
   function change(block: Block, text: string) {
-    const result = replaceParagraphText(blocksRef.current, block.id, text, randomUUID, cursor.current.id === block.id ? cursor.current : undefined, typingStyle.current?.id === block.id ? typingStyle.current.flags : undefined);
+    const current = blocksRef.current.find(item => item.id === block.id && !item.divider);
+    if (!current || text === current.text) return;
+    const selection = cursor.current.id === block.id ? cursor.current : undefined;
+    if (typingStyle.current?.id === block.id && selection) {
+      const edit = inferTextEditRange(current.text, text.replace(/\r\n?/g, '\n'), selection);
+      const position = edit.start + edit.insertedLength;
+      expectedCaret.current = { id: block.id, start: position, end: position };
+    }
+    const result = replaceParagraphText(blocksRef.current, block.id, text, randomUUID, selection, typingStyle.current?.id === block.id ? typingStyle.current.flags : undefined);
     if (!result) return;
     emit(result.blocks);
-    if (result.focus) setPendingFocus(result.focus);
+    if (result.focus) { expectedCaret.current = null; setPendingFocus(result.focus); }
   }
   function returnFromParagraph(block: Block) {
     const selection = cursor.current.id === block.id ? cursor.current : { id: block.id, start: block.text.length, end: block.text.length };
@@ -108,6 +107,7 @@ function NoteEditor({ note }: { note: Note }) {
     if (cursor.current.id !== block.id) return;
     const result = joinBackward(blocksRef.current, block.id, cursor.current);
     if (!result) return;
+    typingStyle.current = null; setToolbarTypingStyle(null); expectedCaret.current = null;
     emit(result.blocks); setPendingFocus(result.focus);
   }
   function dismissInsert() { if (slash.current) dismissedSlash.current = `${slash.current.id}:${slash.current.start}`; slash.current = null; setInsertOpen(false); }
@@ -117,7 +117,6 @@ function NoteEditor({ note }: { note: Note }) {
     if (!block) return;
     const heading = block.heading === level ? undefined : level;
     emit(blocksRef.current.map(item => item.id === block.id ? { ...item, heading, list: undefined } : item));
-    setFocusedBlock(block.id);
     setToolbarCursor(selection);
     setPendingFocus(selection);
   }
@@ -187,13 +186,64 @@ function NoteEditor({ note }: { note: Note }) {
     <View style={[ui.row, { justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 6 }]}><Pressable accessibilityRole="button" accessibilityLabel="Notes" onPress={close} style={[ui.row, { minHeight: 44 }]}><Icon name="chevron-back" /><Text style={{ color: colors.font, fontSize: 15 }}>Notes</Text></Pressable><View style={ui.row}><IconButton name="lock-closed-outline" label="Note password protection" onPress={securityOptions} /><IconButton name="share-outline" label="Share note" onPress={() => { void Share.share({ title: noteName(note), message: `${noteName(note)}\n\n${note.text}` }).catch(() => undefined); }} /></View></View>
     <ScrollView ref={scroll} onLayout={event => { viewport.current.height = event.nativeEvent.layout.height; keepCaretVisible(); }} onScroll={event => { viewport.current.offset = event.nativeEvent.contentOffset.y; }} scrollEventThrottle={16} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} contentContainerStyle={{ padding: 24, paddingTop: 20, paddingBottom: 24, flexGrow: 1 }}>
       {blocks.map((block, index) => block.divider ? <View key={block.id} style={[ui.row, { marginVertical: 10 }]}><View style={{ height: 1, flex: 1, backgroundColor: colors.border }} /><IconButton name="close" label="Remove divider" onPress={() => { const next = blocks.filter(item => item.id !== block.id); emit(next.length ? next : [{ id: randomUUID(), text: '' }]); }} /></View> : <View key={block.id} onLayout={event => { layouts.current[block.id] = event.nativeEvent.layout; keepCaretVisible(); }} style={{ flexDirection: 'row', alignItems: 'flex-start' }}>{(block.list === 'checked' || block.list === 'unchecked') ? <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: block.list === 'checked' }} accessibilityLabel={block.text || 'Task'} onPress={() => emit(blocks.map(item => item.id === block.id ? { ...item, list: item.list === 'checked' ? 'unchecked' : 'checked' } : item))} style={{ minWidth: 38, minHeight: 40, paddingTop: 4 }}><Icon name={block.list === 'checked' ? 'checkbox-outline' : 'square-outline'} /></Pressable> : (block.list === 'bullet' || block.list === 'ordered') ? <View accessible={false} style={{ width: 38, paddingTop: 2, alignItems: 'flex-start' }}><Text style={{ color: colors.font, fontSize: appearance.size, lineHeight: appearance.size * 1.55 }}>{block.list === 'bullet' ? '•' : `${orderedNumber(blocks, index)}.`}</Text></View> : null}
-      {Platform.OS === 'ios' && block.runs?.length && focusedBlock !== block.id
-        ? <Pressable accessibilityRole="button" accessibilityLabel={`Edit formatted paragraph ${index + 1}`} accessibilityHint="Double tap to edit text" onPress={() => { setFocusedBlock(block.id); setPendingFocus({ id: block.id, start: block.text.length, end: block.text.length }); }} style={{ flex: 1, minHeight: 44, justifyContent: 'center' }}>
-          <Text style={{ color: colors.font, fontFamily, fontSize: appearance.size * (block.heading === 1 ? 1.6 : block.heading === 2 ? 1.35 : block.heading === 3 ? 1.15 : 1), lineHeight: appearance.size * (block.heading === 1 ? 2.1 : block.heading === 2 ? 1.85 : block.heading === 3 ? 1.65 : 1.55), fontWeight: block.heading ? '700' : '400', textDecorationLine: block.list === 'checked' ? 'line-through' : 'none' }}>
-            {block.runs.map((run, i) => <Text key={i} style={{ fontWeight: run.bold || block.heading ? '700' : '400', fontStyle: run.italic ? 'italic' : 'normal', textDecorationLine: run.underline ? 'underline' : 'none' }}>{run.text}</Text>)}
+      <TextInput
+        ref={input => { inputs.current[block.id] = input; }}
+        accessibilityLabel={block.heading ? `Heading ${block.heading}` : block.list === 'bullet' ? `Bulleted list item ${index + 1}` : block.list === 'ordered' ? `Numbered list item ${orderedNumber(blocks, index)}` : block.list ? `Checklist item ${index + 1}` : `Note paragraph ${index + 1}`}
+        multiline autoCorrect spellCheck autoCapitalize="sentences"
+        keyboardAppearance={colors.dark ? 'dark' : 'light'}
+        selectionColor={colors.font} scrollEnabled={false}
+        submitBehavior="submit" returnKeyType="default"
+        placeholder={block.heading ? 'Heading' : blocks.length === 1 ? 'Start writing…' : ''}
+        placeholderTextColor={colors.muted}
+        value={Platform.OS === 'ios' ? undefined : block.text}
+        onFocus={() => {
+          if (cursor.current.id !== block.id) {
+            const next = { id: block.id, start: block.text.length, end: block.text.length };
+            cursor.current = next; setToolbarCursor(next);
+            typingStyle.current = null; setToolbarTypingStyle(null);
+          }
+        }}
+        onChangeText={text => change(block, text)}
+        onSubmitEditing={() => returnFromParagraph(block)}
+        onSelectionChange={event => {
+          if (!inputs.current[block.id]?.isFocused()) return;
+          const next = { id: block.id, ...event.nativeEvent.selection };
+          const previous = cursor.current;
+          const changed = next.id !== previous.id || next.start !== previous.start || next.end !== previous.end;
+          const expected = expectedCaret.current;
+          const matchesTyping = expected?.id === next.id && expected.start === next.start && expected.end === next.end;
+          if (matchesTyping) expectedCaret.current = null;
+          else if (changed) {
+            expectedCaret.current = null;
+            if (typingStyle.current) { typingStyle.current = null; setToolbarTypingStyle(null); }
+          }
+          cursor.current = next;
+          if (changed) setToolbarCursor(next);
+          checkSlash(next);
+          keepCaretVisible();
+        }}
+        onKeyPress={event => { if (event.nativeEvent.key === 'Backspace') backspace(block); }}
+        style={{
+          flex: 1, padding: 0, margin: 0, color: colors.font,
+          fontFamily, fontSize: appearance.size * (block.heading === 1 ? 1.6 : block.heading === 2 ? 1.35 : block.heading === 3 ? 1.15 : 1),
+          lineHeight: appearance.size * (block.heading === 1 ? 2.1 : block.heading === 2 ? 1.85 : block.heading === 3 ? 1.65 : 1.55),
+          minHeight: appearance.size * 1.55, fontWeight: block.heading ? '700' : '400',
+          textDecorationLine: block.list === 'checked' ? 'line-through' : 'none', textAlignVertical: 'top',
+        }}>
+        {Platform.OS === 'ios' ? (
+          <Text>
+            {(block.runs?.length ? block.runs : ([{ text: block.text }] as InlineRun[])).map((run, i) => (
+              <Text key={i} style={{
+                fontWeight: run.bold || block.heading ? '700' : '400',
+                fontStyle: run.italic ? 'italic' : 'normal',
+                textDecorationLine: run.underline
+                  ? block.list === 'checked' ? 'underline line-through' : 'underline'
+                  : block.list === 'checked' ? 'line-through' : 'none',
+              }}>{run.text}</Text>
+            ))}
           </Text>
-        </Pressable>
-        : <TextInput ref={input => { inputs.current[block.id] = input; }} accessibilityLabel={block.heading ? `Heading ${block.heading}` : block.list === 'bullet' ? `Bulleted list item ${index + 1}` : block.list === 'ordered' ? `Numbered list item ${orderedNumber(blocks, index)}` : block.list ? `Checklist item ${index + 1}` : `Note paragraph ${index + 1}`} multiline autoCorrect spellCheck autoCapitalize="sentences" keyboardAppearance={colors.dark ? 'dark' : 'light'} selectionColor={colors.font} scrollEnabled={false} submitBehavior="submit" returnKeyType="default" placeholder={block.heading ? 'Heading' : blocks.length === 1 ? 'Start writing…' : ''} placeholderTextColor={colors.muted} value={block.text} onFocus={() => { setFocusedBlock(block.id); if (cursor.current.id !== block.id) { const next = { id: block.id, start: 0, end: 0 }; cursor.current = next; setToolbarCursor(next); } }} onBlur={() => setFocusedBlock(current => current === block.id ? null : current)} onChangeText={text => change(block, text)} onSubmitEditing={() => returnFromParagraph(block)} onSelectionChange={event => { if (!inputs.current[block.id]?.isFocused()) return; const next = { id: block.id, ...event.nativeEvent.selection }; const changed = next.id !== cursor.current.id || next.start !== cursor.current.start || next.end !== cursor.current.end; cursor.current = next; if (typingStyle.current && (next.id !== typingStyle.current.id || next.start !== next.end)) { typingStyle.current = null; setToolbarTypingStyle(null); } if (changed) setToolbarCursor(next); checkSlash(next); keepCaretVisible(); }} onKeyPress={event => { if (event.nativeEvent.key === 'Backspace') backspace(block); }} style={{ flex: 1, padding: 0, margin: 0, color: colors.font, fontFamily, fontSize: appearance.size * (block.heading === 1 ? 1.6 : block.heading === 2 ? 1.35 : block.heading === 3 ? 1.15 : 1), lineHeight: appearance.size * (block.heading === 1 ? 2.1 : block.heading === 2 ? 1.85 : block.heading === 3 ? 1.65 : 1.55), minHeight: appearance.size * 1.55, fontWeight: block.heading || (focusedBlock === block.id && currentTypingFormat(block, toolbarCursor, toolbarTypingStyle).bold) ? '700' : '400', fontStyle: focusedBlock === block.id && currentTypingFormat(block, toolbarCursor, toolbarTypingStyle).italic ? 'italic' : 'normal', textDecorationLine: block.list === 'checked' ? (currentTypingFormat(block, toolbarCursor, toolbarTypingStyle).underline ? 'underline line-through' : 'line-through') : focusedBlock === block.id && currentTypingFormat(block, toolbarCursor, toolbarTypingStyle).underline ? 'underline' : 'none', textAlignVertical: 'top' }} />}</View>)}
+        ) : null}
+      </TextInput></View>)}
       <Pressable accessibilityRole="button" accessibilityLabel="Continue writing" onPress={() => { const last = blocksRef.current.findLast(item => !item.divider); if (last) setPendingFocus({ id: last.id, start: last.text.length, end: last.text.length }); }} style={{ minHeight: 100, flexGrow: 1 }} />
     </ScrollView>
     <View style={{ paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8, borderTopWidth: 1, borderTopColor: colors.border }}>

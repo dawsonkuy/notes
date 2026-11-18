@@ -135,24 +135,42 @@ export function joinBackward(blocks: Block[], id: string, selection: { start: nu
   const mergedRuns = styledRuns(mergedText, [...inlineStyles(previous), ...inlineStyles(block)]);
   return { blocks: blocks.filter(item => item.id !== id).map(item => item.id === previous.id ? { ...item, text: mergedText, runs: mergedRuns } : item), focus: { id: previous.id, start: previous.text.length, end: previous.text.length } };
 }
+// Use native selection to anchor edits. Prefix/suffix diffs alone cannot
+// locate inserts/deletions inside repeated characters and corrupt inline runs.
+export function inferTextEditRange(before: string, after: string, selection?: { start: number; end: number }) {
+  if (selection && selection.start >= 0 && selection.start <= selection.end && selection.end <= before.length) {
+    const { start, end } = selection;
+    const insertedLength = after.length - before.length + end - start;
+    if (insertedLength >= 0 && after.startsWith(before.slice(0, start)) && after.endsWith(before.slice(end))) {
+      return { start, end, insertedLength };
+    }
+    // Collapsed Backspace deletes before the caret, not at the caret.
+    if (start === end && after.length < before.length) {
+      const deletionStart = start - (before.length - after.length);
+      if (deletionStart >= 0 && after === before.slice(0, deletionStart) + before.slice(start)) {
+        return { start: deletionStart, end: start, insertedLength: 0 };
+      }
+    }
+  }
+  // Native predictive replacements can affect words outside the selection.
+  let start = 0, suffix = 0;
+  while (start < before.length && start < after.length && before[start] === after[start]) start++;
+  while (suffix < before.length - start && suffix < after.length - start && before.at(-1 - suffix) === after.at(-1 - suffix)) suffix++;
+  return { start, end: before.length - suffix, insertedLength: after.length - start - suffix };
+}
 // Normalize pasted line endings and keep the caret just after the inserted text.
 export function replaceParagraphText(blocks: Block[], id: string, value: string, newId: () => string, selection?: { start: number; end: number }, typingStyle?: InlineStyle): { blocks: Block[]; focus?: ParagraphFocus } | null {
   const index = blocks.findIndex(block => block.id === id && !block.divider);
   if (index < 0) return null;
   const block = blocks[index], text = value.replace(/\r\n?/g, '\n');
-  let prefix = 0, suffix = 0;
-  while (prefix < block.text.length && prefix < text.length && block.text[prefix] === text[prefix]) prefix++;
-  while (suffix < block.text.length - prefix && suffix < text.length - prefix && block.text.at(-1 - suffix) === text.at(-1 - suffix)) suffix++;
+  if (text === block.text) return { blocks };
+  const { start: editStart, end: editEnd, insertedLength } = inferTextEditRange(block.text, text, selection);
   const oldStyles = inlineStyles(block);
-  const insertedLength = text.length - prefix - suffix;
-  const inherited: InlineStyle = typingStyle || oldStyles[Math.max(0, prefix - 1)] || oldStyles[prefix] || {};
-  const styles = [...oldStyles.slice(0, prefix), ...Array.from({ length: insertedLength }, () => ({ ...inherited })), ...oldStyles.slice(block.text.length - suffix)];
+  const inherited: InlineStyle = typingStyle || oldStyles[Math.max(0, editStart - 1)] || oldStyles[editStart] || {};
+  const styles = [...oldStyles.slice(0, editStart), ...Array.from({ length: insertedLength }, () => ({ ...inherited })), ...oldStyles.slice(editEnd)];
   if (!text.includes('\n')) return { blocks: blocks.map(item => item.id === id ? { ...item, text, runs: styledRuns(text, styles) } : item) };
-  let insertionEnd = text.length - suffix;
-  if (selection && selection.start >= 0 && selection.end >= selection.start && selection.end <= block.text.length) {
-    const before = block.text.slice(0, selection.start), after = block.text.slice(selection.end);
-    if (text.startsWith(before) && text.endsWith(after) && text.length >= before.length + after.length) insertionEnd = text.length - after.length;
-  }
+  // The caret lands after the inserted text, not after unchanged suffix text.
+  const insertionEnd = editStart + insertedLength;
   const inserted = text.slice(0, insertionEnd).split('\n');
   let start = 0;
   const replacement: Block[] = text.split('\n').map((line, i) => {
