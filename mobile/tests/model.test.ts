@@ -279,7 +279,7 @@ test('Backspace inside repeated characters deletes the character before the care
 test('selected inline formatting and subsequent plain typing never restyle an entire paragraph', () => {
   const start = [{ id: 'line', text: 'one two three' }];
   const marked = applyInlineStyle(start, 'line', { start: 4, end: 7 }, 'underline')!.blocks;
-  const typed = replaceParagraphText(marked, 'line', 'one two! three', id, { start: 7, end: 7 }, { underline: false as never })!;
+  const typed = replaceParagraphText(marked, 'line', 'one two! three', id, { start: 7, end: 7 }, { underline: undefined })!;
   const saved = fromBlocks(newNote('format'), typed.blocks);
   const styles = inlineStyles(toBlocks(saved, id)[0]);
   assert.equal(styles[0].underline, undefined);
