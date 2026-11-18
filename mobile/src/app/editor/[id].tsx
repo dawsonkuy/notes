@@ -195,8 +195,6 @@ function NoteEditor({ note }: { note: Note }) {
         submitBehavior="submit" returnKeyType="default"
         placeholder={block.heading ? 'Heading' : blocks.length === 1 ? 'Start writing…' : ''}
         placeholderTextColor={colors.muted}
-        // iOS supports attributed Text children. Supplying value as well would
-        // overwrite the rich text and can produce cursor jumps/duplicate input.
         value={Platform.OS === 'ios' ? undefined : block.text}
         onFocus={() => {
           if (cursor.current.id !== block.id) {
