@@ -66,6 +66,58 @@ test('deleted-account cleanup removes its cache and keeps guest notes', async ()
   } finally { f.store.dispose(); }
 });
 
+test('trashing the last note in a folder hides only the generated placeholder', async () => {
+  const { starterNoteId, isTrashed } = await import('../src/model');
+  const { treeEntries } = await import('../src/organization');
+  const f = fixture();
+  try {
+    const original = { ...newNote('inside'), text: 'Keep this', folderId: 'folder-1', order: 1 };
+    const workspace: Workspace = {
+      tabs: [original], activeId: original.id,
+      folders: [{ id: 'folder-1', name: 'My folder', order: 0 }],
+    };
+    f.rows.set('alice', { workspace, revision: 1 });
+    await f.store.connect('alice');
+    f.store.remove(original.id);
+    const after = f.store.getSnapshot().workspace;
+    const placeholderId = starterNoteId(after);
+    assert.ok(placeholderId, 'the auto-created blank note should be recognized even with folders');
+    assert.notEqual(placeholderId, original.id);
+    assert.ok(after.tabs.find(note => note.id === original.id && isTrashed(note)));
+    assert.deepEqual(treeEntries(after, new Set(['folder-1']))
+      .filter(entry => entry.id !== placeholderId).map(entry => entry.name), ['My folder']);
+    assert.deepEqual(after.folders, workspace.folders, 'the folder must remain available');
+
+    // Even a stale action targeting the generated blank note must not create a loop.
+    f.store.remove(placeholderId);
+    assert.equal(f.store.getSnapshot().workspace.tabs.length, 2);
+    assert.equal(starterNoteId(f.store.getSnapshot().workspace), placeholderId);
+
+    // Undo removes the generated placeholder without losing the restored folder note.
+    f.store.restore(original.id);
+    const restoredWorkspace = f.store.getSnapshot().workspace;
+    const restored = restoredWorkspace.tabs.find(note => note.id === original.id);
+    assert.equal(restored?.text, 'Keep this');
+    assert.equal(restored?.folderId, 'folder-1');
+    assert.equal(restoredWorkspace.tabs.length, 1);
+    assert.equal(restoredWorkspace.activeId, original.id);
+
+    // A deliberate new note reuses the replacement instead of revealing it beside the new note.
+    f.store.remove(original.id);
+    const nextPlaceholderId = starterNoteId(f.store.getSnapshot().workspace);
+    assert.ok(nextPlaceholderId);
+    const newId = f.store.add('folder-1');
+    const withNewNote = f.store.getSnapshot().workspace;
+    assert.equal(newId, nextPlaceholderId);
+    assert.equal(withNewNote.tabs.length, 2);
+    assert.equal(starterNoteId(withNewNote), null);
+    assert.deepEqual(treeEntries(withNewNote, new Set(['folder-1'])).map(entry => entry.name),
+      ['My folder', 'Untitled']);
+    f.store.restore(original.id);
+    assert.equal(f.store.getSnapshot().workspace.tabs.length, 2, 'restoring does not create another blank note');
+  } finally { f.store.dispose(); }
+});
+
 test('Trash retains note content, restores by ID, and never permanently deletes a live note', async () => {
   const f = fixture(); try {
     const original = { ...newNote('existing'), text: 'Keep this', customName: 'Named note', content: [{ insert: 'Keep this\n' }] };
@@ -119,7 +171,9 @@ test('renaming an unknown or trashed note never creates a new record', async () 
     const before = f.store.getSnapshot().workspace.tabs.length;
     f.store.rename('not-there', 'Wrong');
     assert.equal(f.store.getSnapshot().workspace.tabs.length, before);
-    const id = f.store.getSnapshot().workspace.tabs[0].id;
+    const original = f.store.getSnapshot().workspace.tabs[0];
+    const id = original.id;
+    f.store.updateNote({ ...original, text: 'Ready to delete' });
     f.store.remove(id);
     f.store.rename(id, 'Deleted');
     assert.notEqual(f.store.getSnapshot().workspace.tabs.find(n => n.id === id)?.customName, 'Deleted');

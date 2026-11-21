@@ -18,7 +18,7 @@ export function OrganizedLibrary(props: Props) {
   const starterId = props.trash ? null : starterNoteId(workspace);
   const data = useMemo<TreeEntry[]>(() => props.trash
     ? workspace.tabs.filter(isTrashed).map(note => ({ id: note.id, kind: 'note', name: noteName(note), pinned: false, order: 0, depth: 0, parentId: null }))
-    : starterId ? [] : treeEntries(workspace, expanded),
+    : treeEntries(workspace, expanded).filter(item => item.id !== starterId),
   [props.trash, workspace, expanded, starterId]);
   const [menu, setMenu] = useState<Entry | null>(null), [editing, setEditing] = useState<{ id?: string; name: string } | null>(null);
   const [dragId, setDragId] = useState<string | null>(null), [hover, setHover] = useState<string | null>(null);

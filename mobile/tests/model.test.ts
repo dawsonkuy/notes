@@ -250,7 +250,8 @@ test('only an untouched starter note is treated as an empty library', () => {
     { ...starter, content: [{ insert: '\n', attributes: { header: 1 as const } }] },
   ]) assert.equal(starterNoteId({ ...workspace, tabs: [note] }), null);
   assert.equal(starterNoteId({ ...workspace, tabs: [starter, newNote('two')] }), null);
-  assert.equal(starterNoteId({ ...workspace, folders: [{ id: 'folder', name: 'Folder' }] }), null);
+  assert.equal(starterNoteId({ ...workspace, folders: [{ id: 'folder', name: 'Folder' }] }), starter.id);
+  assert.equal(starterNoteId({ ...workspace, folders: [{ id: 'folder', name: 'Folder' }], tabs: [starter, { ...newNote('filed'), text: 'A real note', folderId: 'folder' }] }), null);
   assert.equal(starterNoteId({ ...workspace, tabs: [starter, { ...newNote('old'), deletedAt: new Date().toISOString() }] }), starter.id);
 });
 
