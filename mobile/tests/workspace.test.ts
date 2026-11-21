@@ -241,6 +241,66 @@ test('cloud-copy recovery cannot overwrite edits made while its network request 
   } finally { f.store.dispose(); }
 });
 
+test('randomized note, folder and Trash operations preserve all reachable notes', async () => {
+  const { isTrashed, starterNoteId } = await import('../src/model');
+  const { treeEntries } = await import('../src/organization');
+  for (let seed = 1; seed <= 3; seed++) {
+    let randomState = seed, id = 0;
+    const pick = (size: number) => {
+      randomState = (Math.imul(randomState, 1664525) + 1013904223) >>> 0;
+      return randomState % size;
+    };
+    const store = new WorkspaceStore(
+      { getItem: async () => null, setItem: async () => {} },
+      { read: async () => null, write: async () => 1 },
+      () => `integrity-${seed}-${++id}`,
+    );
+    try {
+      await store.connect(null);
+      for (let step = 0; step < 180; step++) {
+        const before = store.getSnapshot().workspace;
+        const live = before.tabs.filter(note => !isTrashed(note));
+        const trashed = before.tabs.filter(isTrashed);
+        const folders = before.folders || [];
+        const previousTexts = new Map(before.tabs.map(note => [note.id, note.text]));
+        const choice = pick(10);
+        let editedId: string | null = null;
+        if (choice === 0) store.add(folders.length && pick(2) ? folders[pick(folders.length)].id : null);
+        else if (choice === 1 && live.length) {
+          const note = live[pick(live.length)];
+          editedId = note.id;
+          store.updateNote({ ...note, text: `Content ${seed}:${step}` });
+        } else if (choice === 2 && live.length) store.remove(live[pick(live.length)].id);
+        else if (choice === 3 && trashed.length) store.restore(trashed[pick(trashed.length)].id);
+        else if (choice === 4 && trashed.length) store.deletePermanently(trashed[pick(trashed.length)].id);
+        else if (choice === 5 && live.length) store.pin(live[pick(live.length)].id);
+        else if (choice === 6 && live.length) store.move(live[pick(live.length)].id, folders.length && pick(2) ? folders[pick(folders.length)].id : null);
+        else if (choice === 7) store.addFolder(`Folder ${seed}:${step}`, folders.length && pick(2) ? folders[pick(folders.length)].id : null);
+        else if (choice === 8 && folders.length) store.removeFolder(folders[pick(folders.length)].id);
+        else if (choice === 9 && live.length) store.rename(live[pick(live.length)].id, `Named ${step}`);
+
+        const after = store.getSnapshot().workspace;
+        const remainingLive = after.tabs.filter(note => !isTrashed(note));
+        assert.ok(remainingLive.length > 0, `seed ${seed} step ${step}: no live notes`);
+        assert.ok(remainingLive.some(note => note.id === after.activeId),
+          `seed ${seed} step ${step}: invalid active note`);
+        assert.equal(new Set(after.tabs.map(note => note.id)).size, after.tabs.length);
+        const starter = starterNoteId(after);
+        const actual = treeEntries(after, new Set((after.folders || []).map(folder => folder.id)))
+          .filter(entry => entry.kind === 'note' && entry.id !== starter).map(entry => entry.id).sort();
+        const expected = remainingLive.filter(note => note.id !== starter).map(note => note.id).sort();
+        assert.deepEqual(actual, expected, `seed ${seed} step ${step}: missing library notes`);
+        for (const note of after.tabs) {
+          if (previousTexts.has(note.id) && note.id !== editedId) {
+            assert.equal(note.text, previousTexts.get(note.id),
+              `seed ${seed} step ${step}: unexpected content mutation`);
+          }
+        }
+      }
+    } finally { store.dispose(); }
+  }
+});
+
 test('Trash retains note content, restores by ID, and never permanently deletes a live note', async () => {
   const f = fixture(); try {
     const original = { ...newNote('existing'), text: 'Keep this', customName: 'Named note', content: [{ insert: 'Keep this\n' }] };
