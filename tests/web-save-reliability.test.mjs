@@ -115,3 +115,39 @@ test('cloud flush skips a dirty flag when note contents already match confirmed 
   assert.equal(result.cacheWrites, 1);
   assert.equal(result.message, 'Saved to cloud');
 });
+
+
+const browserStarterSource = sourceBetween('function starterNoteId() {', '\nlet emptyLibraryVisible =');
+const browserDeleteSource = sourceBetween('function deleteTab(tab) {', '\nfunction renderTrash() {');
+
+test('browser folders do not turn an internal Untitled placeholder into a deletable note', () => {
+  const sandbox = { JSON };
+  vm.runInNewContext(`
+    let folders = [{ id: 'folder', name: 'Saved folder' }];
+    let tabs = [{ id: 'starter', text: '', filename: 'Untitled', customName: null }];
+    let activeId = 'starter', calls = 0;
+    const isTrashed = note => Boolean(note.deletedAt);
+    const liveTabs = () => tabs.filter(note => !isTrashed(note));
+    const closeMenus = () => { calls++; };
+    const save = () => { calls++; };
+    const showTab = () => { calls++; };
+    const makeTab = () => ({ id: 'generated', text: '', filename: 'Untitled' });
+    const unlockedNotes = new Map();
+    ${browserStarterSource}
+    ${browserDeleteSource}
+    const detected = starterNoteId();
+    deleteTab(tabs[0]);
+    globalThis.result = { detected, calls, ids: tabs.map(note => note.id), trashed: tabs.filter(isTrashed).length };
+  `, sandbox);
+  assert.equal(sandbox.result.detected, 'starter');
+  assert.equal(sandbox.result.calls, 0, 'the placeholder cannot be moved to Trash');
+  assert.equal(sandbox.result.trashed, 0);
+  assert.deepEqual(Array.from(sandbox.result.ids), ['starter']);
+});
+
+test('browser library hides only its synthetic note and keeps folder rows', () => {
+  assert.match(app, /if \(starter && !folders\.length\)/);
+  assert.match(app, /treeEntries\(workspaceValue\(\), expandedFolders\)\.filter\(entry => entry\.id !== starter\)/);
+  assert.match(app, /if \(folders\.length\) \{[\s\S]*?folderId: currentFolder, order: Date\.now\(\)/);
+  assert.match(app, /const placeholder = starterNoteId\(\)/);
+});
