@@ -60,7 +60,9 @@ export function ensureLiveNote(workspace: Workspace, makeId: () => string): Work
   const live = workspace.tabs.find(note => !isTrashed(note));
   if (live) return { ...workspace, activeId: live.id };
   let id = makeId();
-  while (workspace.tabs.some(note => note.id === id)) id = makeId();
+  for (let attempt = 1; workspace.tabs.some(note => note.id === id); attempt++) {
+    id = `${makeId()}-${attempt}`;
+  }
   return { ...workspace, tabs: [...workspace.tabs, newNote(id)], activeId: id };
 }
 export function validWorkspace(value: unknown): value is Workspace {
