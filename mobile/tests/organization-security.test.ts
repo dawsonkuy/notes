@@ -15,6 +15,32 @@ test('folders reorder with notes, reject cycles, and preserve contents when remo
   const removed = removeFolder(moved, 'child'); assert.equal(removed.tabs[0].folderId, 'parent'); assert.equal(removed.tabs[1].folderId, 'parent');
   assert.equal(removed.tabs[0].text, 'Note');
 });
+test('orphaned folder references and cycles cannot hide user notes', async () => {
+  const { treeEntries } = await import('../src/organization');
+  const workspace: Workspace = {
+    tabs: [
+      { ...newNote('orphan'), text: 'Never hide me', folderId: 'deleted-folder' },
+      { ...newNote('nested'), text: 'Still here', folderId: 'cycle-a' },
+      { ...newNote('trashed'), text: 'Trash must stay hidden', folderId: 'deleted-folder', deletedAt: new Date().toISOString() },
+    ], activeId: 'orphan',
+    folders: [
+      { id: 'loose-folder', name: 'Loose folder', parentId: 'not-a-folder' },
+      { id: 'cycle-a', name: 'Cycle A', parentId: 'cycle-b' },
+      { id: 'cycle-b', name: 'Cycle B', parentId: 'cycle-a' },
+    ],
+  };
+  const root = entries(workspace, null);
+  assert.ok(root.some(item => item.id === 'orphan'), 'orphaned notes are visible at root');
+  assert.ok(root.some(item => item.id === 'loose-folder'));
+  assert.ok(!root.some(item => item.id === 'trashed'));
+  const visible = treeEntries(workspace, new Set(['cycle-a', 'cycle-b', 'loose-folder']));
+  assert.equal(visible.filter(item => item.id === 'cycle-a').length, 1);
+  assert.equal(visible.filter(item => item.id === 'cycle-b').length, 1);
+  assert.ok(visible.some(item => item.id === 'nested'));
+  assert.ok(visible.length < 10, 'cycle traversal terminates');
+  assert.equal(moveEntry(workspace, 'trashed', null), workspace, 'a trashed note cannot be moved');
+});
+
 test('pinning floats notes while keeping manual ordering inside each group', () => {
   const workspace: Workspace = { tabs: [{ ...newNote('a'), order: 1 }, { ...newNote('b'), pinned: true, order: 5 }, { ...newNote('c'), pinned: true, order: 2 }], activeId: 'a' };
   assert.deepEqual(entries(workspace, null).map(item => item.id), ['c', 'b', 'a']);
@@ -106,6 +132,24 @@ test('background locking cancels an in-flight password unlock', async () => {
   const remote: Remote = { read: async () => ({ workspace: { tabs: [result.note], activeId: 'locked' }, revision: 1 }), write: async () => 2 };
   const store = new WorkspaceStore({ getItem: async () => null, setItem: async () => {} }, remote, () => 'unused', bytes);
   try { await store.connect('account'); const opening = store.unlock('locked', 'long enough password'); store.lockAll(); await assert.rejects(opening, /changed/); assert.ok(store.visibleNote('locked')?.sealed); } finally { store.dispose(); }
+});
+
+test('moving a protected note to Trash rejects a pending unlock and its Face ID key', async () => {
+  const protectedNote = await protectNote({ ...newNote('secret'), text: 'Private body' }, 'long enough password', bytes);
+  const remote: Remote = {
+    read: async () => ({ workspace: { tabs: [protectedNote.note], activeId: 'secret' }, revision: 1 }),
+    write: async () => 2,
+  };
+  const store = new WorkspaceStore({ getItem: async () => null, setItem: async () => {} }, remote, () => 'replacement', bytes);
+  try {
+    await store.connect('account');
+    const pending = store.unlock('secret', 'long enough password');
+    store.remove('secret');
+    await assert.rejects(pending, /Note changed/);
+    assert.ok(store.getSnapshot().workspace.tabs.find(n => n.id === 'secret')?.deletedAt);
+    assert.equal(store.getUnlockedKey('secret'), null);
+    assert.throws(() => store.unlockWithKey('secret', protectedNote.key), /no longer available/);
+  } finally { protectedNote.key.fill(0); store.dispose(); }
 });
 
 test('folder membership, pins and ordering survive cloud reload and further edits', async () => {

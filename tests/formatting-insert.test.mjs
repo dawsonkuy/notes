@@ -107,7 +107,7 @@ test('starter workspace shows a centered Create note action without creating dup
   assert.match(js, /function starterNoteId\(\)/);
   assert.match(js, /Nothing here yet\./);
   assert.match(js, /create\.textContent = 'Create note'/);
-  assert.match(js, /if \(starter\) \{\s*switchTab\(starter\)/);
+  assert.match(js, /if \(starter\) \{[\s\S]*?switchTab\(starter\)/);
   assert.match(js, /Boolean\(starterNoteId\(\)\) !== emptyLibraryVisible/);
   assert.match(styles, /\.library-empty-state/);
 });

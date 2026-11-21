@@ -77,7 +77,6 @@ const makeTab = (text = '', filename = 'Untitled') => ({ id: crypto.randomUUID()
 const noteName = tab => tab.customName || tab.text.split(/\r?\n/, 1)[0].trim().slice(0, 80) || 'Untitled';
 // Keep the blank default note internally, but treat it as an empty library until edited.
 function starterNoteId() {
-  if (folders.length) return null;
   const notes = liveTabs();
   if (notes.length !== 1) return null;
   const note = notes[0];
@@ -110,6 +109,7 @@ function renameTab(tab) {
   save();
 }
 function deleteTab(tab) {
+  if (!tab || isTrashed(tab) || tab.id === starterNoteId() || !tabs.some(note => note.id === tab.id && !isTrashed(note))) return;
   closeMenus(); save();
   tabs = tabs.map(note => note.id === tab.id ? { ...note, deletedAt: new Date().toISOString() } : note);
   unlockedNotes.get(tab.id)?.key.fill(0); unlockedNotes.delete(tab.id);
@@ -126,7 +126,13 @@ function renderTrash() {
     const row = document.createElement('div'); row.className = 'trash-row';
     const title = document.createElement('span'); title.textContent = noteName(note);
     const restore = document.createElement('button'); restore.type = 'button'; restore.textContent = 'Restore'; restore.setAttribute('aria-label', `Restore ${noteName(note)}`);
-    restore.onclick = () => { save(); delete note.deletedAt; renderTabs(); save(); };
+    restore.onclick = () => {
+      save();
+      const placeholder = starterNoteId();
+      if (placeholder) { tabs = tabs.filter(tab => tab.id !== placeholder); activeId = note.id; }
+      delete note.deletedAt;
+      showTab(); save();
+    };
     const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'danger-button'; remove.textContent = 'Delete permanently'; remove.setAttribute('aria-label', `Permanently delete ${noteName(note)}`);
     remove.onclick = () => { if (!confirm(`Permanently delete ${noteName(note)}? This cannot be undone.`)) return; save(); tabs = tabs.filter(tab => tab.id !== note.id); renderTabs(); save(); };
     row.append(title, restore, remove); list.append(row);
@@ -262,10 +268,10 @@ function renderTabs() {
   const list = $('tabs'), starter = starterNoteId();
   emptyLibraryVisible = Boolean(starter);
   list.replaceChildren();
-  list.setAttribute('role', starter ? 'group' : 'tablist');
+  list.setAttribute('role', starter && !folders.length ? 'group' : 'tablist');
   renderTrash();
   $('note-total').textContent = String(liveTabs().length - (starter ? 1 : 0));
-  if (starter) {
+  if (starter && !folders.length) {
     const empty = document.createElement('div'); empty.className = 'library-empty-state';
     const message = document.createElement('p'); message.textContent = 'Nothing here yet.';
     const create = document.createElement('button'); create.type = 'button'; create.textContent = 'Create note'; create.setAttribute('aria-label', 'Create note');
@@ -277,7 +283,7 @@ function renderTabs() {
     empty.append(message, create); list.append(empty);
     return;
   }
-  const items = features.treeEntries(workspaceValue(), expandedFolders);
+  const items = features.treeEntries(workspaceValue(), expandedFolders).filter(entry => entry.id !== starter);
   items.forEach(entry => {
     const item = document.createElement('div'); item.className = 'tab'; item.dataset.entry = entry.id; item.style.marginLeft = `${entry.depth * 18}px`; item.style.width = `calc(100% - ${entry.depth * 18}px)`; item.draggable = false;
     const button = document.createElement('button'); button.type = 'button'; button.draggable = false; button.className = 'library-open';
@@ -329,6 +335,11 @@ function addTab(text = '', filename = 'Untitled') {
   // A fresh workspace already has one editable starter note. Reuse it.
   const starter = !text && filename === 'Untitled' ? starterNoteId() : null;
   if (starter) {
+    // Materialize a deliberate blank note when folders exist; otherwise it stays
+    // an internal placeholder until the user begins typing.
+    if (folders.length) {
+      tabs = tabs.map(tab => tab.id === starter ? { ...tab, folderId: currentFolder, order: Date.now() } : tab);
+    }
     switchTab(starter);
     if (richEditor?.isEnabled()) richEditor.focus();
     else if (!$('editor').disabled) $('editor').focus();

@@ -52,6 +52,19 @@ export function starterNoteId(workspace: Workspace): string | null {
   return note.id;
 }
 export const newNote = (id: string): Note => ({ id, text: '', filename: 'Untitled', customName: null });
+/** Repair a stale active note without discarding any notes or folders.
+ * A workspace containing only trashed notes also needs one safe editor placeholder.
+ */
+export function ensureLiveNote(workspace: Workspace, makeId: () => string): Workspace {
+  if (workspace.tabs.some(note => note.id === workspace.activeId && !isTrashed(note))) return workspace;
+  const live = workspace.tabs.find(note => !isTrashed(note));
+  if (live) return { ...workspace, activeId: live.id };
+  let id = makeId();
+  for (let attempt = 1; workspace.tabs.some(note => note.id === id); attempt++) {
+    id = `${makeId()}-${attempt}`;
+  }
+  return { ...workspace, tabs: [...workspace.tabs, newNote(id)], activeId: id };
+}
 export function validWorkspace(value: unknown): value is Workspace {
   const v = value as Workspace | null;
   return Boolean(v && Array.isArray(v.tabs) && v.tabs.length && v.tabs.every(note => note && typeof note.id === 'string' && typeof note.text === 'string' && typeof note.filename === 'string') && new Set(v.tabs.map(note => note.id)).size === v.tabs.length && typeof v.activeId === 'string' && (v.folders === undefined || (Array.isArray(v.folders) && v.folders.every(folder => folder && typeof folder.id === 'string' && typeof folder.name === 'string' && (folder.parentId == null || typeof folder.parentId === 'string')) && new Set(v.folders.map(folder => folder.id)).size === v.folders.length)));

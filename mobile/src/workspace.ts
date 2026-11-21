@@ -1,7 +1,7 @@
 import { protectNote, unlockNote, encryptNote, decryptNote, type Random } from './security';
 import { moveEntry, removeFolder } from './organization';
 import { mergeWorkspaceNotes, type ImportResult } from './backupData';
-import { isTrashed, newNote, starterNoteId, validWorkspace, type Note, type Workspace } from './model';
+import { ensureLiveNote, isTrashed, newNote, starterNoteId, validWorkspace, type Note, type Workspace } from './model';
 export type Status = 'loading' | 'local' | 'pending' | 'saving' | 'saved' | 'offline' | 'conflict' | 'cache-error';
 export interface Storage { getItem(key: string): Promise<string | null>; setItem(key: string, value: string): Promise<unknown> }
 export interface Remote { read(user: string): Promise<{ workspace: Workspace; revision: number } | null>; write(user: string, workspace: Workspace, revision: number | null): Promise<number> }
@@ -18,7 +18,7 @@ export type Snapshot = { workspace: Workspace; loading: boolean; status: Status;
 type Cache = Workspace & { revision: number | null; dirty: boolean };
 export class WorkspaceStore {
   private listeners = new Set<() => void>();
-  private refreshing = false; private generation = 0; private revision: number | null = null; private dirty = false; private ready = false; private writing = false; private conflict = false;
+  private refreshing = false; private generation = 0; private connectionRequest = 0; private revision: number | null = null; private dirty = false; private ready = false; private writing = false; private conflict = false;
   private timer: ReturnType<typeof setTimeout> | undefined; private cacheQueue = Promise.resolve(); private connected = false; private version = 0;
   private snapshot: Snapshot;
   private keyEpoch = 0;
@@ -39,8 +39,11 @@ export class WorkspaceStore {
   }
   private schedule(delay = 700) { clearTimeout(this.timer); if (this.snapshot.user && this.ready && this.dirty && !this.conflict) this.timer = setTimeout(() => { void this.flush(); }, delay); }
   async connect(user: string | null, force = false) {
+    // Even a no-op request can supersede an older account switch still awaiting storage.
+    const request = ++this.connectionRequest;
     if (this.connected && user === this.snapshot.user && !force) return;
     if (this.connected && !this.snapshot.loading) await this.cache();
+    if (request !== this.connectionRequest) return; // An account switch superseded this load.
     this.lockAll(); this.connected = true; const generation = ++this.generation; clearTimeout(this.timer);
     this.ready = false; this.conflict = false; this.dirty = false; this.revision = null;
     this.emit({ loading: true, status: 'loading', user });
@@ -49,7 +52,7 @@ export class WorkspaceStore {
     try { const raw = JSON.parse(await withDeadline(this.storage.getItem(this.key()), 7000) || 'null'); if (validWorkspace(raw)) cached = raw as Cache; } catch { /* Recover with cloud contents or an empty local workspace. */ }
     if (generation !== this.generation) return;
     const note = newNote(this.id());
-    let workspace = cached ? { tabs: cached.tabs, folders: cached.folders || [], activeId: cached.tabs.some(n => n.id === cached!.activeId) ? cached.activeId : cached.tabs[0].id } : { tabs: [note], activeId: note.id };
+    let workspace: Workspace = cached ? ensureLiveNote({ tabs: cached.tabs, folders: cached.folders || [], activeId: cached.activeId }, this.id) : { tabs: [note], activeId: note.id };
     this.revision = Number.isInteger(cached?.revision) ? cached!.revision : null; this.dirty = Boolean(cached?.dirty && user);
     if (!user) { this.emit({ workspace, loading: false, status: 'local' }); return; }
     try {
@@ -57,7 +60,7 @@ export class WorkspaceStore {
       if (generation !== this.generation) return;
       if (row && !validWorkspace(row.workspace)) throw new Error('Invalid cloud notes');
       if (this.dirty && cached) this.conflict = this.revision !== (row?.revision ?? null);
-      else if (row) { workspace = row.workspace; this.revision = row.revision; }
+      else if (row) { workspace = ensureLiveNote(row.workspace, this.id); this.revision = row.revision; }
       else { this.revision = null; this.dirty = true; }
       this.ready = true;
       this.emit({ workspace, loading: false, status: this.conflict ? 'conflict' : this.dirty ? 'pending' : 'saved' });
@@ -72,11 +75,19 @@ export class WorkspaceStore {
   }
   updateNote(note: Note) {
     const original = this.snapshot.workspace.tabs.find(item => item.id === note.id);
-    if (original?.sealed) {
+    // Native editor callbacks can arrive after Trash, a folder move, or a remote refresh.
+    // Never resurrect a deleted note or overwrite newer folder/pin/order metadata.
+    if (!original || isTrashed(original)) return;
+    if (original.sealed) {
       const key = this.keys.get(note.id); if (!key) return;
       note = encryptNote({ ...original, text: note.text, content: note.content, filename: note.filename, customName: note.customName }, key, original.sealed, this.random);
+    } else {
+      const contents = (value: Note) => JSON.stringify([value.text, value.content, value.filename, value.customName]);
+      if (contents(original) === contents(note)) return;
+      note = { ...original, text: note.text, content: note.content, filename: note.filename, customName: note.customName };
     }
-    this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(n => n.id === note.id ? note : n) }); }
+    this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(n => n.id === note.id ? note : n) });
+  }
   add(folderId: string | null = null) {
     const workspace = this.snapshot.workspace;
     const destination = workspace.folders?.some(folder => folder.id === folderId) ? folderId : null;
@@ -121,7 +132,12 @@ export class WorkspaceStore {
     this.update({ ...workspace, tabs, activeId: starterId ? id : workspace.activeId });
   }
   deletePermanently(id: string) {
-    this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.filter(note => note.id !== id || !isTrashed(note)) });
+    // A stale Trash button must never delete a note restored on another screen.
+    if (!this.snapshot.workspace.tabs.some(note => note.id === id && isTrashed(note))) return;
+    this.keys.get(id)?.fill(0); this.keys.delete(id);
+    const workspace = this.snapshot.workspace;
+    const tabs = workspace.tabs.filter(note => note.id !== id);
+    this.update(ensureLiveNote({ ...workspace, tabs, activeId: workspace.activeId }, this.id));
   }
   visibleNote(id: string) {
     const note = this.snapshot.workspace.tabs.find(item => item.id === id); if (!note?.sealed) return note;
@@ -131,9 +147,12 @@ export class WorkspaceStore {
   lock(id: string) { this.keyEpoch++; this.keys.get(id)?.fill(0); this.keys.delete(id); this.emit({}); }
   lockAll() { this.keyEpoch++; this.keys.forEach(key => key.fill(0)); this.keys.clear(); this.emit({}); }
   async unlock(id: string, password: string) {
-    const original = this.snapshot.workspace.tabs.find(item => item.id === id); if (!original?.sealed) return;
+    const original = this.snapshot.workspace.tabs.find(item => item.id === id); if (!original?.sealed || isTrashed(original)) return;
     const user = this.snapshot.user, epoch = this.keyEpoch, result = await unlockNote(original, password);
-    if (epoch !== this.keyEpoch || user !== this.snapshot.user || this.snapshot.workspace.tabs.find(item => item.id === id)?.sealed !== original.sealed) { result.key.fill(0); throw new Error('Note changed. Try unlocking again.'); }
+    const latest = this.snapshot.workspace.tabs.find(item => item.id === id);
+    if (epoch !== this.keyEpoch || user !== this.snapshot.user || !latest || isTrashed(latest) || latest.sealed !== original.sealed) {
+      result.key.fill(0); throw new Error('Note changed. Try unlocking again.');
+    }
     this.keys.get(id)?.fill(0); this.keys.set(id, result.key); this.emit({});
   }
   getUnlockedKey(id: string): Uint8Array | null {
@@ -143,19 +162,20 @@ export class WorkspaceStore {
   }
   unlockWithKey(id: string, key: Uint8Array) {
     const original = this.snapshot.workspace.tabs.find(item => item.id === id);
-    if (!original?.sealed) throw new Error('Note is no longer protected.');
+    if (!original?.sealed || isTrashed(original)) throw new Error('Note is no longer available to unlock.');
     const user = this.snapshot.user, epoch = this.keyEpoch, generation = this.generation;
     try { decryptNote(original, key); }
     catch { throw new Error('Face ID could not unlock this note. Use your note password.'); }
     if (epoch !== this.keyEpoch || generation !== this.generation || user !== this.snapshot.user ||
-        this.snapshot.workspace.tabs.find(item => item.id === id)?.sealed !== original.sealed) {
+        this.snapshot.workspace.tabs.find(item => item.id === id)?.sealed !== original.sealed ||
+        isTrashed(this.snapshot.workspace.tabs.find(item => item.id === id)!)) {
       throw new Error('Note changed. Try unlocking again.');
     }
     this.keys.get(id)?.fill(0);
     this.keys.set(id, key.slice()); this.emit({});
   }
   async protect(id: string, password: string) {
-    const original = this.snapshot.workspace.tabs.find(item => item.id === id); if (!original || original.sealed) return;
+    const original = this.snapshot.workspace.tabs.find(item => item.id === id); if (!original || isTrashed(original) || original.sealed) return;
     const user = this.snapshot.user, epoch = this.keyEpoch, generation = this.generation;
     const result = await protectNote(original, password, this.random);
     const unchanged = () => epoch === this.keyEpoch && generation === this.generation && user === this.snapshot.user &&
@@ -185,22 +205,28 @@ export class WorkspaceStore {
     this.update(next); await this.cacheQueue;
   }
   unprotect(id: string) {
-    const plain = this.visibleNote(id); if (!plain || plain.sealed) return;
+    const plain = this.visibleNote(id); if (!plain || isTrashed(plain) || plain.sealed) return;
     this.keys.get(id)?.fill(0); this.keys.delete(id);
     this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(note => note.id === id ? plain : note) });
   }
   pin(id: string) {
     const workspace = this.snapshot.workspace;
-    if (!workspace.tabs.some(note => note.id === id) && !workspace.folders?.some(folder => folder.id === id)) return;
+    if (!workspace.tabs.some(note => note.id === id && !isTrashed(note)) && !workspace.folders?.some(folder => folder.id === id)) return;
     this.update({ ...workspace,
-      tabs: workspace.tabs.map(note => note.id === id ? { ...note, pinned: !note.pinned } : note),
+      tabs: workspace.tabs.map(note => note.id === id && !isTrashed(note) ? { ...note, pinned: !note.pinned } : note),
       folders: (workspace.folders || []).map(folder => folder.id === id ? { ...folder, pinned: !folder.pinned } : folder)
     });
   }
   addFolder(name: string, parentId: string | null = null) { const id = this.id(); this.update({ ...this.snapshot.workspace, folders: [...(this.snapshot.workspace.folders || []), { id, name: name.trim().slice(0, 80) || 'New folder', parentId, order: Date.now() }] }); return id; }
   renameFolder(id: string, name: string) { if (name.trim()) this.update({ ...this.snapshot.workspace, folders: (this.snapshot.workspace.folders || []).map(folder => folder.id === id ? { ...folder, name: name.trim().slice(0, 80) } : folder) }); }
-  removeFolder(id: string) { this.update(removeFolder(this.snapshot.workspace, id)); }
-  move(id: string, parentId: string | null, beforeId?: string) { this.update(moveEntry(this.snapshot.workspace, id, parentId, beforeId)); }
+  removeFolder(id: string) {
+    const workspace = this.snapshot.workspace, next = removeFolder(workspace, id);
+    if (next !== workspace) this.update(next);
+  }
+  move(id: string, parentId: string | null, beforeId?: string) {
+    const workspace = this.snapshot.workspace, next = moveEntry(workspace, id, parentId, beforeId);
+    if (next !== workspace) this.update(next);
+  }
   // Reconnect in place so a network hiccup never unmounts the editor or
   // replaces unsaved text with an older AsyncStorage snapshot.
   async recoverConnection() {
@@ -220,7 +246,7 @@ export class WorkspaceStore {
         this.revision = row.revision;
         const activeId = this.snapshot.workspace.activeId;
         this.version++;
-        this.emit({ workspace: { ...row.workspace, activeId: row.workspace.tabs.some(note => note.id === activeId && !isTrashed(note)) ? activeId : row.workspace.activeId } });
+        this.emit({ workspace: ensureLiveNote({ ...row.workspace, activeId: row.workspace.tabs.some(note => note.id === activeId && !isTrashed(note)) ? activeId : row.workspace.activeId }, this.id) });
       } else {
         this.revision = null;
         this.dirty = true;
@@ -264,7 +290,7 @@ export class WorkspaceStore {
       if (generation !== this.generation || version !== this.version || this.dirty || this.writing || !row || !validWorkspace(row.workspace)) return;
       if (row.revision === this.revision) return;
       const activeId = this.snapshot.workspace.activeId;
-      const workspace = { ...row.workspace, activeId: row.workspace.tabs.some(note => note.id === activeId && !isTrashed(note)) ? activeId : row.workspace.activeId };
+      const workspace = ensureLiveNote({ ...row.workspace, activeId: row.workspace.tabs.some(note => note.id === activeId && !isTrashed(note)) ? activeId : row.workspace.activeId }, this.id);
       this.revision = row.revision; this.version++;
       this.emit({ workspace, status: 'saved' }); await this.cache();
     } catch { /* Keep the local copy; the next event or fallback timer retries. */ }
@@ -277,12 +303,13 @@ export class WorkspaceStore {
     await this.storage.setItem(`bestpad:mobile:workspace:${user}`, 'null');
   }
   async useCloudCopy() {
-    const user = this.snapshot.user, generation = this.generation; if (!user || this.snapshot.loading) return;
+    const user = this.snapshot.user, generation = this.generation, version = this.version; if (!user || this.snapshot.loading) return;
     const row = await this.remote.read(user);
     if (!row || !validWorkspace(row.workspace)) throw new Error('Cloud notes could not be loaded. Local changes are kept.');
     if (generation !== this.generation) return;
+    if (version !== this.version) throw new Error('Notes changed while loading the cloud copy. Nothing was replaced; back up your current notes and retry.');
     this.revision = row.revision; this.dirty = false; this.conflict = false; this.ready = true; this.version++;
-    this.emit({ workspace: row.workspace, status: 'saved' }); await this.cache();
+    this.emit({ workspace: ensureLiveNote(row.workspace, this.id), status: 'saved' }); await this.cache();
   }
   importWorkspace(imported: Workspace): ImportResult {
     if (this.snapshot.loading || this.conflict) throw new Error('Wait for notes to finish loading or resolve the cloud conflict before importing.');
