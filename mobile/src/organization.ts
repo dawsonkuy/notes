@@ -1,9 +1,13 @@
 import { noteName, isTrashed, type Workspace, type Note, type Folder } from './model';
 export type Entry = { id: string; kind: 'note' | 'folder'; name: string; order: number; pinned: boolean };
 export function entries(workspace: Workspace, parentId: string | null): Entry[] {
+  // Legacy, imported, or partially synced folder references must not make notes
+  // disappear from the library. Show orphaned items at the root, preserving data.
+  const folders = workspace.folders || [], folderIds = new Set(folders.map(folder => folder.id));
+  const visibleParent = (id?: string | null) => id && folderIds.has(id) ? id : null;
   return [
-    ...(workspace.folders || []).filter(folder => (folder.parentId || null) === parentId).map(folder => ({ id: folder.id, kind: 'folder' as const, name: folder.name, order: Number(folder.order) || 0, pinned: Boolean(folder.pinned) })),
-    ...workspace.tabs.filter(note => !isTrashed(note) && (note.folderId || null) === parentId).map(note => ({ id: note.id, kind: 'note' as const, name: noteName(note), order: Number(note.order) || 0, pinned: Boolean(note.pinned) })),
+    ...folders.filter(folder => visibleParent(folder.parentId) === parentId).map(folder => ({ id: folder.id, kind: 'folder' as const, name: folder.name, order: Number(folder.order) || 0, pinned: Boolean(folder.pinned) })),
+    ...workspace.tabs.filter(note => !isTrashed(note) && visibleParent(note.folderId) === parentId).map(note => ({ id: note.id, kind: 'note' as const, name: noteName(note), order: Number(note.order) || 0, pinned: Boolean(note.pinned) })),
   ].sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.order - b.order);
 }
 export function canMove(workspace: Workspace, id: string, parentId: string | null) {
@@ -15,7 +19,7 @@ export function canMove(workspace: Workspace, id: string, parentId: string | nul
 }
 export function moveEntry(workspace: Workspace, id: string, parentId: string | null, beforeId?: string): Workspace {
   if (beforeId === id) return workspace;
-  if (!workspace.tabs.some(note => note.id === id) && !workspace.folders?.some(folder => folder.id === id)) return workspace;
+  if (!workspace.tabs.some(note => note.id === id && !isTrashed(note)) && !workspace.folders?.some(folder => folder.id === id)) return workspace;
   if (!canMove(workspace, id, parentId)) return workspace;
   const siblings = entries(workspace, parentId).filter(entry => entry.id !== id); const at = beforeId ? siblings.findIndex(entry => entry.id === beforeId) : -1;
   const ids = siblings.map(entry => entry.id); ids.splice(at < 0 ? ids.length : at, 0, id);
@@ -40,5 +44,15 @@ export function treeEntries(workspace: Workspace, expanded: ReadonlySet<string>)
       if (item.kind === 'folder' && expanded.has(item.id)) walk(item.id, depth + 1);
     }
   }
-  walk(null, 0); return result;
+  walk(null, 0);
+  // Malformed folder cycles can hide entire subtrees. Surface their first folder
+  // at the top level, then let the user open it and move its contents normally.
+  for (const folder of workspace.folders || []) {
+    if (visited.has(folder.id)) continue;
+    visited.add(folder.id);
+    result.push({ id: folder.id, kind: 'folder', name: folder.name, order: Number(folder.order) || 0,
+      pinned: Boolean(folder.pinned), depth: 0, parentId: null });
+    if (expanded.has(folder.id)) walk(folder.id, 1);
+  }
+  return result;
 }
