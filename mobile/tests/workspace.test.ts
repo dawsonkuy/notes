@@ -66,6 +66,41 @@ test('deleted-account cleanup removes its cache and keeps guest notes', async ()
   } finally { f.store.dispose(); }
 });
 
+test('trashing the last note in a folder hides only the generated placeholder', async () => {
+  const { starterNoteId, isTrashed } = await import('../src/model');
+  const { treeEntries } = await import('../src/organization');
+  const f = fixture();
+  try {
+    const original = { ...newNote('inside'), text: 'Keep this', folderId: 'folder-1', order: 1 };
+    const workspace: Workspace = {
+      tabs: [original], activeId: original.id,
+      folders: [{ id: 'folder-1', name: 'My folder', order: 0 }],
+    };
+    f.rows.set('alice', { workspace, revision: 1 });
+    await f.store.connect('alice');
+    f.store.remove(original.id);
+    const after = f.store.getSnapshot().workspace;
+    const placeholderId = starterNoteId(after);
+    assert.ok(placeholderId, 'the auto-created blank note should be recognized even with folders');
+    assert.notEqual(placeholderId, original.id);
+    assert.ok(after.tabs.find(note => note.id === original.id && isTrashed(note)));
+    assert.deepEqual(treeEntries(after, new Set(['folder-1']))
+      .filter(entry => entry.id !== placeholderId).map(entry => entry.name), ['My folder']);
+    assert.deepEqual(after.folders, workspace.folders, 'the folder must remain available');
+
+    // Creating a deliberate new note must display it, not hide it as a placeholder.
+    const newId = f.store.add('folder-1');
+    const withNewNote = f.store.getSnapshot().workspace;
+    assert.equal(starterNoteId(withNewNote), null);
+    assert.ok(treeEntries(withNewNote, new Set(['folder-1'])).some(entry => entry.id === newId));
+
+    f.store.restore(original.id);
+    const restored = f.store.getSnapshot().workspace.tabs.find(note => note.id === original.id);
+    assert.equal(restored?.text, 'Keep this');
+    assert.equal(restored?.folderId, 'folder-1');
+  } finally { f.store.dispose(); }
+});
+
 test('Trash retains note content, restores by ID, and never permanently deletes a live note', async () => {
   const f = fixture(); try {
     const original = { ...newNote('existing'), text: 'Keep this', customName: 'Named note', content: [{ insert: 'Keep this\n' }] };
