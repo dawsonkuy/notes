@@ -171,7 +171,9 @@ test('renaming an unknown or trashed note never creates a new record', async () 
     const before = f.store.getSnapshot().workspace.tabs.length;
     f.store.rename('not-there', 'Wrong');
     assert.equal(f.store.getSnapshot().workspace.tabs.length, before);
-    const id = f.store.getSnapshot().workspace.tabs[0].id;
+    const original = f.store.getSnapshot().workspace.tabs[0];
+    const id = original.id;
+    f.store.updateNote({ ...original, text: 'Ready to delete' });
     f.store.remove(id);
     f.store.rename(id, 'Deleted');
     assert.notEqual(f.store.getSnapshot().workspace.tabs.find(n => n.id === id)?.customName, 'Deleted');
