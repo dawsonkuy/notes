@@ -39,8 +39,9 @@ export class WorkspaceStore {
   }
   private schedule(delay = 700) { clearTimeout(this.timer); if (this.snapshot.user && this.ready && this.dirty && !this.conflict) this.timer = setTimeout(() => { void this.flush(); }, delay); }
   async connect(user: string | null, force = false) {
-    if (this.connected && user === this.snapshot.user && !force) return;
+    // Even a no-op request can supersede an older account switch still awaiting storage.
     const request = ++this.connectionRequest;
+    if (this.connected && user === this.snapshot.user && !force) return;
     if (this.connected && !this.snapshot.loading) await this.cache();
     if (request !== this.connectionRequest) return; // An account switch superseded this load.
     this.lockAll(); this.connected = true; const generation = ++this.generation; clearTimeout(this.timer);
