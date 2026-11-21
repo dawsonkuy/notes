@@ -185,6 +185,8 @@ test('corrupt active IDs and all-trashed cloud workspaces remain usable without 
   assert.equal(repaired.tabs.length, 2);
   assert.equal(starterNoteId(repaired), 'fresh');
   assert.equal(repaired.tabs.filter(isTrashed).length, 1);
+  assert.equal(ensureLiveNote(entirelyTrashed, () => 'deleted').activeId, 'deleted-1',
+    'a malfunctioning ID generator must not loop forever on a collision');
 
   const f = fixture();
   try {
@@ -193,6 +195,33 @@ test('corrupt active IDs and all-trashed cloud workspaces remain usable without 
     assert.equal(f.store.getSnapshot().workspace.activeId, 'live');
     assert.equal(f.store.getSnapshot().workspace.tabs.find(n => n.id === 'deleted')?.text, 'In Trash');
   } finally { f.store.dispose(); }
+});
+
+test('logging out cancels a login that is still waiting for the previous cache write', async () => {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let holdWrites = false, reads = 0;
+  const storage: Storage = {
+    getItem: async () => null,
+    setItem: async () => { if (holdWrites) await gate; },
+  };
+  const remote: Remote = {
+    read: async () => { reads++; return null; },
+    write: async () => 1,
+  };
+  const store = new WorkspaceStore(storage, remote, () => 'unique-note');
+  try {
+    await store.connect(null);
+    holdWrites = true;
+    const login = store.connect('alice');
+    await Promise.resolve();
+    await store.connect(null);
+    release();
+    await login;
+    assert.equal(store.getSnapshot().user, null);
+    assert.equal(store.getSnapshot().status, 'local');
+    assert.equal(reads, 0, 'superseded login must not read private account data');
+  } finally { release(); store.dispose(); }
 });
 
 test('cloud-copy recovery cannot overwrite edits made while its network request is pending', async () => {
