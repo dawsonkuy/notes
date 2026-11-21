@@ -134,6 +134,24 @@ test('background locking cancels an in-flight password unlock', async () => {
   try { await store.connect('account'); const opening = store.unlock('locked', 'long enough password'); store.lockAll(); await assert.rejects(opening, /changed/); assert.ok(store.visibleNote('locked')?.sealed); } finally { store.dispose(); }
 });
 
+test('moving a protected note to Trash rejects a pending unlock and its Face ID key', async () => {
+  const protectedNote = await protectNote({ ...newNote('secret'), text: 'Private body' }, 'long enough password', bytes);
+  const remote: Remote = {
+    read: async () => ({ workspace: { tabs: [protectedNote.note], activeId: 'secret' }, revision: 1 }),
+    write: async () => 2,
+  };
+  const store = new WorkspaceStore({ getItem: async () => null, setItem: async () => {} }, remote, () => 'replacement', bytes);
+  try {
+    await store.connect('account');
+    const pending = store.unlock('secret', 'long enough password');
+    store.remove('secret');
+    await assert.rejects(pending, /Note changed/);
+    assert.ok(store.getSnapshot().workspace.tabs.find(n => n.id === 'secret')?.deletedAt);
+    assert.equal(store.getUnlockedKey('secret'), null);
+    assert.throws(() => store.unlockWithKey('secret', protectedNote.key), /no longer available/);
+  } finally { protectedNote.key.fill(0); store.dispose(); }
+});
+
 test('folder membership, pins and ordering survive cloud reload and further edits', async () => {
   let row: { workspace: Workspace; revision: number } | null = null; let id = 0;
   const remote: Remote = { read: async () => row ? structuredClone(row) : null, write: async (_u, workspace) => { row = { workspace: structuredClone(workspace), revision: (row?.revision || 0) + 1 }; return row.revision; } };
