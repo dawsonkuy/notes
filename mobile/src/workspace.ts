@@ -147,9 +147,12 @@ export class WorkspaceStore {
   lock(id: string) { this.keyEpoch++; this.keys.get(id)?.fill(0); this.keys.delete(id); this.emit({}); }
   lockAll() { this.keyEpoch++; this.keys.forEach(key => key.fill(0)); this.keys.clear(); this.emit({}); }
   async unlock(id: string, password: string) {
-    const original = this.snapshot.workspace.tabs.find(item => item.id === id); if (!original?.sealed) return;
+    const original = this.snapshot.workspace.tabs.find(item => item.id === id); if (!original?.sealed || isTrashed(original)) return;
     const user = this.snapshot.user, epoch = this.keyEpoch, result = await unlockNote(original, password);
-    if (epoch !== this.keyEpoch || user !== this.snapshot.user || this.snapshot.workspace.tabs.find(item => item.id === id)?.sealed !== original.sealed) { result.key.fill(0); throw new Error('Note changed. Try unlocking again.'); }
+    const latest = this.snapshot.workspace.tabs.find(item => item.id === id);
+    if (epoch !== this.keyEpoch || user !== this.snapshot.user || !latest || isTrashed(latest) || latest.sealed !== original.sealed) {
+      result.key.fill(0); throw new Error('Note changed. Try unlocking again.');
+    }
     this.keys.get(id)?.fill(0); this.keys.set(id, result.key); this.emit({});
   }
   getUnlockedKey(id: string): Uint8Array | null {
@@ -159,12 +162,13 @@ export class WorkspaceStore {
   }
   unlockWithKey(id: string, key: Uint8Array) {
     const original = this.snapshot.workspace.tabs.find(item => item.id === id);
-    if (!original?.sealed) throw new Error('Note is no longer protected.');
+    if (!original?.sealed || isTrashed(original)) throw new Error('Note is no longer available to unlock.');
     const user = this.snapshot.user, epoch = this.keyEpoch, generation = this.generation;
     try { decryptNote(original, key); }
     catch { throw new Error('Face ID could not unlock this note. Use your note password.'); }
     if (epoch !== this.keyEpoch || generation !== this.generation || user !== this.snapshot.user ||
-        this.snapshot.workspace.tabs.find(item => item.id === id)?.sealed !== original.sealed) {
+        this.snapshot.workspace.tabs.find(item => item.id === id)?.sealed !== original.sealed ||
+        isTrashed(this.snapshot.workspace.tabs.find(item => item.id === id)!)) {
       throw new Error('Note changed. Try unlocking again.');
     }
     this.keys.get(id)?.fill(0);
