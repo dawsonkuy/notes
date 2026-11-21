@@ -88,16 +88,33 @@ test('trashing the last note in a folder hides only the generated placeholder', 
       .filter(entry => entry.id !== placeholderId).map(entry => entry.name), ['My folder']);
     assert.deepEqual(after.folders, workspace.folders, 'the folder must remain available');
 
-    // Creating a deliberate new note must display it, not hide it as a placeholder.
-    const newId = f.store.add('folder-1');
-    const withNewNote = f.store.getSnapshot().workspace;
-    assert.equal(starterNoteId(withNewNote), null);
-    assert.ok(treeEntries(withNewNote, new Set(['folder-1'])).some(entry => entry.id === newId));
+    // Even a stale action targeting the generated blank note must not create a loop.
+    f.store.remove(placeholderId);
+    assert.equal(f.store.getSnapshot().workspace.tabs.length, 2);
+    assert.equal(starterNoteId(f.store.getSnapshot().workspace), placeholderId);
 
+    // Undo removes the generated placeholder without losing the restored folder note.
     f.store.restore(original.id);
-    const restored = f.store.getSnapshot().workspace.tabs.find(note => note.id === original.id);
+    const restoredWorkspace = f.store.getSnapshot().workspace;
+    const restored = restoredWorkspace.tabs.find(note => note.id === original.id);
     assert.equal(restored?.text, 'Keep this');
     assert.equal(restored?.folderId, 'folder-1');
+    assert.equal(restoredWorkspace.tabs.length, 1);
+    assert.equal(restoredWorkspace.activeId, original.id);
+
+    // A deliberate new note reuses the replacement instead of revealing it beside the new note.
+    f.store.remove(original.id);
+    const nextPlaceholderId = starterNoteId(f.store.getSnapshot().workspace);
+    assert.ok(nextPlaceholderId);
+    const newId = f.store.add('folder-1');
+    const withNewNote = f.store.getSnapshot().workspace;
+    assert.equal(newId, nextPlaceholderId);
+    assert.equal(withNewNote.tabs.length, 2);
+    assert.equal(starterNoteId(withNewNote), null);
+    assert.deepEqual(treeEntries(withNewNote, new Set(['folder-1'])).map(entry => entry.name),
+      ['My folder', 'Untitled']);
+    f.store.restore(original.id);
+    assert.equal(f.store.getSnapshot().workspace.tabs.length, 2, 'restoring does not create another blank note');
   } finally { f.store.dispose(); }
 });
 
