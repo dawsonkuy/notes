@@ -1425,8 +1425,19 @@ var BestpadFeatures = (() => {
       }
     }
     walk(null, 0);
+    const folderById = new Map((workspace.folders || []).map((folder) => [folder.id, folder]));
+    const inCycle = (start) => {
+      const ancestors = new Set();
+      let current = start;
+      while (current) {
+        if (ancestors.has(current.id)) return true;
+        ancestors.add(current.id);
+        current = current.parentId ? folderById.get(current.parentId) : void 0;
+      }
+      return false;
+    };
     for (const folder of workspace.folders || []) {
-      if (visited.has(folder.id)) continue;
+      if (visited.has(folder.id) || !inCycle(folder)) continue;
       visited.add(folder.id);
       result.push({ id: folder.id, kind: "folder", name: folder.name, order: Number(folder.order) || 0, pinned: Boolean(folder.pinned), depth: 0, parentId: null });
       if (expanded.has(folder.id)) walk(folder.id, 1);
