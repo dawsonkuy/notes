@@ -15,6 +15,32 @@ test('folders reorder with notes, reject cycles, and preserve contents when remo
   const removed = removeFolder(moved, 'child'); assert.equal(removed.tabs[0].folderId, 'parent'); assert.equal(removed.tabs[1].folderId, 'parent');
   assert.equal(removed.tabs[0].text, 'Note');
 });
+test('orphaned folder references and cycles cannot hide user notes', async () => {
+  const { treeEntries } = await import('../src/organization');
+  const workspace: Workspace = {
+    tabs: [
+      { ...newNote('orphan'), text: 'Never hide me', folderId: 'deleted-folder' },
+      { ...newNote('nested'), text: 'Still here', folderId: 'cycle-a' },
+      { ...newNote('trashed'), text: 'Trash must stay hidden', folderId: 'deleted-folder', deletedAt: new Date().toISOString() },
+    ], activeId: 'orphan',
+    folders: [
+      { id: 'loose-folder', name: 'Loose folder', parentId: 'not-a-folder' },
+      { id: 'cycle-a', name: 'Cycle A', parentId: 'cycle-b' },
+      { id: 'cycle-b', name: 'Cycle B', parentId: 'cycle-a' },
+    ],
+  };
+  const root = entries(workspace, null);
+  assert.ok(root.some(item => item.id === 'orphan'), 'orphaned notes are visible at root');
+  assert.ok(root.some(item => item.id === 'loose-folder'));
+  assert.ok(!root.some(item => item.id === 'trashed'));
+  const visible = treeEntries(workspace, new Set(['cycle-a', 'cycle-b', 'loose-folder']));
+  assert.equal(visible.filter(item => item.id === 'cycle-a').length, 1);
+  assert.equal(visible.filter(item => item.id === 'cycle-b').length, 1);
+  assert.ok(visible.some(item => item.id === 'nested'));
+  assert.ok(visible.length < 10, 'cycle traversal terminates');
+  assert.equal(moveEntry(workspace, 'trashed', null), workspace, 'a trashed note cannot be moved');
+});
+
 test('pinning floats notes while keeping manual ordering inside each group', () => {
   const workspace: Workspace = { tabs: [{ ...newNote('a'), order: 1 }, { ...newNote('b'), pinned: true, order: 5 }, { ...newNote('c'), pinned: true, order: 2 }], activeId: 'a' };
   assert.deepEqual(entries(workspace, null).map(item => item.id), ['c', 'b', 'a']);
