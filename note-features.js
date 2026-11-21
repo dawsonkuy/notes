@@ -1375,9 +1375,12 @@ var BestpadFeatures = (() => {
 
   // mobile/src/organization.ts
   function entries(workspace, parentId) {
+    const folders = workspace.folders || [];
+    const folderIds = new Set(folders.map((folder) => folder.id));
+    const visibleParent = (id) => id && folderIds.has(id) ? id : null;
     return [
-      ...(workspace.folders || []).filter((folder) => (folder.parentId || null) === parentId).map((folder) => ({ id: folder.id, kind: "folder", name: folder.name, order: Number(folder.order) || 0, pinned: Boolean(folder.pinned) })),
-      ...workspace.tabs.filter((note) => !isTrashed(note) && (note.folderId || null) === parentId).map((note) => ({ id: note.id, kind: "note", name: noteName(note), order: Number(note.order) || 0, pinned: Boolean(note.pinned) }))
+      ...folders.filter((folder) => visibleParent(folder.parentId) === parentId).map((folder) => ({ id: folder.id, kind: "folder", name: folder.name, order: Number(folder.order) || 0, pinned: Boolean(folder.pinned) })),
+      ...workspace.tabs.filter((note) => !isTrashed(note) && visibleParent(note.folderId) === parentId).map((note) => ({ id: note.id, kind: "note", name: noteName(note), order: Number(note.order) || 0, pinned: Boolean(note.pinned) }))
     ].sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.order - b.order);
   }
   function canMove(workspace, id, parentId) {
@@ -1395,7 +1398,7 @@ var BestpadFeatures = (() => {
   }
   function moveEntry(workspace, id, parentId, beforeId) {
     if (beforeId === id) return workspace;
-    if (!workspace.tabs.some((note) => note.id === id) && !workspace.folders?.some((folder) => folder.id === id)) return workspace;
+    if (!workspace.tabs.some((note) => note.id === id && !isTrashed(note)) && !workspace.folders?.some((folder) => folder.id === id)) return workspace;
     if (!canMove(workspace, id, parentId)) return workspace;
     const siblings = entries(workspace, parentId).filter((entry) => entry.id !== id);
     const at = beforeId ? siblings.findIndex((entry) => entry.id === beforeId) : -1;
@@ -1422,6 +1425,12 @@ var BestpadFeatures = (() => {
       }
     }
     walk(null, 0);
+    for (const folder of workspace.folders || []) {
+      if (visited.has(folder.id)) continue;
+      visited.add(folder.id);
+      result.push({ id: folder.id, kind: "folder", name: folder.name, order: Number(folder.order) || 0, pinned: Boolean(folder.pinned), depth: 0, parentId: null });
+      if (expanded.has(folder.id)) walk(folder.id, 1);
+    }
     return result;
   }
 
