@@ -1,7 +1,7 @@
 import { protectNote, unlockNote, encryptNote, decryptNote, type Random } from './security';
 import { moveEntry, removeFolder } from './organization';
 import { mergeWorkspaceNotes, type ImportResult } from './backupData';
-import { isTrashed, newNote, validWorkspace, type Note, type Workspace } from './model';
+import { isTrashed, newNote, starterNoteId, validWorkspace, type Note, type Workspace } from './model';
 export type Status = 'loading' | 'local' | 'pending' | 'saving' | 'saved' | 'offline' | 'conflict' | 'cache-error';
 export interface Storage { getItem(key: string): Promise<string | null>; setItem(key: string, value: string): Promise<unknown> }
 export interface Remote { read(user: string): Promise<{ workspace: Workspace; revision: number } | null>; write(user: string, workspace: Workspace, revision: number | null): Promise<number> }
@@ -77,7 +77,20 @@ export class WorkspaceStore {
       note = encryptNote({ ...original, text: note.text, content: note.content, filename: note.filename, customName: note.customName }, key, original.sealed, this.random);
     }
     this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(n => n.id === note.id ? note : n) }); }
-  add(folderId: string | null = null) { const note = { ...newNote(this.id()), folderId: this.snapshot.workspace.folders?.some(folder => folder.id === folderId) ? folderId : null, order: Date.now() }; this.update({ ...this.snapshot.workspace, tabs: [...this.snapshot.workspace.tabs, note], activeId: note.id }); return note.id; }
+  add(folderId: string | null = null) {
+    const workspace = this.snapshot.workspace;
+    const destination = workspace.folders?.some(folder => folder.id === folderId) ? folderId : null;
+    const starterId = starterNoteId(workspace);
+    // Reuse the internal empty note instead of exposing it when the user creates a real note.
+    if (starterId) {
+      this.update({ ...workspace, tabs: workspace.tabs.map(note => note.id === starterId
+        ? { ...note, folderId: destination, order: Date.now() } : note), activeId: starterId });
+      return starterId;
+    }
+    const note = { ...newNote(this.id()), folderId: destination, order: Date.now() };
+    this.update({ ...workspace, tabs: [...workspace.tabs, note], activeId: note.id });
+    return note.id;
+  }
   rename(id: string, name: string | null) {
     const current = this.snapshot.workspace.tabs.find(note => note.id === id && !isTrashed(note));
     if (!current || current.sealed) return;
@@ -87,6 +100,9 @@ export class WorkspaceStore {
   }
   activate(id: string) { if (this.snapshot.workspace.tabs.some(n => n.id === id && !isTrashed(n))) { this.emit({ workspace: { ...this.snapshot.workspace, activeId: id } }); void this.cache(); } }
   remove(id: string) {
+    // The synthetic starter is not a user note: trashing it would create another indefinitely.
+    if (starterNoteId(this.snapshot.workspace) === id) return;
+    if (!this.snapshot.workspace.tabs.some(note => note.id === id && !isTrashed(note))) return;
     this.keys.get(id)?.fill(0); this.keys.delete(id);
     const tabs = this.snapshot.workspace.tabs.map(note => note.id === id && !isTrashed(note) ? { ...note, deletedAt: new Date().toISOString() } : note);
     if (!tabs.some(note => !isTrashed(note))) tabs.push(newNote(this.id()));
@@ -94,7 +110,15 @@ export class WorkspaceStore {
     this.update({ ...this.snapshot.workspace, tabs, activeId });
   }
   restore(id: string) {
-    this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.map(note => { if (note.id !== id || !isTrashed(note)) return note; const restored = { ...note }; delete restored.deletedAt; return restored; }) });
+    const workspace = this.snapshot.workspace;
+    if (!workspace.tabs.some(note => note.id === id && isTrashed(note))) return;
+    // If Trash generated an untouched replacement, discard it once a real note returns.
+    const starterId = starterNoteId(workspace);
+    const tabs = workspace.tabs.filter(note => note.id !== starterId).map(note => {
+      if (note.id !== id) return note;
+      const restored = { ...note }; delete restored.deletedAt; return restored;
+    });
+    this.update({ ...workspace, tabs, activeId: starterId ? id : workspace.activeId });
   }
   deletePermanently(id: string) {
     this.update({ ...this.snapshot.workspace, tabs: this.snapshot.workspace.tabs.filter(note => note.id !== id || !isTrashed(note)) });
