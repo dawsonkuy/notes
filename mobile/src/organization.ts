@@ -45,10 +45,21 @@ export function treeEntries(workspace: Workspace, expanded: ReadonlySet<string>)
     }
   }
   walk(null, 0);
-  // Malformed folder cycles can hide entire subtrees. Surface their first folder
-  // at the top level, then let the user open it and move its contents normally.
+  // Only disconnected *cycles* need a fallback. Normal collapsed child folders
+  // are not visited either, but must stay nested until their parent is opened.
+  const folderById = new Map((workspace.folders || []).map(folder => [folder.id, folder]));
+  const inCycle = (start: Folder) => {
+    const ancestors = new Set<string>();
+    let current: Folder | undefined = start;
+    while (current) {
+      if (ancestors.has(current.id)) return true;
+      ancestors.add(current.id);
+      current = current.parentId ? folderById.get(current.parentId) : undefined;
+    }
+    return false;
+  };
   for (const folder of workspace.folders || []) {
-    if (visited.has(folder.id)) continue;
+    if (visited.has(folder.id) || !inCycle(folder)) continue;
     visited.add(folder.id);
     result.push({ id: folder.id, kind: 'folder', name: folder.name, order: Number(folder.order) || 0,
       pinned: Boolean(folder.pinned), depth: 0, parentId: null });
